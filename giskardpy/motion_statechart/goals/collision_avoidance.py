@@ -39,7 +39,7 @@ class ExternalCA(Goal):
         self.name = f'{self.name_prefix}/{self.__class__.__name__}/{self.connection.name}/{self.idx}'
         self.main_body = self.connection.child
         self.control_horizon = god_map.qp_controller.config.prediction_horizon - (
-                    god_map.qp_controller.config.max_derivative - 1)
+                god_map.qp_controller.config.max_derivative - 1)
         self.control_horizon = max(1, self.control_horizon)
         # threshold = copy.copy(self.robot.collision_config.external_avoidance_threshold[self.main_body])
         # for body in self.robot.get_directly_child_bodies_with_collision(self.connection):
@@ -65,7 +65,8 @@ class ExternalCA(Goal):
         actual_link_b_hash = self.get_link_b_hash()
         direct_children = self.world.get_directly_child_bodies_with_collision(self.connection)
 
-        buffer_zone = max(b.collision_config.buffer_zone_distance for b in direct_children if b.collision_config.buffer_zone_distance is not None)
+        buffer_zone = max(b.collision_config.buffer_zone_distance for b in direct_children if
+                          b.collision_config.buffer_zone_distance is not None)
         violated_distance = max(b.collision_config.violated_distance for b in direct_children)
         b_result_cases = []
         for body in self.world.bodies_with_enabled_collision:
@@ -160,12 +161,13 @@ class SelfCA(Goal):
         self._plot = False
         self.name = f'{self.name_prefix}/{self.__class__.__name__}/{self.body_a.name}/{self.body_b.name}/{self.idx}'
         self.root = self.world.root
-        self.control_horizon = god_map.qp_controller.config.prediction_horizon - (god_map.qp_controller.config.max_derivative - 1)
+        self.control_horizon = god_map.qp_controller.config.prediction_horizon - (
+                    god_map.qp_controller.config.max_derivative - 1)
         self.control_horizon = max(1, self.control_horizon)
         buffer_zone_distance = max(self.body_a.collision_config.buffer_zone_distance,
-                             self.body_b.collision_config.buffer_zone_distance)
+                                   self.body_b.collision_config.buffer_zone_distance)
         violated_distance = max(self.body_a.collision_config.violated_distance,
-                             self.body_b.collision_config.violated_distance)
+                                self.body_b.collision_config.violated_distance)
         violated_distance = cas.min(violated_distance, buffer_zone_distance / 2)
         actual_distance = self.get_actual_distance()
         number_of_self_collisions = self.get_number_of_self_collisions()
@@ -346,7 +348,7 @@ class CollisionAvoidance(Goal):
         if not self.collision_entries or not self.collision_entries[-1].is_allow_all_collision():
             self.add_external_collision_avoidance_constraints()
         if not self.collision_entries or (not self.collision_entries[-1].is_allow_all_collision() and
-                                     not self.collision_entries[-1].is_allow_all_self_collision()):
+                                          not self.collision_entries[-1].is_allow_all_self_collision()):
             self.add_self_collision_avoidance_constraints()
         # if not cas.is_true_symbol(start_condition):
         #     payload_monitor = CollisionMatrixUpdater(name=f'{self.name}/update collision matrix',
