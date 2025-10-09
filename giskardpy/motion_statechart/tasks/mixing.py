@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Optional
 
 from semantic_world.datastructures.prefixed_name import PrefixedName
@@ -9,35 +10,32 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import (
 from giskardpy.motion_statechart.tasks.task import Task, WEIGHT_BELOW_CA
 import semantic_world.spatial_types.spatial_types as cas
 from semantic_world.spatial_types.symbol_manager import symbol_manager
+from semantic_world.world_description.world_entity import Body
 
 
+@dataclass(kw_only=True)
 class SpiralMixing(Task):
-    def __init__(
-        self,
-        *,
-        name: Optional[str] = None,
-        end_time: float,
-        object_name: PrefixedName,
-        tool_height: float,
-        tip_link: PrefixedName,
-        root_link: PrefixedName,
-        radial_increment: float,
-        angle_increment: float,
-        upward_increment: float,
-        weight: float = WEIGHT_BELOW_CA,
-        plot: bool = True
-    ):
 
-        super().__init__(name=name, plot=plot)
+    end_time: float
+    object_name: Body
+    tool_height: float
+    tip_link: Body
+    root_link: Body
+    radial_increment: float
+    angle_increment: float
+    upward_increment: float
+    weight: float = WEIGHT_BELOW_CA
+
+    def __post_init__(self):
 
         root_T_tip = god_map.world.compose_forward_kinematics_expression(
-            root_link=root_link, tip_link=tip_link
+            root_link=self.root_link, tip_link=self.tip_link
         )
         t = god_map.time_symbol
 
-        r = radial_increment * t
-        a = angle_increment * t
-        h = upward_increment * t
+        r = self.radial_increment * t
+        a = self.angle_increment * t
+        h = self.upward_increment * t
 
         object_T_goal = cas.TransformationMatrix()
         x = r * cas.cos(a)
@@ -49,16 +47,16 @@ class SpiralMixing(Task):
         object_T_goal.z = z
 
         root_T_object = god_map.world.compose_forward_kinematics_expression(
-            root_link=root_link, tip_link=object_name
+            root_link=self.root_link, tip_link=self.object_name
         )
         root_T_goal = root_T_object.dot(object_T_goal)
-        root_T_goal.z += tool_height + 0.05
+        root_T_goal.z += self.tool_height + 0.05
 
         self.add_point_goal_constraints(
             frame_P_current=root_T_tip.to_position(),
             frame_P_goal=root_T_goal.to_position(),
             reference_velocity=CartesianPosition.default_reference_velocity,
-            weight=weight,
+            weight=self.weight,
         )
         god_map.debug_expression_manager.add_debug_expression(
             "root_T_goal", root_T_goal
@@ -67,7 +65,7 @@ class SpiralMixing(Task):
             frame_R_current=root_T_tip.to_rotation_matrix(),
             frame_R_goal=root_T_goal.to_rotation_matrix(),
             reference_velocity=CartesianOrientation.default_reference_velocity,
-            weight=weight,
+            weight=self.weight,
         )
 
-        self.observation_expression = t > end_time
+        self.observation_expression = t > self.end_time

@@ -12,42 +12,32 @@ from semantic_world.spatial_types.derivatives import Derivatives
 from semantic_world.world_description.world_entity import Body
 
 
+@dataclass
 class CartesianPosition(Task):
     default_reference_velocity = 0.2
+    root_link: Body
+    tip_link: Body
+    goal_point: cas.Point3
+    threshold: float = 0.01
+    reference_velocity: Optional[float] = None
+    weight: float = WEIGHT_ABOVE_CA
+    absolute: bool = False
 
-    def __init__(
-        self,
-        root_link: PrefixedName,
-        tip_link: PrefixedName,
-        goal_point: cas.Point3,
-        threshold: float = 0.01,
-        reference_velocity: Optional[float] = None,
-        weight: float = WEIGHT_ABOVE_CA,
-        absolute: bool = False,
-        name: Optional[str] = None,
-        plot: bool = True,
-    ):
+    def __post_init__(self):
         """
         See CartesianPose.
         """
-        self.root_link = root_link
-        self.tip_link = tip_link
-        if name is None:
-            name = f"{self.__class__.__name__}/{self.root_link}/{self.tip_link}"
-        super().__init__(name=name)
-        if reference_velocity is None:
-            reference_velocity = self.default_reference_velocity
-        self.reference_velocity = reference_velocity
-        self.weight = weight
-        if absolute:
+        if self.reference_velocity is None:
+            self.reference_velocity = self.default_reference_velocity
+        if self.absolute:
             root_P_goal = god_map.world.transform(
-                target_frame=self.root_link, spatial_object=goal_point
+                target_frame=self.root_link, spatial_object=self.goal_point
             )
         else:
             root_T_x = god_map.world.compose_forward_kinematics_expression(
-                self.root_link, goal_point.reference_frame
+                self.root_link, self.goal_point.reference_frame
             )
-            root_P_goal = root_T_x.dot(goal_point)
+            root_P_goal = root_T_x.dot(self.goal_point)
             root_P_goal = self.update_expression_on_starting(root_P_goal)
 
         r_P_c = god_map.world.compose_forward_kinematics_expression(
@@ -97,42 +87,32 @@ class CartesianPosition(Task):
         )
 
         distance_to_goal = root_P_goal.euclidean_distance(r_P_c)
-        self.observation_expression = distance_to_goal < threshold
+        self.observation_expression = distance_to_goal < self.threshold
 
 
+@dataclass
 class CartesianPositionStraight(Task):
-    def __init__(
-        self,
-        root_link: PrefixedName,
-        tip_link: PrefixedName,
-        goal_point: cas.Point3,
-        threshold: float = 0.01,
-        reference_velocity: Optional[float] = None,
-        name: Optional[str] = None,
-        absolute: bool = False,
-        weight: float = WEIGHT_ABOVE_CA,
-    ):
+    root_link: Body
+    tip_link: Body
+    goal_point: cas.Point3
+    threshold: float = 0.01
+    reference_velocity: Optional[float] = CartesianPosition.default_reference_velocity
+    absolute: bool = False
+    weight: float = WEIGHT_ABOVE_CA
+
+    def __post_init__(self):
         """
         Same as CartesianPosition, but tries to move the tip_link in a straight line to the goal_point.
         """
-        super().__init__(name=name)
-        if reference_velocity is None:
-            reference_velocity = CartesianPosition.default_reference_velocity
-        self.reference_velocity = reference_velocity
-        self.weight = weight
-        self.root_link = root_link
-        self.tip_link = tip_link
-        self.threshold = threshold
-
-        if absolute:
+        if self.absolute:
             root_P_goal = god_map.world.transform(
-                target_frame=self.root_link, spatial_object=goal_point
+                target_frame=self.root_link, spatial_object=self.goal_point
             )
         else:
             root_T_x = god_map.world.compose_forward_kinematics_expression(
-                self.root_link, goal_point.reference_frame
+                self.root_link, self.goal_point.reference_frame
             )
-            root_P_goal = root_T_x.dot(goal_point)
+            root_P_goal = root_T_x.dot(self.goal_point)
             root_P_goal = self.update_expression_on_starting(root_P_goal)
 
         root_P_tip = god_map.world.compose_forward_kinematics_expression(
@@ -162,7 +142,7 @@ class CartesianPositionStraight(Task):
         a_T_t = (
             t_R_a.inverse()
             .dot(
-                god_map.world.compose_fk_evaluated_expression(
+                god_map.world.compute_forward_kinematics(
                     self.tip_link, self.root_link
                 )
             )
@@ -191,70 +171,57 @@ class CartesianPositionStraight(Task):
         self.observation_expression = dist < self.threshold
 
 
+@dataclass
 class CartesianOrientation(Task):
     default_reference_velocity = 0.2
+    root_link: Body
+    tip_link: Body
+    goal_orientation: cas.RotationMatrix
+    threshold: float = 0.01
+    reference_velocity: Optional[float] = None
+    weight: float = WEIGHT_ABOVE_CA
+    absolute: bool = False
+    point_of_debug_matrix: Optional[cas.Point3] = None
 
-    def __init__(
-        self,
-        root_link: PrefixedName,
-        tip_link: PrefixedName,
-        goal_orientation: cas.RotationMatrix,
-        threshold: float = 0.01,
-        reference_velocity: Optional[float] = None,
-        weight: float = WEIGHT_ABOVE_CA,
-        name: Optional[str] = None,
-        absolute: bool = False,
-        point_of_debug_matrix: Optional[cas.Point3] = None,
-    ):
+    def __post_init__(self):
         """
         See CartesianPose.
         """
-        self.root_link = root_link
-        self.tip_link = tip_link
-        if name is None:
-            name = f"{self.__class__.__name__}/{self.root_link}/{self.tip_link}"
-        super().__init__(name=name)
-        if reference_velocity is None:
-            reference_velocity = self.default_reference_velocity
-        self.reference_velocity = reference_velocity
-        self.weight = weight
+        if self.reference_velocity is None:
+            self.reference_velocity = self.default_reference_velocity
 
-        if absolute:
+        if self.absolute:
             root_R_goal = god_map.world.transform(
-                target_frame=self.root_link, spatial_object=goal_orientation
+                target_frame=self.root_link, spatial_object=self.goal_orientation
             )
         else:
             root_T_x = god_map.world.compose_forward_kinematics_expression(
-                self.root_link, goal_orientation.reference_frame
+                self.root_link, self.goal_orientation.reference_frame
             )
-            root_R_goal = root_T_x.dot(goal_orientation)
+            root_R_goal = root_T_x.dot(self.goal_orientation)
             root_R_goal = self.update_expression_on_starting(root_R_goal)
 
         r_T_c = god_map.world.compose_forward_kinematics_expression(
             self.root_link, self.tip_link
         )
         r_R_c = r_T_c.to_rotation_matrix()
-        c_R_r_eval = god_map.world.compose_fk_evaluated_expression(
-            self.tip_link, self.root_link
-        ).to_rotation_matrix()
 
         self.add_rotation_goal_constraints(
             frame_R_current=r_R_c,
             frame_R_goal=root_R_goal,
-            current_R_frame_eval=c_R_r_eval,
             reference_velocity=self.reference_velocity,
             weight=self.weight,
         )
-        if point_of_debug_matrix is None:
+        if self.point_of_debug_matrix is None:
             point = r_T_c.to_position()
         else:
-            if absolute:
-                point = point_of_debug_matrix
+            if self.absolute:
+                point = self.point_of_debug_matrix
             else:
                 root_T_x = god_map.world.compose_forward_kinematics_expression(
-                    self.root_link, point_of_debug_matrix.reference_frame
+                    self.root_link, self.point_of_debug_matrix.reference_frame
                 )
-                point = root_T_x.dot(point_of_debug_matrix)
+                point = root_T_x.dot(self.point_of_debug_matrix)
                 point = self.update_expression_on_starting(point)
         debug_trans_matrix = cas.TransformationMatrix.from_point_rotation_matrix(
             point=point, rotation_matrix=root_R_goal
@@ -269,7 +236,7 @@ class CartesianOrientation(Task):
         #                                                       debug_current_trans_matrix)
 
         rotation_error = r_R_c.rotational_error(root_R_goal)
-        self.observation_expression = cas.abs(rotation_error) < threshold
+        self.observation_expression = cas.abs(rotation_error) < self.threshold
 
 
 @dataclass
@@ -359,15 +326,14 @@ class CartesianPose(Task):
         )
 
 
+@dataclass
 class CartesianPositionVelocityLimit(Task):
-    def __init__(
-        self,
-        root_link: PrefixedName,
-        tip_link: PrefixedName,
-        name: str,
-        max_linear_velocity: float = 0.2,
-        weight: float = WEIGHT_ABOVE_CA,
-    ):
+    root_link: Body
+    tip_link: Body
+    max_linear_velocity: float = 0.2
+    weight: float = WEIGHT_ABOVE_CA
+
+    def __post_init__(self):
         """
         This goal will use put a strict limit on the Cartesian velocity. This will require a lot of constraints, thus
         slowing down the system noticeably.
@@ -378,34 +344,29 @@ class CartesianPositionVelocityLimit(Task):
         :param weight: default WEIGHT_ABOVE_CA
         :param hard: Turn this into a hard constraint. This make create unsolvable optimization problems
         """
-        self.root_link = root_link
-        self.tip_link = tip_link
-        super().__init__(name=name)
         r_P_c = god_map.world.compose_forward_kinematics_expression(
             self.root_link, self.tip_link
         ).to_position()
         self.add_translational_velocity_limit(
-            frame_P_current=r_P_c, max_velocity=max_linear_velocity, weight=weight
+            frame_P_current=r_P_c, max_velocity=self.max_linear_velocity, weight=self.weight
+        ,
         )
 
 
+@dataclass
 class CartesianRotationVelocityLimit(Task):
-    def __init__(
-        self,
-        name: str,
-        root_link: PrefixedName,
-        tip_link: PrefixedName,
-        weight=WEIGHT_ABOVE_CA,
-        max_velocity: Optional[float] = None,
-    ):
+    root_link: Body
+    tip_link: Body
+    weight: float = WEIGHT_ABOVE_CA
+    max_velocity: Optional[float] = None
+
+    def __post_init__(self):
         """
         See CartesianVelocityLimit
         """
-        self.root_link = root_link
-        self.tip_link = tip_link
-        super().__init__(name=name)
-        self.weight = weight
-        self.max_velocity = max_velocity
+        r_R_c = god_map.world.compose_forward_kinematics_expression(
+            self.root_link, self.tip_link
+        ).to_rotation()
 
         r_R_c = god_map.world.compose_forward_kinematics_expression(
             self.root_link, self.tip_link
@@ -415,17 +376,15 @@ class CartesianRotationVelocityLimit(Task):
             frame_R_current=r_R_c, max_velocity=self.max_velocity, weight=self.weight
         )
 
-
+@dataclass
 class CartesianVelocityLimit(Task):
-    def __init__(
-        self,
-        name: str,
-        root_link: PrefixedName,
-        tip_link: PrefixedName,
-        max_linear_velocity: float = 0.1,
-        max_angular_velocity: float = 0.5,
-        weight: float = WEIGHT_ABOVE_CA,
-    ):
+    root_link: Body
+    tip_link: Body
+    max_linear_velocity: float = 0.1
+    max_angular_velocity: float = 0.5
+    weight: float = WEIGHT_ABOVE_CA
+
+    def __post_init__(self):
         """
         This goal will use put a strict limit on the Cartesian velocity. This will require a lot of constraints, thus
         slowing down the system noticeably.
@@ -435,33 +394,30 @@ class CartesianVelocityLimit(Task):
         :param max_angular_velocity: rad/s
         :param weight: default WEIGHT_ABOVE_CA
         """
-        self.root_link = root_link
-        self.tip_link = tip_link
-        super().__init__(name=name)
         r_T_c = god_map.world.compose_forward_kinematics_expression(
             self.root_link, self.tip_link
         )
         r_P_c = r_T_c.to_position()
         r_R_c = r_T_c.to_rotation_matrix()
         self.add_translational_velocity_limit(
-            frame_P_current=r_P_c, max_velocity=max_linear_velocity, weight=weight
-        )
+            frame_P_current=r_P_c, max_velocity=self.max_linear_velocity, weight=self.weight
+        ,)
         self.add_rotational_velocity_limit(
-            frame_R_current=r_R_c, max_velocity=max_angular_velocity, weight=weight
+            frame_R_current=r_R_c, max_velocity=self.max_angular_velocity, weight=self.weight
+        ,
         )
 
 
+@dataclass
 class CartesianPositionVelocityTarget(Task):
-    def __init__(
-        self,
-        root_link: PrefixedName,
-        tip_link: PrefixedName,
-        name: str,
-        x_vel: float,
-        y_vel: float,
-        z_vel: float,
-        weight: float = WEIGHT_ABOVE_CA,
-    ):
+    root_link: Body
+    tip_link: Body
+    x_vel: float
+    y_vel: float
+    z_vel: float
+    weight: float = WEIGHT_ABOVE_CA
+
+    def __post_init__(self):
         """
         This goal will use put a strict limit on the Cartesian velocity. This will require a lot of constraints, thus
         slowing down the system noticeably.
@@ -474,15 +430,12 @@ class CartesianPositionVelocityTarget(Task):
         :param weight: default WEIGHT_ABOVE_CA
         :param hard: Turn this into a hard constraint. This make create unsolvable optimization problems
         """
-        self.root_link = root_link
-        self.tip_link = tip_link
-        super().__init__(name=name)
         r_P_c = god_map.world.compose_forward_kinematics_expression(
             self.root_link, self.tip_link
         ).to_position()
         god_map.debug_expression_manager.add_debug_expression(
             f"{self.name}/target",
-            cas.Expression(y_vel),
+            cas.Expression(self.y_vel),
             derivative=Derivatives.velocity,
             derivatives_to_plot=[
                 # Derivatives.position,
@@ -498,7 +451,7 @@ class CartesianPositionVelocityTarget(Task):
             ),
         )
         self.add_velocity_eq_constraint_vector(
-            velocity_goals=cas.Expression([x_vel, y_vel, z_vel]),
+            velocity_goals=cas.Expression([self.x_vel, self.y_vel, self.z_vel]),
             task_expression=r_P_c,
             reference_velocities=[
                 CartesianPosition.default_reference_velocity,
@@ -506,37 +459,33 @@ class CartesianPositionVelocityTarget(Task):
                 CartesianPosition.default_reference_velocity,
             ],
             names=[
-                f"{name}/x",
-                f"{name}/y",
-                f"{name}/z",
+                f"{self.name}/x",
+                f"{self.name}/y",
+                f"{self.name}/z",
             ],
-            weights=[weight] * 3,
+            weights=[self.weight] * 3,
         )
 
 
+@dataclass()
 class JustinTorsoLimitCart(Task):
-    def __init__(
-        self,
-        *,
-        root_link: PrefixedName,
-        tip_link: PrefixedName,
-        forward_distance: float,
-        backward_distance: float,
-        weight: float = WEIGHT_ABOVE_CA,
-        name: Optional[str] = None,
-        plot: bool = True,
-    ):
-        super().__init__(name=name, plot=plot)
+    root_link: Body
+    tip_link: Body
+    forward_distance: float
+    backward_distance: float
+    weight: float = WEIGHT_ABOVE_CA
+
+    def __post_init__(self):
         torso_root_T_torso_tip = god_map.world.compose_forward_kinematics_expression(
-            root_link, tip_link
+            self.root_link, self.tip_link
         )
         torso_root_V_up = cas.Vector3(0, 0, 1)
-        torso_root_V_up.reference_frame = root_link
-        torso_root_V_up.vis_frame = root_link
+        torso_root_V_up.reference_frame = self.root_link
+        torso_root_V_up.vis_frame = self.root_link
 
         torso_root_V_left = cas.Vector3(0, 1, 0)
-        torso_root_V_left.reference_frame = root_link
-        torso_root_V_left.vis_frame = root_link
+        torso_root_V_left.reference_frame = self.root_link
+        torso_root_V_left.vis_frame = self.root_link
 
         torso_root_P_torso_tip = torso_root_T_torso_tip.to_position()
 
@@ -556,10 +505,10 @@ class JustinTorsoLimitCart(Task):
 
         self.add_inequality_constraint(
             reference_velocity=CartesianPosition.default_reference_velocity,
-            lower_error=-backward_distance - distance,
-            upper_error=forward_distance - distance,
-            weight=weight,
+            lower_error=-self.backward_distance - distance,
+            upper_error=self.forward_distance - distance,
+            weight=self.weight,
             task_expression=distance,
-            name=f"{name}/distance",
+            name=f"{self.name}/distance",
         )
-        self.observation_expression = distance <= forward_distance
+        self.observation_expression = distance <= self.forward_distance

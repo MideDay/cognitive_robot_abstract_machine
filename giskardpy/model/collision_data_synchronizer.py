@@ -35,7 +35,7 @@ from semantic_world.robots import AbstractRobot
 from semantic_world.spatial_types.derivatives import Derivatives
 from semantic_world.spatial_types.symbol_manager import symbol_manager
 from semantic_world.utils import copy_lru_cache
-from semantic_world.world_entity import Body, Connection
+from semantic_world.world_description.world_entity import Body, Connection
 
 
 class CollisionDataSynchronizer:

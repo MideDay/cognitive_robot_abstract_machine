@@ -1,5 +1,6 @@
 from __future__ import division
 
+from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
@@ -8,37 +9,32 @@ import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.motion_statechart.goals.goal import Goal
 from giskardpy.motion_statechart.tasks.task import WEIGHT_ABOVE_CA, Task
 from giskardpy.god_map import god_map
+from semantic_world.world_description.world_entity import Body
 
 
+@dataclass
 class InsertCylinder(Goal):
-    def __init__(
-        self,
-        name: str,
-        cylinder_name: str,
-        hole_point: cas.Point3,
-        cylinder_height: Optional[float] = None,
-        up: Optional[cas.Vector3] = None,
-        pre_grasp_height: float = 0.1,
-        tilt: float = np.pi / 10,
-        get_straight_after: float = 0.02,
-    ):
-        self.cylinder_name = cylinder_name
-        self.get_straight_after = get_straight_after
-        self.root = god_map.world.root_link_name
-        self.tip = god_map.world.search_for_link_name(self.cylinder_name)
-        super().__init__(name=name)
-        if cylinder_height is None:
+    cylinder_name: Body
+    hole_point: cas.Point3
+    cylinder_height: Optional[float] = None
+    up: Optional[cas.Vector3] = None
+    pre_grasp_height: float = 0.1
+    tilt: float = np.pi / 10
+    get_straight_after: float = 0.02
+
+    def __post_init__(self):
+        self.root = god_map.world.root
+        self.tip = self.cylinder_name
+        if self.cylinder_height is None:
             self.cylinder_height = god_map.world.links[self.tip].collisions[0].height
         else:
-            self.cylinder_height = cylinder_height
-        self.tilt = tilt
-        self.pre_grasp_height = pre_grasp_height
+            self.cylinder_height = self.cylinder_height
         self.root_P_hole = god_map.world.transform(
-            target_frame=self.root, spatial_object=hole_point
+            target_frame=self.root, spatial_object=self.hole_point
         )
-        if up is None:
-            up = cas.Vector3((0, 0, 1))
-            up.reference_frame = self.root
+        if self.up is None:
+            self.up = cas.Vector3((0, 0, 1))
+            self.up.reference_frame = self.root
         self.root_V_up = god_map.world.transform(
             target_frame=self.root, spatial_object=up
         )

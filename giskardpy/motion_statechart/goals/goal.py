@@ -18,9 +18,9 @@ from semantic_world.spatial_types.symbol_manager import symbol_manager
 
 @dataclass
 class Goal(MotionStatechartNode):
-    tasks: List[Task] = field(default_factory=list)
-    monitors: List[Monitor] = field(default_factory=list)
-    goals: List[Goal] = field(default_factory=list)
+    tasks: List[Task] = field(default_factory=list, init=False)
+    monitors: List[Monitor] = field(default_factory=list, init=False)
+    goals: List[Goal] = field(default_factory=list, init=False)
 
     @cached_property
     def observation_state_symbol(self) -> cas.Symbol:

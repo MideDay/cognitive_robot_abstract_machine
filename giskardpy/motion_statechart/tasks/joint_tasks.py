@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Dict, List, Tuple, Union
 
 import semantic_world.spatial_types.spatial_types as cas
@@ -9,6 +9,8 @@ from giskardpy.motion_statechart.tasks.task import Task, WEIGHT_BELOW_CA
 from semantic_world.world_description.connections import (
     Has1DOFState,
     RevoluteConnection,
+    ActiveConnection,
+    PrismaticConnection,
 )
 from semantic_world.datastructures.prefixed_name import PrefixedName
 from semantic_world.spatial_types.derivatives import Derivatives
@@ -16,7 +18,6 @@ from semantic_world.spatial_types.derivatives import Derivatives
 
 @dataclass
 class JointPositionList(Task):
-    name: str
     goal_state: Dict[Union[PrefixedName, str], float]
     threshold: float = 0.01
     weight: float = WEIGHT_BELOW_CA
@@ -74,84 +75,77 @@ class JointPositionList(Task):
             )
         joint_monitor = JointGoalReached(
             goal_state=self.goal_state, threshold=self.threshold
+        ,
+            name=f"{self.name}_monitor",
         )
         self.observation_expression = joint_monitor.observation_expression
 
 
+@dataclass(kw_only=True)
 class MirrorJointPosition(Task):
-    def __init__(
-        self,
-        *,
-        name: str,
-        mapping: Dict[str, str],
-        group_name: Optional[str] = None,
-        threshold: float = 0.01,
-        weight: Optional[float] = None,
-        max_velocity: Optional[float] = None,
-        plot: bool = True,
-    ):
-        super().__init__(name=name, plot=plot)
-        if weight is None:
-            weight = WEIGHT_BELOW_CA
-        if max_velocity is None:
-            max_velocity = 1.0
+    mapping: Dict[Union[PrefixedName, str], str] = field(default_factory=lambda: dict)
+    threshold: float = 0.01
+    weight: Optional[float] = None
+    max_velocity: Optional[float] = None
+
+    def __post_init__(self):
+        if self.weight is None:
+            self.weight = WEIGHT_BELOW_CA
+        if self.max_velocity is None:
+            self.max_velocity = 1.0
         self.current_positions = []
         self.goal_positions = []
         self.velocity_limits = []
-        self.joint_names = []
-        self.max_velocity = max_velocity
-        self.weight = weight
+        self.connections = []
         goal_state = {}
-        for joint_name, target_joint_name in mapping.items():
-            joint_name = god_map.world.search_for_joint_name(joint_name, group_name)
-            target_joint_name = god_map.world.search_for_joint_name(
-                target_joint_name, group_name
-            )
-            self.joint_names.append(joint_name)
+        for joint_name, target_joint_name in self.mapping.items():
+            connection = god_map.world.get_connection_by_name(joint_name)
+            self.connections.append(connection)
+            target_connection = god_map.world.get_connection_by_name(
+                target_joint_name)
 
-            ll_vel, ul_vel = god_map.world.compute_joint_limits(
-                joint_name, Derivatives.velocity
-            )
-            velocity_limit = cas.limit(max_velocity, ll_vel, ul_vel)
-
-            joint: OneDofJoint = god_map.world.joints[joint_name]
-            target_joint: OneDofJoint = god_map.world.joints[target_joint_name]
-            self.current_positions.append(joint.get_symbol(Derivatives.position))
-            self.goal_positions.append(target_joint.get_symbol(Derivatives.position))
+            ll_vel = connection.dof.lower_limits
+            ul_vel = connection.dof.upper_limits
+            velocity_limit = cas.limit(self.max_velocity, ll_vel, ul_vel)
+            self.current_positions.append(connection.position)
+            self.goal_positions.append(target_connection.position)
             self.velocity_limits.append(velocity_limit)
-            goal_state[joint_name.short_name] = self.goal_positions[-1]
+            goal_state[joint_name.name] = self.goal_positions[-1]
 
-        for name, current, goal, velocity_limit in zip(
-            self.joint_names,
+        for connection, current, goal, velocity_limit in zip(
+            self.connections,
             self.current_positions,
             self.goal_positions,
             self.velocity_limits,
         ):
-            if god_map.world.is_joint_continuous(name):
+            if (
+                isinstance(connection, RevoluteConnection)
+                and not connection.dof.has_position_limits()
+            ):
                 error = cas.shortest_angular_distance(current, goal)
             else:
                 error = goal - current
 
             self.add_equality_constraint(
-                name=f"{self.name}/{name}",
+                name=f"{self.name}/{connection.name}",
                 reference_velocity=velocity_limit,
                 equality_bound=0,
                 weight=self.weight,
                 task_expression=error,
             )
-        joint_monitor = JointGoalReached(goal_state=goal_state, threshold=threshold)
+        joint_monitor = JointGoalReached(
+            goal_state=goal_state, threshold=self.threshold
+        )
         self.observation_expression = joint_monitor.observation_expression
 
 
+@dataclass
 class JointPositionLimitList(Task):
-    def __init__(
-        self,
-        lower_upper_limits: Dict[str, Tuple[float, float]],
-        group_name: Optional[str] = None,
-        weight: float = WEIGHT_BELOW_CA,
-        max_velocity: float = 1,
-        name: Optional[str] = None,
-    ):
+    lower_upper_limits: Dict[Union[PrefixedName, str], Tuple[float, float]]
+    weight: float = WEIGHT_BELOW_CA
+    max_velocity: float = 1
+
+    def __post_init__(self):
         """
         Calls JointPosition for a list of joints.
         :param goal_state: maps joint_name to goal position
@@ -164,45 +158,44 @@ class JointPositionLimitList(Task):
         self.lower_limits = []
         self.upper_limits = []
         self.velocity_limits = []
-        self.names = []
-        self.joint_names = list(sorted(lower_upper_limits.keys()))
-        if name is None:
-            name = f"{self.__class__.__name__} {self.joint_names}"
-        super().__init__(name=name)
-        self.max_velocity = max_velocity
-        self.weight = weight
-        if len(lower_upper_limits) == 0:
+        self.connections = []
+        self.joint_names = list(sorted(self.lower_upper_limits.keys()))
+        if len(self.lower_upper_limits) == 0:
             raise GoalInitalizationException(f"Can't initialize {self} with no joints.")
-        for joint_name, (lower_limit, upper_limit) in lower_upper_limits.items():
-            joint_name = god_map.world.search_for_joint_name(joint_name, group_name)
 
-            ll_pos, ul_pos = god_map.world.compute_joint_limits(
-                joint_name, Derivatives.position
-            )
+        for joint_name, (lower_limit, upper_limit) in self.lower_upper_limits.items():
+            connection: Has1DOFState = god_map.world.get_connection_by_name(
+                joint_name)
+            self.connections.append(connection)
+
+            ll_pos = connection.dof.lower_limits.position
+            ul_pos = connection.dof.upper_limits.position
+
             if ll_pos is not None:
                 lower_limit = min(ul_pos, max(ll_pos, lower_limit))
                 upper_limit = min(ul_pos, max(ll_pos, upper_limit))
 
-            ll_vel, ul_vel = god_map.world.compute_joint_limits(
-                joint_name, Derivatives.velocity
-            )
-            velocity_limit = min(ul_vel, max(ll_vel, max_velocity))
+            ll_vel = connection.dof.lower_limits.velocity
+            ul_vel = connection.dof.upper_limits.velocity
 
-            joint: OneDofJoint = god_map.world.joints[joint_name]
-            self.names.append(str(joint_name))
-            self.current_positions.append(joint.get_symbol(Derivatives.position))
+            velocity_limit = min(ul_vel, max(ll_vel, self.max_velocity))
+
+            self.current_positions.append(connection.position)
             self.lower_limits.append(lower_limit)
             self.upper_limits.append(upper_limit)
             self.velocity_limits.append(velocity_limit)
 
-        for name, current, lower_limit, upper_limit, velocity_limit in zip(
-            self.names,
+        for connection, current, lower_limit, upper_limit, velocity_limit in zip(
+            self.connections,
             self.current_positions,
             self.lower_limits,
             self.upper_limits,
             self.velocity_limits,
         ):
-            if god_map.world.is_joint_continuous(name):
+            if (
+                isinstance(connection, RevoluteConnection)
+                and not connection.dof.has_position_limits()
+            ):
                 lower_error = cas.shortest_angular_distance(current, lower_limit)
                 upper_error = cas.shortest_angular_distance(current, upper_limit)
             else:
@@ -210,7 +203,7 @@ class JointPositionLimitList(Task):
                 upper_error = upper_limit - current
 
             self.add_inequality_constraint(
-                name=name,
+                name=f"{self.name}/{connection.name}",
                 reference_velocity=velocity_limit,
                 lower_error=lower_error,
                 upper_error=upper_error,
@@ -219,29 +212,27 @@ class JointPositionLimitList(Task):
             )
 
 
+@dataclass
 class JustinTorsoLimit(Task):
-    def __init__(
-        self,
-        joint_name: PrefixedName,
-        lower_limit: Optional[float] = None,
-        upper_limit: Optional[float] = None,
-        weight: float = WEIGHT_BELOW_CA,
-        max_velocity: float = 1,
-        name: Optional[str] = None,
-    ):
-        super().__init__(name=name)
-        joint: JustinTorso = god_map.world.joints[joint_name]
-        self.max_velocity = max_velocity
-        self.weight = weight
+    connection: ActiveConnection
+    lower_limit: Optional[float] = None
+    upper_limit: Optional[float] = None
+    weight: float = WEIGHT_BELOW_CA
+    max_velocity: float = 1
+
+    def __post_init__(self):
+        joint = self.connection
 
         current = joint.q3
 
-        if god_map.world.is_joint_continuous(joint_name):
-            lower_error = cas.shortest_angular_distance(current, lower_limit)
-            upper_error = cas.shortest_angular_distance(current, upper_limit)
+        if isinstance(self.connection, RevoluteConnection) or isinstance(
+            self.connection, PrismaticConnection
+        ):
+            lower_error = cas.shortest_angular_distance(current, self.lower_limit)
+            upper_error = cas.shortest_angular_distance(current, self.upper_limit)
         else:
-            lower_error = lower_limit - current
-            upper_error = upper_limit - current
+            lower_error = self.lower_limit - current
+            upper_error = self.upper_limit - current
 
         god_map.debug_expression_manager.add_debug_expression("torso 4 joint", current)
         god_map.debug_expression_manager.add_debug_expression(
@@ -251,14 +242,14 @@ class JustinTorsoLimit(Task):
             "torso 3 joint", joint.q2.get_symbol(Derivatives.position)
         )
         god_map.debug_expression_manager.add_debug_expression(
-            "lower_limit", lower_limit
+            "lower_limit", self.lower_limit
         )
         god_map.debug_expression_manager.add_debug_expression(
-            "upper_limit", upper_limit
+            "upper_limit", self.upper_limit
         )
 
         self.add_inequality_constraint(
-            name=name,
+            name=self.name,
             reference_velocity=1,
             lower_error=lower_error,
             upper_error=upper_error,
@@ -267,16 +258,14 @@ class JustinTorsoLimit(Task):
         )
 
 
+@dataclass
 class JointVelocityLimit(Task):
-    def __init__(
-        self,
-        joint_names: List[str],
-        group_name: Optional[str] = None,
-        weight: float = WEIGHT_BELOW_CA,
-        max_velocity: float = 1,
-        hard: bool = False,
-        name: Optional[str] = None,
-    ):
+    joint_names: List[str]
+    weight: float = WEIGHT_BELOW_CA
+    max_velocity: float = 1
+    hard: bool = False
+
+    def __post_init__(self):
         """
         Limits the joint velocity of a revolute joint.
         :param joint_name:
@@ -285,20 +274,11 @@ class JointVelocityLimit(Task):
         :param max_velocity: rad/s
         :param hard: turn this into a hard constraint.
         """
-        self.weight = weight
-        self.max_velocity = max_velocity
-        self.hard = hard
-        self.joint_names = joint_names
-        if name is None:
-            name = f"{self.__class__.__name__}/{self.joint_names}"
-        super().__init__(name=name)
-
         for joint_name in self.joint_names:
-            joint_name = god_map.world.search_for_joint_name(joint_name, group_name)
-            joint: OneDofJoint = god_map.world.joints[joint_name]
-            current_joint = joint.get_symbol(Derivatives.position)
+            joint: Has1DOFState = god_map.world.get_connection_by_name(joint_name)
+            current_joint = joint.position
             try:
-                limit_expr = joint.get_limit_expressions(Derivatives.velocity)[1]
+                limit_expr = joint.dof.upper_limits.velocity
                 max_velocity = cas.min(self.max_velocity, limit_expr)
             except IndexError:
                 max_velocity = self.max_velocity
@@ -323,40 +303,27 @@ class JointVelocityLimit(Task):
                 )
 
 
+@dataclass
 class JointVelocity(Task):
-    def __init__(
-        self,
-        joint_names: List[str],
-        vel_goal: float,
-        group_name: Optional[str] = None,
-        weight: float = WEIGHT_BELOW_CA,
-        max_velocity: float = 1,
-        hard: bool = False,
-        name: Optional[str] = None,
-    ):
+    connections: List[ActiveConnection]
+    vel_goal: float
+    weight: float = WEIGHT_BELOW_CA
+    max_velocity: float = 1
+    hard: bool = False
+
+    def __post_init__(self):
         """
         Limits the joint velocity of a revolute joint.
-        :param joint_name:
-        :param group_name: if joint_name is not unique, will search in this group for matches.
+        :param connection:
+        :param group_name: if connection is not unique, will search in this group for matches.
         :param weight:
         :param max_velocity: rad/s
         :param hard: turn this into a hard constraint.
         """
-        self.weight = weight
-        self.vel_goal = vel_goal
-        self.max_velocity = max_velocity
-        self.hard = hard
-        self.joint_names = joint_names
-        if name is None:
-            name = f"{self.__class__.__name__}/{self.joint_names}"
-        super().__init__(name=name)
-
-        for joint_name in self.joint_names:
-            joint_name = god_map.world.search_for_joint_name(joint_name, group_name)
-            joint: OneDofJoint = god_map.world.joints[joint_name]
-            current_joint = joint.get_symbol(Derivatives.position)
+        for connection in self.connections:
+            current_joint = connection.position
             try:
-                limit_expr = joint.get_limit_expressions(Derivatives.velocity)[1]
+                limit_expr = connection.dof.upper_limits.velocity
                 max_velocity = cas.min(self.max_velocity, limit_expr)
             except IndexError:
                 max_velocity = self.max_velocity
@@ -365,70 +332,58 @@ class JointVelocity(Task):
                 weight=self.weight,
                 task_expression=current_joint,
                 velocity_limit=max_velocity,
-                name=joint_name,
+                name=connection.name,
             )
 
 
+@dataclass
 class UnlimitedJointGoal(Task):
-    def __init__(self, name: str, joint_name: str, goal_position: float):
-        super().__init__(
-            name=name,
-        )
-        joint = god_map.world.get_connection_by_name(joint_name)
-        joint_symbol = joint.dof.symbols.position
+    connection: ActiveConnection
+    goal_position: float
+
+    def __post_init__(self):
+        connection_symbol = self.connection.origin_as_position_quaternion()
         self.add_position_constraint(
-            expr_current=joint_symbol,
-            expr_goal=goal_position,
+            expr_current=connection_symbol,
+            expr_goal=self.goal_position,
             reference_velocity=2,
             weight=WEIGHT_BELOW_CA,
         )
 
 
+@dataclass
 class AvoidJointLimits(Task):
-    def __init__(
-        self,
-        percentage: float = 15,
-        joint_list: Optional[List[str]] = None,
-        group_name: Optional[str] = None,
-        weight: float = WEIGHT_BELOW_CA,
-        name: Optional[str] = None,
-    ):
+    percentage: float = 15
+    joint_list: Optional[List[Union[PrefixedName, str]]] = None
+    weight: float = WEIGHT_BELOW_CA
+
+    def __post_init__(self):
         """
         Calls AvoidSingleJointLimits for each joint in joint_list
         :param percentage:
         :param joint_list: list of joints for which AvoidSingleJointLimits will be called
         :param weight:
         """
-        self.joint_list = joint_list
-        if name is None:
-            name = f"{self.__class__.__name__}/{self.joint_list}"
-        super().__init__(name=name)
-        self.weight = weight
-        self.percentage = percentage
-        if joint_list is not None:
-            joint_list = [
-                god_map.world.search_for_joint_name(joint_name, group_name)
-                for joint_name in joint_list
+        if self.joint_list is not None:
+            connection_list = [
+                god_map.world.get_connection_by_name(joint_name)
+                for joint_name in self.joint_list
             ]
         else:
-            if group_name is None:
-                joint_list = god_map.world.controlled_joints
-            else:
-                joint_list = god_map.world.groups[group_name].controlled_joints
-        for joint_name in joint_list:
-            if god_map.world.is_joint_prismatic(
-                joint_name
-            ) or god_map.world.is_joint_revolute(joint_name):
+            connection_list = god_map.world.controlled_joints
+        for connection in connection_list:
+            if isinstance(connection, RevoluteConnection
+            ) or isinstance(
+                connection, PrismaticConnection
+            ):
                 weight = self.weight
-                joint = god_map.world.joints[joint_name]
-                joint_symbol = joint.get_symbol(Derivatives.position)
+                connection_symbol = connection.position
                 percentage = self.percentage / 100.0
-                lower_limit, upper_limit = god_map.world.get_joint_position_limits(
-                    joint_name
-                )
+                lower_limit = connection.dof.lower_limits.position
+                upper_limit = connection.dof.upper_limits.position
                 max_velocity = 100
                 max_velocity = cas.min(
-                    max_velocity, god_map.world.get_joint_velocity_limits(joint_name)[1]
+                    max_velocity, connection.dof.upper_limits.velocity
                 )
 
                 joint_range = upper_limit - lower_limit
@@ -439,8 +394,8 @@ class AvoidJointLimits(Task):
                 upper_goal = center + joint_range / 2.0 * (1 - percentage)
                 lower_goal = center - joint_range / 2.0 * (1 - percentage)
 
-                upper_err = upper_goal - joint_symbol
-                lower_err = lower_goal - joint_symbol
+                upper_err = upper_goal - connection_symbol
+                lower_err = lower_goal - connection_symbol
 
                 error = cas.max(
                     cas.abs(cas.min(upper_err, 0)), cas.abs(cas.max(lower_err, 0))
@@ -449,9 +404,9 @@ class AvoidJointLimits(Task):
 
                 self.add_inequality_constraint(
                     reference_velocity=max_velocity,
-                    name=str(joint_name),
+                    name=connection.name,
                     lower_error=lower_err,
                     upper_error=upper_err,
                     weight=weight,
-                    task_expression=joint_symbol,
+                    task_expression=connection_symbol,
                 )

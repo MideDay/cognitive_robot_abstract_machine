@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
@@ -8,48 +9,36 @@ from giskardpy.god_map import god_map
 from giskardpy.motion_statechart.goals.goal import Goal
 from giskardpy.motion_statechart.tasks.task import WEIGHT_BELOW_CA, Task
 from semantic_world.world_description.geometry import Color
+from semantic_world.world_description.world_entity import Body
 
 
+@dataclass
 class AlignToPushDoor(Goal):
+    root_link: Body
+    tip_link: Body
+    door_object: Body
+    door_handle: Body
+    tip_gripper_axis: cas.Vector3
+    reference_linear_velocity: float = 0.1
+    reference_angular_velocity: float = 0.5
+    weight: float = WEIGHT_BELOW_CA
 
-    def __init__(
-        self,
-        root_link: str,
-        tip_link: str,
-        door_object: str,
-        door_handle: str,
-        tip_gripper_axis: cas.Vector3,
-        root_group: Optional[str] = None,
-        tip_group: Optional[str] = None,
-        reference_linear_velocity: float = 0.1,
-        reference_angular_velocity: float = 0.5,
-        weight: float = WEIGHT_BELOW_CA,
-        name: Optional[str] = None,
-    ):
+    def __post_init__(self):
         """
         The objective is to reach an intermediate point before pushing the door
         """
-        self.root = god_map.world.search_for_link_name(root_link, root_group)
-        self.tip = god_map.world.search_for_link_name(tip_link, tip_group)
-        self.handle = god_map.world.search_for_link_name(door_handle)
-        self.door_object = god_map.world.search_for_link_name(door_object)
-        self.reference_linear_velocity = reference_linear_velocity
-        self.reference_angular_velocity = reference_angular_velocity
-        self.weight = weight
+        self.root = self.root_link
+        self.tip = self.tip_link
+        self.handle = self.door_handle
 
         object_joint_name = god_map.world.get_movable_parent_joint(self.door_object)
         object_joint_angle = god_map.world.state[object_joint_name].position
 
-        tip_gripper_axis.scale(1)
-        self.tip_gripper_axis = tip_gripper_axis
+        self.tip_gripper_axis.scale(1)
         object_V_object_rotation_axis = cas.Vector3(
             god_map.world.get_joint(object_joint_name).axis
         )
         joint_limit = god_map.world.compute_joint_limits(object_joint_name, 0)
-
-        if name is None:
-            name = f"{self.__class__.__name__}/{self.root}/{self.tip}"
-        super().__init__(name=name)
 
         root_T_tip = god_map.world.compose_forward_kinematics_expression(
             self.root, self.tip
@@ -87,6 +76,7 @@ class AlignToPushDoor(Goal):
         # as the root_T_door is already pointing to a completely rotated door, we invert desired angle to get to the
         # intermediate point
         door_rotated_P_top = door_T_door_rotated.inverse() @ door_P_intermediate_point
+
         root_P_top = cas.TransformationMatrix(root_T_door_expr) @ door_rotated_P_top
 
         minimum_angle_to_push_door = joint_limit[1] / 4

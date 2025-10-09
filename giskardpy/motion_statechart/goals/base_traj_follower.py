@@ -1,5 +1,7 @@
 from __future__ import division
 
+from dataclasses import dataclass
+
 import semantic_world.spatial_types.spatial_types as cas
 from semantic_world.world_description.connections import OmniDrive
 from semantic_world.datastructures.prefixed_name import PrefixedName
@@ -14,21 +16,19 @@ from giskardpy.motion_statechart.tasks.task import (
 )
 from line_profiler import profile
 
+from semantic_world.world_description.world_entity import Connection
 
+
+@dataclass
 class BaseTrajFollower(Goal):
-    def __init__(
-        self,
-        joint_name: PrefixedName,
-        track_only_velocity: bool = False,
-        weight: float = WEIGHT_ABOVE_CA,
-    ):
-        self.weight = weight
-        self.joint_name = joint_name
-        super().__init__(name=f"{self.__class__.__name__}/{self.joint_name}")
-        self.joint: OmniDrive = god_map.world.joints[joint_name]
-        self.odom_link = self.joint.parent_link_name
-        self.base_footprint_link = self.joint.child_link_name
-        self.track_only_velocity = track_only_velocity
+    connection: Connection
+    track_only_velocity: bool = False
+    weight: float = WEIGHT_ABOVE_CA
+
+    def __post_init__(self):
+        self.joint: OmniDrive = self.connection
+        self.odom_link = self.joint.parent
+        self.base_footprint_link = self.joint.child
         self.task = Task(name="base")
         self.add_task(self.task)
         trajectory = god_map.trajectory
@@ -92,7 +92,7 @@ class BaseTrajFollower(Goal):
         odom_T_base_footprint_goal = self.make_odom_T_base_footprint_goal(
             t_in_s, derivative
         )
-        map_T_odom = god_map.world.compose_fk_evaluated_expression(
+        map_T_odom = god_map.world.compose_forward_kinematics_expression(
             god_map.world.root_link_name, self.odom_link
         )
         return map_T_odom @ odom_T_base_footprint_goal
@@ -100,7 +100,7 @@ class BaseTrajFollower(Goal):
     @profile
     def trans_error_at(self, t_in_s: float):
         odom_T_base_footprint_goal = self.make_odom_T_base_footprint_goal(t_in_s)
-        map_T_odom = god_map.world.compose_fk_evaluated_expression(
+        map_T_odom = god_map.world.compute_forward_kinematics(
             god_map.world.root_link_name, self.odom_link
         )
         map_T_base_footprint_goal = map_T_odom @ odom_T_base_footprint_goal
@@ -172,7 +172,7 @@ class BaseTrajFollower(Goal):
     @profile
     def rot_error_at(self, t_in_s: int):
         rotation_goal = self.current_traj_point(self.joint.yaw.name, t_in_s)
-        rotation_current = self.joint.yaw.get_symbol(Derivatives.position)
+        rotation_current = self.joint.yaw.symbols.position
         error = (
             cas.shortest_angular_distance(rotation_current, rotation_goal)
             / god_map.qp_controller.mpc_dt
@@ -196,7 +196,7 @@ class BaseTrajFollower(Goal):
             lower_velocity_limit=errors,
             upper_velocity_limit=errors,
             weight=WEIGHT_BELOW_CA,
-            task_expression=self.joint.yaw.get_symbol(Derivatives.position),
+            task_expression=self.joint.yaw.symbols.position,
             velocity_limit=0.5,
             name="/rot",
         )

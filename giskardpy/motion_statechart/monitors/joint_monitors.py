@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Dict, Optional, Union
 
 import semantic_world.spatial_types.spatial_types as cas
@@ -7,20 +8,20 @@ from giskardpy.god_map import god_map
 from semantic_world.world_description.connections import (
     Has1DOFState,
     RevoluteConnection,
+    ActiveConnection,
 )
 from semantic_world.datastructures.prefixed_name import PrefixedName
 from semantic_world.spatial_types.derivatives import Derivatives
 
 
+@dataclass
 class JointGoalReached(Monitor):
-    def __init__(
-        self,
-        goal_state: Dict[Union[str, PrefixedName], float],
-        threshold: float = 0.01,
-        name: Optional[str] = None,
-    ):
+    goal_state: Dict[Union[PrefixedName, str], float]
+    threshold: float = 0.01
+
+    def __post_init__(self):
         comparison_list = []
-        for joint_name, goal in goal_state.items():
+        for joint_name, goal in self.goal_state.items():
             connection: Has1DOFState = god_map.world.get_connection_by_name(joint_name)
             current = connection.dof.symbols.position
             if (
@@ -30,23 +31,29 @@ class JointGoalReached(Monitor):
                 error = cas.shortest_angular_distance(current, goal)
             else:
                 error = goal - current
-            comparison_list.append(cas.abs(error) < threshold)
+            comparison_list.append(cas.abs(error) < self.threshold)
         expression = cas.logic_all(cas.Expression(comparison_list))
-        super().__init__(name=name)
         self.observation_expression = expression
 
 
+@dataclass
 class JointPositionAbove(Monitor):
-    def __init__(
-        self, joint_name: PrefixedName, threshold: float, name: Optional[str] = None
-    ):
-        super().__init__(name=name)
-        current = god_map.world.get_one_dof_joint_symbol(
-            joint_name, Derivatives.position
-        )
-        if god_map.world.is_joint_continuous(joint_name):
+    connection: ActiveConnection
+    threshold: float
+
+    def __post_init__(self):
+        if not isinstance(self.connection, Has1DOFState):
+            raise GoalInitalizationException(
+                f"Connection {self.connection} must be of type Has1DOFState"
+            )
+        if (
+            isinstance(self.connection, RevoluteConnection)
+            and self.connection.dof.has_position_limits()
+        ):
             raise GoalInitalizationException(
                 f"{self.__class__.__name__} does not support joints of type continuous."
             )
-        expression = current > threshold
+
+        current = self.connection.dof.symbols.position
+        expression = current > self.threshold
         self.observation_expression = expression

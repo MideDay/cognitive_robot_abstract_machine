@@ -1,5 +1,6 @@
 from __future__ import division
 
+from dataclasses import dataclass
 from typing import Optional, List
 
 import numpy as np
@@ -19,25 +20,26 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import (
 )
 from semantic_world.spatial_types.symbol_manager import symbol_manager
 from giskardpy.motion_statechart.tasks.task import WEIGHT_ABOVE_CA, Task
+from semantic_world.world_description.world_entity import Body
 
 
+@dataclass
 class ToDriveOrNotToDrive(Goal):
-    def __init__(
-        self,
-        tip_link: PrefixedName,
-        xyz: List[float],
-        weight: float = WEIGHT_ABOVE_CA,
-        name: Optional[str] = None,
-    ):
-        super().__init__(name=name)
-        self.tip_link = tip_link
-        self.joint: OmniDrive = god_map.world.get_drive_joint()
-        no_base = NoBase(weight=weight, name=f"{name}/no base")
+    tip_link: Body
+    xyz: List[float]
+    weight: float = WEIGHT_ABOVE_CA
+
+    def __post_init__(self):
+        self.joint: OmniDrive = god_map.world.get_connections_by_type(OmniDrive)
+        no_base = NoBase(weight=self.weight, name=f"{self.name}/no base")
         keep_in_workspace = KeepInWorkspace(
-            tip_link=tip_link, xyz=xyz, weight=weight, name=f"{name}/keep in workspace"
+            tip_link=self.tip_link,
+            xyz=self.xyz,
+            weight=self.weight,
+            name=f"{self.name}/keep in workspace",
         )
         is_in_workspace = InWorldSpace(
-            tip_link=tip_link, xyz=xyz, name=f"{name}/in workspace"
+            tip_link=self.tip_link, xyz=self.xyz, name=f"{self.name}/in workspace"
         )
         self.add_task(no_base)
         self.add_task(keep_in_workspace)
@@ -49,20 +51,18 @@ class ToDriveOrNotToDrive(Goal):
         self.observation_expression = is_in_workspace.observation_expression
 
 
+@dataclass
 class DiffDriveBaseGoal(Goal):
+    root_link: Body
+    tip_link: Body
+    goal_pose: cas.TransformationMatrix
+    max_linear_velocity: float = 0.1
+    max_angular_velocity: float = 0.5
+    weight: float = WEIGHT_ABOVE_CA
+    pointing_axis = None
+    always_forward: bool = False
 
-    def __init__(
-        self,
-        root_link: PrefixedName,
-        tip_link: PrefixedName,
-        goal_pose: cas.TransformationMatrix,
-        max_linear_velocity: float = 0.1,
-        max_angular_velocity: float = 0.5,
-        weight: float = WEIGHT_ABOVE_CA,
-        pointing_axis=None,
-        always_forward: bool = False,
-        name: Optional[str] = None,
-    ):
+    def __post_init__(self):
         """
         Like a CartesianPose, but specifically for differential drives. It will achieve the goal in 3 phases.
         1. orient towards goal.
@@ -77,18 +77,13 @@ class DiffDriveBaseGoal(Goal):
         :param pointing_axis: the forward direction. default is x-axis
         :param always_forward: if false, it will drive backwards, if it requires less rotation.
         """
-        self.always_forward = always_forward
-        self.max_linear_velocity = max_linear_velocity
-        self.max_angular_velocity = max_angular_velocity
-        if pointing_axis is None:
-            pointing_axis = cas.Vector3((1, 0, 0))
-            pointing_axis.reference_frame = tip_link
-        self.weight = weight
-        self.map = root_link
-        self.base_footprint = tip_link
-        super().__init__(name=name)
+        if self.pointing_axis is None:
+            self.pointing_axis = cas.Vector3((1, 0, 0))
+            self.pointing_axis.reference_frame = self.tip_link
+        self.map = self.root_link
+        self.base_footprint = self.tip_link
         self.goal_pose = god_map.world.transform(
-            target_frame=self.map, spatial_object=goal_pose
+            target_frame=self.map, spatial_object=self.goal_pose
         )
         self.goal_pose.z = 0
         diff_drive_joints = [
@@ -98,9 +93,9 @@ class DiffDriveBaseGoal(Goal):
         self.joint: DiffDrive = diff_drive_joints[0]
         self.odom = self.joint.parent_link_name
 
-        if pointing_axis is not None:
+        if self.pointing_axis is not None:
             self.base_footprint_V_pointing_axis = god_map.world.transform(
-                target_frame=self.base_footprint, spatial_object=pointing_axis
+                target_frame=self.base_footprint, spatial_object=self.pointing_axis
             )
             self.base_footprint_V_pointing_axis.scale(1)
         else:
@@ -108,8 +103,12 @@ class DiffDriveBaseGoal(Goal):
             self.base_footprint_V_pointing_axis.reference_frame = self.base_footprint
             self.base_footprint_V_pointing_axis.z = 1
 
-        map_T_base_current = god_map.world.compute_fk(self.map, self.base_footprint)
-        map_T_odom_current = god_map.world.compute_fk(self.map, self.odom)
+        map_T_base_current = god_map.world.compute_forward_kinematics(
+            self.map, self.base_footprint
+        )
+        map_T_odom_current = god_map.world.compute_forward_kinematics(
+            self.map, self.odom
+        )
         _, map_odom_angle = map_T_odom_current.to_rotation_matrix().to_axis_angle()
         map_R_base_current = map_T_base_current.to_rotation_matrix()
         axis_start, angle_start = map_R_base_current.to_axis_angle()
@@ -228,45 +227,41 @@ class DiffDriveBaseGoal(Goal):
         )
 
 
+@dataclass
 class CartesianPoseStraight(Goal):
-    def __init__(
-        self,
-        root_link: PrefixedName,
-        tip_link: PrefixedName,
-        goal_pose: cas.TransformationMatrix,
-        reference_linear_velocity: Optional[float] = None,
-        reference_angular_velocity: Optional[float] = None,
-        weight: float = WEIGHT_ABOVE_CA,
-        absolute: bool = False,
-        name: Optional[str] = None,
-    ):
+    root_link: Body
+    tip_link: Body
+    goal_pose: cas.TransformationMatrix
+    reference_linear_velocity: Optional[float] = None
+    reference_angular_velocity: Optional[float] = None
+    weight: float = WEIGHT_ABOVE_CA
+    absolute: bool = False
+
+    def __post_init__(self):
         """
         See CartesianPose. In contrast to it, this goal will try to move tip_link in a straight line.
         """
-        self.root_link = root_link
-        self.tip_link = tip_link
-        super().__init__(name=name)
         self.add_task(
             CartesianPositionStraight(
-                root_link=root_link,
-                tip_link=tip_link,
-                name=name + "/pos",
-                goal_point=goal_pose.to_position(),
-                reference_velocity=reference_linear_velocity,
-                weight=weight,
-                absolute=absolute,
+                root_link=self.root_link,
+                tip_link=self.tip_link,
+                name=self.name + "/pos",
+                goal_point=self.goal_pose.to_position(),
+                reference_velocity=self.reference_linear_velocity,
+                weight=self.weight,
+                absolute=self.absolute,
             )
         )
         self.add_task(
             CartesianOrientation(
-                root_link=root_link,
-                tip_link=tip_link,
-                name=name + "/rot",
-                goal_orientation=goal_pose.to_rotation_matrix(),
-                reference_velocity=reference_angular_velocity,
-                absolute=absolute,
-                weight=weight,
-                point_of_debug_matrix=goal_pose.to_position(),
+                root_link=self.root_link,
+                tip_link=self.tip_link,
+                name=self.name + "/rot",
+                goal_orientation=self.goal_pose.to_rotation_matrix(),
+                reference_velocity=self.reference_angular_velocity,
+                absolute=self.absolute,
+                weight=self.weight,
+                point_of_debug_matrix=self.goal_pose.to_position(),
             )
         )
         obs_expressions = []
@@ -275,35 +270,31 @@ class CartesianPoseStraight(Goal):
         self.observation_expression = cas.logic_and(*obs_expressions)
 
 
+@dataclass
 class RelativePositionSequence(Goal):
-    def __init__(
-        self,
-        goal1: cas.TransformationMatrix,
-        goal2: cas.TransformationMatrix,
-        root_link: PrefixedName,
-        tip_link: PrefixedName,
-        name: Optional[str] = None,
-    ):
+    goal1: cas.TransformationMatrix
+    goal2: cas.TransformationMatrix
+    root_link: Body
+    tip_link: Body
+
+    def __post_init__(self):
         """
         Only meant for testing.
         """
-        if name is None:
-            name = f"{self.__class__.__name__}/{root_link}/{tip_link}"
-        super().__init__(name=name)
         name1 = f"{self.name}/goal1"
         name2 = f"{self.name}/goal2"
         task1 = CartesianPose(
-            root_link=root_link,
-            tip_link=tip_link,
-            goal_pose=goal1,
+            root_link=self.root_link,
+            tip_link=self.tip_link,
+            goal_pose=self.goal1,
             name=name1,
             absolute=True,
         )
         self.add_task(task1)
         task2 = CartesianPose(
-            root_link=root_link,
-            tip_link=tip_link,
-            goal_pose=goal2,
+            root_link=self.root_link,
+            tip_link=self.tip_link,
+            goal_pose=self.goal2,
             name=name2,
             absolute=True,
         )

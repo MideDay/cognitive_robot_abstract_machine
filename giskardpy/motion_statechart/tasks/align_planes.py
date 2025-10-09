@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from typing import Optional
 
 import semantic_world.spatial_types.spatial_types as cas
@@ -6,21 +7,19 @@ from giskardpy.middleware import get_middleware
 from giskardpy.god_map import god_map
 from semantic_world.world_description.geometry import Color
 from semantic_world.datastructures.prefixed_name import PrefixedName
+from semantic_world.world_description.world_entity import Body
 
 
+@dataclass
 class AlignPlanes(Task):
-    def __init__(
-        self,
-        root_link: PrefixedName,
-        tip_link: PrefixedName,
-        goal_normal: cas.Vector3,
-        tip_normal: cas.Vector3,
-        threshold: float = 0.01,
-        reference_velocity: float = 0.5,
-        weight: float = WEIGHT_ABOVE_CA,
-        name: Optional[str] = None,
-        **kwargs,
-    ):
+    root_link: Body
+    tip_link: Body
+    goal_normal: cas.Vector3
+    tip_normal: cas.Vector3
+    threshold: float = 0.01
+    reference_velocity: float = 0.5
+    weight: Optional[str] = None
+    def __post_init__(self):
         """
         This goal will use the kinematic chain between tip and root to align tip_normal with goal_normal.
         :param root_link: root link of the kinematic chain
@@ -30,37 +29,16 @@ class AlignPlanes(Task):
         :param reference_velocity: rad/s
         :param weight:
         """
-        if "root_normal" in kwargs:
-            get_middleware().logwarn(
-                "Deprecated warning: use goal_normal instead of root_normal"
-            )
-            goal_normal = kwargs["root_normal"]
-        self.root = root_link
-        self.tip = tip_link
-        self.reference_velocity = reference_velocity
-        self.weight = weight
-
-        self.tip_V_tip_normal: cas.Vector3 = god_map.world.transform(
-            target_frame=self.tip, spatial_object=tip_normal
-        )
+        self.tip_V_tip_normal = god_map.world.transform(target_frame=self.tip_link, spatial_object=self.tip_normal)
         self.tip_V_tip_normal.scale(1)
 
         self.root_V_root_normal = god_map.world.transform(
-            target_frame=self.root, spatial_object=goal_normal
+            target_frame=self.root_link, spatial_object=self.goal_normal
         )
         self.root_V_root_normal.scale(1)
 
-        if name is None:
-            name = (
-                f"{self.__class__.__name__}/{self.root}/{self.tip}"
-                f"_X:{self.tip_V_tip_normal.x:.3f}"
-                f"_Y:{self.tip_V_tip_normal.y:.3f}"
-                f"_Z:{self.tip_V_tip_normal.z:.3f}"
-            )
-        super().__init__(name=name)
-
         root_R_tip = god_map.world.compose_forward_kinematics_expression(
-            self.root, self.tip
+            self.root_link, self.tip_link
         ).to_rotation_matrix()
         root_V_tip_normal = root_R_tip @ self.tip_V_tip_normal
         self.add_vector_goal_constraints(
@@ -69,15 +47,15 @@ class AlignPlanes(Task):
             reference_velocity=self.reference_velocity,
             weight=self.weight,
         )
-        root_V_tip_normal.vis_frame = self.tip
+        root_V_tip_normal.vis_frame = self.tip_link
         god_map.debug_expression_manager.add_debug_expression(
             f"{self.name}/current_normal", root_V_tip_normal, color=Color(1, 0, 0, 1)
         )
-        self.root_V_root_normal.vis_frame = self.tip
+        self.root_V_root_normal.vis_frame = self.tip_link
         god_map.debug_expression_manager.add_debug_expression(
             f"{self.name}/goal_normal", self.root_V_root_normal, color=Color(0, 0, 1, 1)
         )
 
         self.observation_expression = (
-            root_V_tip_normal.angle_between(self.root_V_root_normal) <= threshold
+            root_V_tip_normal.angle_between(self.root_V_root_normal) <= self.threshold
         )

@@ -1,28 +1,28 @@
 from __future__ import division
 
-from typing import Optional
+from dataclasses import dataclass
 
-from semantic_world.datastructures.prefixed_name import PrefixedName
+import semantic_world.spatial_types.spatial_types as cas
+from giskardpy.god_map import god_map
 from giskardpy.motion_statechart.goals.goal import Goal
 from giskardpy.motion_statechart.monitors.monitors import TrueMonitor, CancelMotion
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from giskardpy.motion_statechart.tasks.task import WEIGHT_ABOVE_CA
-from giskardpy.god_map import god_map
-import semantic_world.spatial_types.spatial_types as cas
+from semantic_world.datastructures.prefixed_name import PrefixedName
+from semantic_world.world_description.world_entity import Body
 
 
+@dataclass
 class GraspSequence(Goal):
-    def __init__(
-        self,
-        tip_link: PrefixedName,
-        root_link: PrefixedName,
-        gripper_joint: str,
-        goal_pose: cas.TransformationMatrix,
-        max_velocity: float = 100,
-        weight: float = WEIGHT_ABOVE_CA,
-        name: Optional[str] = None,
-    ):
+    tip_link: Body
+    root_link: Body
+    gripper_joint: PrefixedName
+    goal_pose: cas.TransformationMatrix
+    max_velocity: float = 100
+    weight: float = WEIGHT_ABOVE_CA
+
+    def __post_init__(self):
         """
         Open a container in an environment.
         Only works with the environment was added as urdf.
@@ -33,13 +33,8 @@ class GraspSequence(Goal):
         :param goal_joint_state: goal state for the container. default is maximum joint state.
         :param weight:
         """
-        self.weight = weight
-        self.tip_link = tip_link
-        self.root_link = root_link
-        super().__init__(name=name)
-
-        open_state = {gripper_joint: 1.23}
-        close_state = {gripper_joint: 0}
+        open_state = {self.gripper_joint: 1.23}
+        close_state = {self.gripper_joint: 0}
         gripper_open = JointPositionList(
             goal_state=open_state, name=f"{self.name}/open", weight=self.weight
         )
@@ -53,13 +48,13 @@ class GraspSequence(Goal):
             root_link=self.root_link,
             tip_link=self.tip_link,
             name=f"{self.name}/grasp",
-            goal_pose=goal_pose,
+            goal_pose=self.goal_pose,
             weight=self.weight,
         )
         self.add_task(grasp)
 
         lift_pose = god_map.world.transform(
-            target_frame=god_map.world.root_link_name, spatial_object=goal_pose
+            target_frame=god_map.world.root_link_name, spatial_object=self.goal_pose
         )
         lift_pose.z += 0.1
 
@@ -75,17 +70,16 @@ class GraspSequence(Goal):
         self.observation_expression = lift.observation_state_symbol
 
 
+@dataclass
 class Cutting(Goal):
-    def __init__(
-        self,
-        tip_link: PrefixedName,
-        root_link: PrefixedName,
-        depth: float,
-        right_shift: float,
-        max_velocity: float = 100,
-        weight: float = WEIGHT_ABOVE_CA,
-        name: Optional[str] = None,
-    ):
+    tip_link: Body
+    root_link: Body
+    depth: float
+    right_shift: float
+    max_velocity: float = 100
+    weight: float = WEIGHT_ABOVE_CA
+
+    def __post_init__(self):
         """
         Open a container in an environment.
         Only works with the environment was added as urdf.
@@ -96,15 +90,10 @@ class Cutting(Goal):
         :param goal_joint_state: goal state for the container. default is maximum joint state.
         :param weight:
         """
-        self.weight = weight
-        self.tip_link = tip_link
-        self.root_link = root_link
-        super().__init__(name=name)
-
-        schnibble_down_pose = god_map.world.compute_fk(
+        schnibble_down_pose = god_map.world.compute_forward_kinematics(
             root_link=self.tip_link, tip_link=self.tip_link
         )
-        schnibble_down_pose.x = -depth
+        schnibble_down_pose.x = -self.depth
         cut_down = CartesianPose(
             root_link=self.root_link,
             name=f"{self.name}/Down",
@@ -125,10 +114,10 @@ class Cutting(Goal):
         self.add_monitor(cancel)
         cancel.start_condition = f"not {made_contact}"
 
-        schnibble_up_pose = god_map.world.compute_fk(
+        schnibble_up_pose = god_map.world.compute_forward_kinematics(
             root_link=self.tip_link, tip_link=self.tip_link
         )
-        schnibble_up_pose.x = depth
+        schnibble_up_pose.x = self.depth
         cut_up = CartesianPose(
             root_link=self.root_link,
             name=f"{self.name}/Up",
@@ -138,10 +127,10 @@ class Cutting(Goal):
         )
         self.add_task(cut_up)
 
-        schnibble_right_pose = god_map.world.compute_fk(
+        schnibble_right_pose = god_map.world.compute_forward_kinematics(
             root_link=self.tip_link, tip_link=self.tip_link
         )
-        schnibble_right_pose.y = right_shift
+        schnibble_right_pose.y = self.right_shift
         move_right = CartesianPose(
             root_link=self.root_link,
             name=f"{self.name}/Move Right",

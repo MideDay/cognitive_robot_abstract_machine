@@ -1,4 +1,5 @@
-from typing import Optional
+from dataclasses import dataclass
+from typing import Optional, Union
 
 import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.motion_statechart.goals.goal import Goal
@@ -7,52 +8,39 @@ from giskardpy.motion_statechart.tasks.task import WEIGHT_BELOW_CA, Task
 
 import numpy as np
 
+from semantic_world.world_description.world_entity import Body
 
+
+@dataclass
 class PrePushDoor(Goal):
+    root_link: Body
+    tip_link: Body
+    door_object: Body
+    door_handle: Body
+    reference_linear_velocity: float = 0.1
+    reference_angular_velocity: float = 0.5
+    weight: float = WEIGHT_BELOW_CA
 
-    def __init__(
-        self,
-        root_link: str,
-        tip_link: str,
-        door_object: str,
-        door_handle: str,
-        root_group: Optional[str] = None,
-        tip_group: Optional[str] = None,
-        reference_linear_velocity: float = 0.1,
-        reference_angular_velocity: float = 0.5,
-        weight: float = WEIGHT_BELOW_CA,
-        name: Optional[str] = None,
-        start_condition: cas.Expression = cas.BinaryTrue,
-        pause_condition: cas.Expression = cas.BinaryFalse,
-        end_condition: cas.Expression = cas.BinaryFalse,
-    ):
+    def __post_init__(self):
         """
         The objective is to push the object until desired rotation is reached
         """
-        self.root = god_map.world.search_for_link_name(root_link, root_group)
-        self.tip = god_map.world.search_for_link_name(tip_link, tip_group)
-        self.door_object = god_map.world.search_for_link_name(door_object)
-        object_joint_name = god_map.world.get_movable_parent_joint(self.door_object)
+        object_joint_name = god_map.world.get_controlled_parent_connection(
+            self.door_object
+        )
         object_V_object_rotation_axis = cas.Vector3(
             god_map.world.get_joint(object_joint_name).axis
         )
 
-        self.handle = god_map.world.search_for_link_name(door_handle)
-        self.reference_linear_velocity = reference_linear_velocity
-        self.reference_angular_velocity = reference_angular_velocity
-        self.weight = weight
-        if name is None:
-            name = f"{self.__class__.__name__}/{self.tip}/{self.door_object}"
-
-        super().__init__(name=name)
-
         root_T_tip = god_map.world.compose_forward_kinematics_expression(
-            self.root, self.tip
+            self.root_link, self.tip_link
         )
         root_T_door = god_map.world.compose_forward_kinematics_expression(
-            self.root, self.door_object
+            self.root_link, self.door_object
         )
-        door_P_handle = god_map.world.compute_fk_point(self.door_object, self.handle)
+        door_P_handle = god_map.world.compute_forward_kinematics(
+            self.door_object, self.door_handle
+        )
         temp_point = np.asarray(
             [door_P_handle.x.to_np(), door_P_handle.y.to_np(), door_P_handle.z.to_np()]
         )
@@ -65,7 +53,7 @@ class PrePushDoor(Goal):
         door_V_v1 = cas.Vector3(door_V_v1)  # A
 
         door_Pose_tip = god_map.world.compose_forward_kinematics_expression(
-            self.door_object, self.tip
+            self.door_object, self.tip_link
         )
         door_P_tip = door_Pose_tip.to_position()
         dist, door_P_nearest = cas.distance_point_to_plane(
