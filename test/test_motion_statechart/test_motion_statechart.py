@@ -5,20 +5,21 @@ import numpy as np
 import pytest
 
 import semantic_digital_twin.spatial_types.spatial_types as cas
+from conftest import box_bot_world
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     ObservationStateValues,
 )
+from giskardpy.motion_statechart.goals.collision_avoidance import (
+    ExternalCollisionAvoidance,
+)
 from giskardpy.motion_statechart.graph_node import (
     EndMotion,
     CancelMotion,
-    NodeArtifacts,
 )
-from giskardpy.motion_statechart.graph_node import Goal
 from giskardpy.motion_statechart.graph_node import ThreadPayloadMonitor
-from giskardpy.motion_statechart.monitors.monitors import TrueMonitor
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetSeedConfiguration,
     SetOdometry,
@@ -33,7 +34,12 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import (
 )
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
 from giskardpy.motion_statechart.tasks.pointing import Pointing
-from giskardpy.motion_statechart.test_nodes.test_nodes import ChangeStateOnEvents
+from giskardpy.motion_statechart.test_nodes.test_nodes import (
+    ChangeStateOnEvents,
+    TrueMonitor,
+    TestGoal,
+    TestNestedGoal,
+)
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import TransformationMatrix
@@ -490,28 +496,11 @@ def test_reset():
 def test_nested_goals():
     msc = MotionStatechart()
 
-    node1 = TrueMonitor(name=PrefixedName("start"))
+    node1 = TrueMonitor(name=PrefixedName("node1"))
     msc.add_node(node1)
 
-    # inner goal with two sub-nodes
-    inner = Goal(name=PrefixedName("inner"))
-    sub_node1 = TrueMonitor(name=PrefixedName("inner sub 1"))
-    msc.add_node(sub_node1)
-    sub_node2 = TrueMonitor(name=PrefixedName("inner sub 2"))
-    msc.add_node(sub_node2)
-    inner.add_node(sub_node1)
-    inner.add_node(sub_node2)
-    sub_node1.end_condition = sub_node1.observation_variable
-    sub_node2.start_condition = sub_node1.observation_variable
-    inner.build = lambda context: NodeArtifacts(
-        observation=sub_node2.observation_variable
-    )
-
-    # outer goal that contains the inner goal as a node
-    outer = Goal(name=PrefixedName("outer"))
+    outer = TestNestedGoal(name=PrefixedName("outer"))
     msc.add_node(outer)
-    outer.add_node(inner)
-    outer.build = lambda context: NodeArtifacts(observation=inner.observation_variable)
     outer.start_condition = node1.observation_variable
 
     end = EndMotion(name=PrefixedName("done nested"))
@@ -520,136 +509,140 @@ def test_nested_goals():
 
     kin_sim = Executor(motion_statechart=msc, world=World())
 
-    # compile and check initial states
     kin_sim.compile()
     msc.draw("muh.pdf")
     assert node1.observation_state == ObservationStateValues.UNKNOWN
-    assert sub_node1.observation_state == ObservationStateValues.UNKNOWN
-    assert sub_node2.observation_state == ObservationStateValues.UNKNOWN
-    assert inner.observation_state == ObservationStateValues.UNKNOWN
+    assert outer.inner.sub_node1.observation_state == ObservationStateValues.UNKNOWN
+    assert outer.inner.sub_node2.observation_state == ObservationStateValues.UNKNOWN
+    assert outer.inner.observation_state == ObservationStateValues.UNKNOWN
     assert outer.observation_state == ObservationStateValues.UNKNOWN
     assert end.observation_state == ObservationStateValues.UNKNOWN
 
     assert node1.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert sub_node1.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert sub_node2.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert inner.life_cycle_state == LifeCycleValues.NOT_STARTED
+    assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.NOT_STARTED
+    assert outer.inner.sub_node2.life_cycle_state == LifeCycleValues.NOT_STARTED
+    assert outer.inner.life_cycle_state == LifeCycleValues.NOT_STARTED
     assert outer.life_cycle_state == LifeCycleValues.NOT_STARTED
     assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
     assert not msc.is_end_motion()
 
-    # tick 1: start trigger begins running
     kin_sim.tick()
     msc.draw("muh.pdf")
     assert node1.observation_state == ObservationStateValues.UNKNOWN
-    assert sub_node1.observation_state == ObservationStateValues.UNKNOWN
-    assert sub_node2.observation_state == ObservationStateValues.UNKNOWN
-    assert inner.observation_state == ObservationStateValues.UNKNOWN
+    assert outer.inner.sub_node1.observation_state == ObservationStateValues.UNKNOWN
+    assert outer.inner.sub_node2.observation_state == ObservationStateValues.UNKNOWN
+    assert outer.inner.observation_state == ObservationStateValues.UNKNOWN
     assert outer.observation_state == ObservationStateValues.UNKNOWN
     assert end.observation_state == ObservationStateValues.UNKNOWN
 
     assert node1.life_cycle_state == LifeCycleValues.RUNNING
-    assert sub_node1.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert sub_node2.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert inner.life_cycle_state == LifeCycleValues.NOT_STARTED
+    assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.NOT_STARTED
+    assert outer.inner.sub_node2.life_cycle_state == LifeCycleValues.NOT_STARTED
+    assert outer.inner.life_cycle_state == LifeCycleValues.NOT_STARTED
     assert outer.life_cycle_state == LifeCycleValues.NOT_STARTED
     assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
     assert not msc.is_end_motion()
 
-    # tick 2: start trigger turns true; inner sub_node1 already resolves to True and sub_node2 starts
     kin_sim.tick()
     msc.draw("muh.pdf")
     assert node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node1.observation_state == ObservationStateValues.UNKNOWN
-    assert sub_node2.observation_state == ObservationStateValues.UNKNOWN
-    assert inner.observation_state == ObservationStateValues.UNKNOWN
+    assert outer.inner.sub_node1.observation_state == ObservationStateValues.UNKNOWN
+    assert outer.inner.sub_node2.observation_state == ObservationStateValues.UNKNOWN
+    assert outer.inner.observation_state == ObservationStateValues.UNKNOWN
     assert outer.observation_state == ObservationStateValues.UNKNOWN
     assert end.observation_state == ObservationStateValues.UNKNOWN
 
     assert node1.life_cycle_state == LifeCycleValues.RUNNING
-    assert sub_node1.life_cycle_state == LifeCycleValues.RUNNING
-    assert sub_node2.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert inner.life_cycle_state == LifeCycleValues.RUNNING
+    assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.RUNNING
+    assert outer.inner.sub_node2.life_cycle_state == LifeCycleValues.NOT_STARTED
+    assert outer.inner.life_cycle_state == LifeCycleValues.RUNNING
     assert outer.life_cycle_state == LifeCycleValues.RUNNING
     assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
     assert not msc.is_end_motion()
 
-    # tick 3: inner sub_node2 turns true (inner goal still evaluating)
     kin_sim.tick()
     msc.draw("muh.pdf")
     assert node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node2.observation_state == ObservationStateValues.UNKNOWN
-    assert inner.observation_state == ObservationStateValues.UNKNOWN
+    assert outer.inner.sub_node1.observation_state == ObservationStateValues.TRUE
+    assert outer.inner.sub_node2.observation_state == ObservationStateValues.UNKNOWN
+    assert outer.inner.observation_state == ObservationStateValues.UNKNOWN
     assert outer.observation_state == ObservationStateValues.UNKNOWN
     assert end.observation_state == ObservationStateValues.UNKNOWN
 
     assert node1.life_cycle_state == LifeCycleValues.RUNNING
-    assert sub_node1.life_cycle_state == LifeCycleValues.DONE
-    assert sub_node2.life_cycle_state == LifeCycleValues.RUNNING
-    assert inner.life_cycle_state == LifeCycleValues.RUNNING
+    assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.DONE
+    assert outer.inner.sub_node2.life_cycle_state == LifeCycleValues.RUNNING
+    assert outer.inner.life_cycle_state == LifeCycleValues.RUNNING
     assert outer.life_cycle_state == LifeCycleValues.RUNNING
     assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
     assert not msc.is_end_motion()
 
-    # tick 4: inner sub_node2 turns true
     kin_sim.tick()
     msc.draw("muh.pdf")
     assert node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node2.observation_state == ObservationStateValues.TRUE
-    assert inner.observation_state == ObservationStateValues.UNKNOWN
+    assert outer.inner.sub_node1.observation_state == ObservationStateValues.TRUE
+    assert outer.inner.sub_node2.observation_state == ObservationStateValues.TRUE
+    assert outer.inner.observation_state == ObservationStateValues.UNKNOWN
     assert outer.observation_state == ObservationStateValues.UNKNOWN
     assert end.observation_state == ObservationStateValues.UNKNOWN
 
     assert node1.life_cycle_state == LifeCycleValues.RUNNING
-    assert sub_node1.life_cycle_state == LifeCycleValues.DONE
-    assert sub_node2.life_cycle_state == LifeCycleValues.RUNNING
-    assert inner.life_cycle_state == LifeCycleValues.RUNNING
+    assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.DONE
+    assert outer.inner.sub_node2.life_cycle_state == LifeCycleValues.RUNNING
+    assert outer.inner.life_cycle_state == LifeCycleValues.RUNNING
     assert outer.life_cycle_state == LifeCycleValues.RUNNING
     assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
     assert not msc.is_end_motion()
 
-    # tick 5: inner goal becomes true, outer still running, end starts running
     kin_sim.tick()
     msc.draw("muh.pdf")
     assert node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node2.observation_state == ObservationStateValues.TRUE
-    assert inner.observation_state == ObservationStateValues.TRUE
+    assert outer.inner.sub_node1.observation_state == ObservationStateValues.TRUE
+    assert outer.inner.sub_node2.observation_state == ObservationStateValues.TRUE
+    assert outer.inner.observation_state == ObservationStateValues.TRUE
     assert outer.observation_state == ObservationStateValues.UNKNOWN
     assert end.observation_state == ObservationStateValues.UNKNOWN
 
     assert node1.life_cycle_state == LifeCycleValues.RUNNING
-    assert sub_node1.life_cycle_state == LifeCycleValues.DONE
-    assert sub_node2.life_cycle_state == LifeCycleValues.RUNNING
-    assert inner.life_cycle_state == LifeCycleValues.RUNNING
+    assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.DONE
+    assert outer.inner.sub_node2.life_cycle_state == LifeCycleValues.RUNNING
+    assert outer.inner.life_cycle_state == LifeCycleValues.RUNNING
     assert outer.life_cycle_state == LifeCycleValues.RUNNING
     assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
     assert not msc.is_end_motion()
 
-    # tick 6: outer goal becomes true; end still running
     kin_sim.tick()
     msc.draw("muh.pdf")
     assert node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node2.observation_state == ObservationStateValues.TRUE
-    assert inner.observation_state == ObservationStateValues.TRUE
+    assert outer.inner.sub_node1.observation_state == ObservationStateValues.TRUE
+    assert outer.inner.sub_node2.observation_state == ObservationStateValues.TRUE
+    assert outer.inner.observation_state == ObservationStateValues.TRUE
     assert outer.observation_state == ObservationStateValues.TRUE
     assert end.observation_state == ObservationStateValues.UNKNOWN
 
     assert node1.life_cycle_state == LifeCycleValues.RUNNING
-    assert sub_node1.life_cycle_state == LifeCycleValues.DONE
-    assert sub_node2.life_cycle_state == LifeCycleValues.RUNNING
-    assert inner.life_cycle_state == LifeCycleValues.RUNNING
+    assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.DONE
+    assert outer.inner.sub_node2.life_cycle_state == LifeCycleValues.RUNNING
+    assert outer.inner.life_cycle_state == LifeCycleValues.RUNNING
     assert outer.life_cycle_state == LifeCycleValues.RUNNING
     assert end.life_cycle_state == LifeCycleValues.RUNNING
     assert not msc.is_end_motion()
 
-    # tick 7: end motion becomes true
     kin_sim.tick()
     msc.draw("muh.pdf")
+    assert node1.observation_state == ObservationStateValues.TRUE
+    assert outer.inner.sub_node1.observation_state == ObservationStateValues.TRUE
+    assert outer.inner.sub_node2.observation_state == ObservationStateValues.TRUE
+    assert outer.inner.observation_state == ObservationStateValues.TRUE
+    assert outer.observation_state == ObservationStateValues.TRUE
     assert end.observation_state == ObservationStateValues.TRUE
+
+    assert node1.life_cycle_state == LifeCycleValues.RUNNING
+    assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.DONE
+    assert outer.inner.sub_node2.life_cycle_state == LifeCycleValues.RUNNING
+    assert outer.inner.life_cycle_state == LifeCycleValues.RUNNING
+    assert outer.life_cycle_state == LifeCycleValues.RUNNING
+    assert end.life_cycle_state == LifeCycleValues.RUNNING
     assert msc.is_end_motion()
 
 
@@ -729,19 +722,9 @@ def test_goal():
     node1 = TrueMonitor(name=PrefixedName("muh"))
     msc.add_node(node1)
 
-    goal = Goal(name=PrefixedName("goal"))
+    goal = TestGoal(name=PrefixedName("goal"))
     msc.add_node(goal)
-    sub_node1 = TrueMonitor(name=PrefixedName("sub muh1"))
-    goal.add_node(sub_node1)
-    sub_node2 = TrueMonitor(name=PrefixedName("sub muh2"))
-    goal.add_node(sub_node2)
-    goal.add_node(sub_node1)
-    goal.add_node(sub_node2)
-    sub_node1.end_condition = sub_node1.observation_variable
-    sub_node2.start_condition = sub_node1.observation_variable
-    goal.build = lambda context: NodeArtifacts(
-        observation=sub_node2.observation_variable
-    )
+
     goal.start_condition = node1.observation_variable
 
     end = EndMotion(name=PrefixedName("done"))
@@ -751,95 +734,103 @@ def test_goal():
     kin_sim = Executor(motion_statechart=msc, world=World())
 
     kin_sim.compile()
-    assert node1.observation_state == ObservationStateValues.UNKNOWN
-    assert sub_node1.observation_state == ObservationStateValues.UNKNOWN
-    assert sub_node2.observation_state == ObservationStateValues.UNKNOWN
-    assert goal.observation_state == ObservationStateValues.UNKNOWN
-    assert end.observation_state == ObservationStateValues.UNKNOWN
-    assert node1.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert sub_node1.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert sub_node2.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert goal.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert not msc.is_end_motion()
-
-    kin_sim.tick()
-    assert node1.observation_state == ObservationStateValues.UNKNOWN
-    assert sub_node1.observation_state == ObservationStateValues.UNKNOWN
-    assert sub_node2.observation_state == ObservationStateValues.UNKNOWN
-    assert goal.observation_state == ObservationStateValues.UNKNOWN
-    assert end.observation_state == ObservationStateValues.UNKNOWN
-    assert node1.life_cycle_state == LifeCycleValues.RUNNING
-    assert sub_node1.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert sub_node2.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert goal.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert not msc.is_end_motion()
-
-    kin_sim.tick()
-    assert node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node1.observation_state == ObservationStateValues.UNKNOWN
-    assert sub_node2.observation_state == ObservationStateValues.UNKNOWN
-    assert goal.observation_state == ObservationStateValues.UNKNOWN
-    assert end.observation_state == ObservationStateValues.UNKNOWN
-    assert node1.life_cycle_state == LifeCycleValues.RUNNING
-    assert sub_node1.life_cycle_state == LifeCycleValues.RUNNING
-    assert sub_node2.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert goal.life_cycle_state == LifeCycleValues.RUNNING
-    assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert not msc.is_end_motion()
-
-    kin_sim.tick()
-    assert node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node2.observation_state == ObservationStateValues.UNKNOWN
-    assert goal.observation_state == ObservationStateValues.UNKNOWN
-    assert end.observation_state == ObservationStateValues.UNKNOWN
-    assert node1.life_cycle_state == LifeCycleValues.RUNNING
-    assert sub_node1.life_cycle_state == LifeCycleValues.DONE
-    assert sub_node2.life_cycle_state == LifeCycleValues.RUNNING
-    assert goal.life_cycle_state == LifeCycleValues.RUNNING
-    assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert not msc.is_end_motion()
-
-    kin_sim.tick()
-    assert node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node2.observation_state == ObservationStateValues.TRUE
-    assert goal.observation_state == ObservationStateValues.UNKNOWN
-    assert end.observation_state == ObservationStateValues.UNKNOWN
-    assert node1.life_cycle_state == LifeCycleValues.RUNNING
-    assert sub_node1.life_cycle_state == LifeCycleValues.DONE
-    assert sub_node2.life_cycle_state == LifeCycleValues.RUNNING
-    assert goal.life_cycle_state == LifeCycleValues.RUNNING
-    assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert not msc.is_end_motion()
-
-    kin_sim.tick()
-    assert node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node2.observation_state == ObservationStateValues.TRUE
-    assert goal.observation_state == ObservationStateValues.TRUE
-    assert end.observation_state == ObservationStateValues.UNKNOWN
-    assert node1.life_cycle_state == LifeCycleValues.RUNNING
-    assert sub_node1.life_cycle_state == LifeCycleValues.DONE
-    assert sub_node2.life_cycle_state == LifeCycleValues.RUNNING
-    assert goal.life_cycle_state == LifeCycleValues.RUNNING
-    assert end.life_cycle_state == LifeCycleValues.RUNNING
-    assert not msc.is_end_motion()
-
-    kin_sim.tick()
-    assert node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node1.observation_state == ObservationStateValues.TRUE
-    assert sub_node2.observation_state == ObservationStateValues.TRUE
-    assert goal.observation_state == ObservationStateValues.TRUE
-    assert end.observation_state == ObservationStateValues.TRUE
-    assert node1.life_cycle_state == LifeCycleValues.RUNNING
-    assert sub_node1.life_cycle_state == LifeCycleValues.DONE
-    assert sub_node2.life_cycle_state == LifeCycleValues.RUNNING
-    assert goal.life_cycle_state == LifeCycleValues.RUNNING
-    assert end.life_cycle_state == LifeCycleValues.RUNNING
-    assert msc.is_end_motion()
+    kin_sim.tick_until_end()
+    assert len(msc.history) == 7
+    # %% goal
+    assert msc.history.get_life_cycle_history_of_node(goal) == [
+        LifeCycleValues.NOT_STARTED,
+        LifeCycleValues.NOT_STARTED,
+        LifeCycleValues.RUNNING,
+        LifeCycleValues.RUNNING,
+        LifeCycleValues.RUNNING,
+        LifeCycleValues.RUNNING,
+        LifeCycleValues.RUNNING,
+    ]
+    assert msc.history.get_observation_history_of_node(goal) == [
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.TRUE,
+        ObservationStateValues.TRUE,
+    ]
+    # %% node1
+    assert msc.history.get_life_cycle_history_of_node(node1) == [
+        LifeCycleValues.NOT_STARTED,
+        LifeCycleValues.RUNNING,
+        LifeCycleValues.RUNNING,
+        LifeCycleValues.RUNNING,
+        LifeCycleValues.RUNNING,
+        LifeCycleValues.RUNNING,
+        LifeCycleValues.RUNNING,
+    ]
+    assert msc.history.get_observation_history_of_node(node1) == [
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.TRUE,
+        ObservationStateValues.TRUE,
+        ObservationStateValues.TRUE,
+        ObservationStateValues.TRUE,
+        ObservationStateValues.TRUE,
+    ]
+    # %% sub_node1
+    assert msc.history.get_life_cycle_history_of_node(goal.sub_node1) == [
+        LifeCycleValues.NOT_STARTED,
+        LifeCycleValues.NOT_STARTED,
+        LifeCycleValues.RUNNING,
+        LifeCycleValues.DONE,
+        LifeCycleValues.DONE,
+        LifeCycleValues.DONE,
+        LifeCycleValues.DONE,
+    ]
+    assert msc.history.get_observation_history_of_node(goal.sub_node1) == [
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.TRUE,
+        ObservationStateValues.TRUE,
+        ObservationStateValues.TRUE,
+        ObservationStateValues.TRUE,
+    ]
+    # %% sub_node2
+    assert msc.history.get_life_cycle_history_of_node(goal.sub_node2) == [
+        LifeCycleValues.NOT_STARTED,
+        LifeCycleValues.NOT_STARTED,
+        LifeCycleValues.NOT_STARTED,
+        LifeCycleValues.RUNNING,
+        LifeCycleValues.RUNNING,
+        LifeCycleValues.RUNNING,
+        LifeCycleValues.RUNNING,
+    ]
+    assert msc.history.get_observation_history_of_node(goal.sub_node2) == [
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.TRUE,
+        ObservationStateValues.TRUE,
+        ObservationStateValues.TRUE,
+    ]
+    # %% sub_node2
+    assert msc.history.get_life_cycle_history_of_node(end) == [
+        LifeCycleValues.NOT_STARTED,
+        LifeCycleValues.NOT_STARTED,
+        LifeCycleValues.NOT_STARTED,
+        LifeCycleValues.NOT_STARTED,
+        LifeCycleValues.NOT_STARTED,
+        LifeCycleValues.RUNNING,
+        LifeCycleValues.RUNNING,
+    ]
+    assert msc.history.get_observation_history_of_node(end) == [
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.UNKNOWN,
+        ObservationStateValues.TRUE,
+    ]
     msc.draw("muh.pdf")
 
 
@@ -1206,3 +1197,36 @@ def test_transition_triggers():
     msc.draw("muh.pdf")
     assert changer.life_cycle_state == LifeCycleValues.NOT_STARTED
     assert changer.state == "on_reset"
+
+
+def test_external_collision_avoidance(box_bot_world):
+    msc = MotionStatechart()
+
+    root = box_bot_world.root
+    tip = box_bot_world.get_kinematic_structure_entity_by_name("bot")
+
+    target_pose = TransformationMatrix.from_xyz_quaternion(
+        2, reference_frame=box_bot_world.root
+    )
+    cart_goal = CartesianPose(
+        name=PrefixedName("cart_goal"),
+        root_link=root,
+        tip_link=tip,
+        goal_pose=target_pose,
+    )
+    msc.add_node(cart_goal)
+
+    collision_avoidance = ExternalCollisionAvoidance()
+
+    end = EndMotion(name=PrefixedName("end"))
+    msc.add_node(end)
+    end.start_condition = cart_goal.observation_variable
+
+    kin_sim = Executor(
+        motion_statechart=msc,
+        world=box_bot_world,
+        controller_config=QPControllerConfig.create_default_with_50hz(),
+    )
+    kin_sim.compile()
+
+    kin_sim.tick_until_end()

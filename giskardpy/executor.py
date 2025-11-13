@@ -3,7 +3,10 @@ from dataclasses import dataclass, field
 import numpy as np
 from typing_extensions import Optional
 
-from giskardpy.data_types.exceptions import EmptyProblemException
+from giskardpy.data_types.exceptions import (
+    EmptyProblemException,
+    NoQPControllerConfigException,
+)
 from giskardpy.model.collision_world_syncer import CollisionWorldSynchronizer
 from giskardpy.motion_statechart.auxilary_variable_manager import (
     AuxiliaryVariableManager,
@@ -27,12 +30,7 @@ class Executor:
     qp_controller: Optional[QPController] = field(default=None, init=False)
 
     def compile(self):
-        context = BuildContext(
-            world=self.world,
-            auxiliary_variable_manager=self.auxiliary_variable_manager,
-            collision_scene=self.collision_scene,
-        )
-        self.motion_statechart.compile(context)
+        self.motion_statechart.compile(self.build_context)
         self._compile_qp_controller(self.controller_config)
 
     @property
@@ -41,6 +39,7 @@ class Executor:
             world=self.world,
             auxiliary_variable_manager=self.auxiliary_variable_manager,
             collision_scene=self.collision_scene,
+            qp_controller_config=self.controller_config,
         )
 
     def tick(self):
@@ -83,6 +82,10 @@ class Executor:
             self.qp_controller = None
             # to not build controller, if there are no constraints
             return
+        elif controller_config is None:
+            raise NoQPControllerConfigException(
+                "constraints but no controller config given."
+            )
         self.qp_controller = QPController(
             config=controller_config,
             degrees_of_freedom=ordered_dofs,

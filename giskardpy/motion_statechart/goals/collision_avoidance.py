@@ -5,83 +5,90 @@ from typing import Dict, Optional, List, Tuple
 from line_profiler import profile
 
 import semantic_digital_twin.spatial_types.spatial_types as cas
+from giskardpy.data_types.exceptions import GiskardException
 from giskardpy.god_map import god_map
 from giskardpy.middleware import get_middleware
 from giskardpy.model.collision_matrix_manager import CollisionViewRequest
+from giskardpy.motion_statechart.context import BuildContext
 from giskardpy.motion_statechart.data_types import DefaultWeights
-from giskardpy.motion_statechart.graph_node import Goal, MotionStatechartNode
+from giskardpy.motion_statechart.graph_node import (
+    Goal,
+    MotionStatechartNode,
+    NodeArtifacts,
+)
 from giskardpy.motion_statechart.tasks.task import (
     Task,
 )
+from giskardpy.qp.qp_controller_config import QPControllerConfig
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.abstract_robot import AbstractRobot
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import ActiveConnection
-from semantic_digital_twin.world_description.world_entity import Body
+from semantic_digital_twin.world_description.world_entity import (
+    Body,
+)
 
 
 @dataclass
-class ExternalCA(Goal):
+class ExternalCollisionAvoidance(Goal):
+    """
+    Avoidance collision between all direct children of a connection and the environment.
+    """
+
     name: Optional[str] = field(kw_only=True, default=None)
-    name_prefix: Optional[str] = field(kw_only=True, default=None)
     connection: ActiveConnection = field(kw_only=True)
-    main_body: Body = field(init=False)
     max_velocity: float = field(default=0.2, kw_only=True)
-    world: World = field(kw_only=True)
     idx: int = field(default=0, kw_only=True)
     max_avoided_bodies: int = field(default=1, kw_only=True)
     buffer_zone_distance: float = field(init=False)
     violated_distance: float = field(init=False)
 
-    def __post_init__(self):
-        """
-        Don't use me
-        """
-        self._plot = False
-        self.name = f"{self.name_prefix}/{self.__class__.__name__}/{self.connection.name}/{self.idx}"
-        self.main_body = self.connection.child
-        self.control_horizon = god_map.qp_controller.config.prediction_horizon - (
-            god_map.qp_controller.config.max_derivative - 1
+    # %% init false
+    _main_body: Body = field(init=False)
+    _plot: bool = field(default=False, init=False)
+
+    def build(self, context: BuildContext) -> NodeArtifacts:
+        artifacts = NodeArtifacts()
+
+        if isinstance(self.connection.child, Body):
+            self._main_body = self.connection.child
+        else:
+            raise GiskardException(
+                "Child of connection must be of type body for collision avoidance."
+            )
+
+        distance_monitor = self.build_monitors(context)
+        self.add_node(distance_monitor)
+
+        task = self.build_task(context)
+        self.add_node(task)
+
+        task.pause_condition = distance_monitor
+        return artifacts
+
+    def build_monitors(self, context: BuildContext) -> MotionStatechartNode:
+        distance_monitor = MotionStatechartNode(
+            name=PrefixedName("collision distance", str(self.name)), _plot=False
         )
-        self.control_horizon = max(1, self.control_horizon)
-        # threshold = copy.copy(self.robot.collision_config.external_avoidance_threshold[self.main_body])
-        # for body in self.robot.get_directly_child_bodies_with_collision(self.connection):
-        #     threshold.soft_threshold =
+        distance_monitor.observation_expression = self.get_actual_distance() > 50
+        return distance_monitor
 
-        self.root = self.world.root
-        a_P_pa = self.get_closest_point_on_a_in_a()
-        map_V_n = self.map_V_n_symbol()
-        actual_distance = self.get_actual_distance()
-        sample_period = god_map.qp_controller.config.mpc_dt
-        number_of_external_collisions = self.get_number_of_external_collisions()
-
-        map_T_a = self.world._forward_kinematic_manager.compose_expression(
-            self.root, self.main_body
+    def compute_control_horizon(
+        self, qp_controller_config: QPControllerConfig
+    ) -> float:
+        control_horizon = qp_controller_config.prediction_horizon - (
+            qp_controller_config.max_derivative - 1
         )
+        return max(1, control_horizon)
 
-        map_P_pa = cas.Vector3.from_iterable(map_T_a.dot(a_P_pa))
-
-        # the position distance is not accurate, but the derivative is still correct
-        dist = map_V_n @ map_P_pa
-
-        qp_limits_for_lba = self.max_velocity * sample_period * self.control_horizon
-
-        # soft_threshold = 0
+    def create_buffer_zone_expression(self, context: BuildContext) -> cas.Expression:
+        """
+        Creates an expression that is equal to the buffer zone distance of the body that is currently
+        closest to the main body.
+        """
         actual_link_b_hash = self.get_link_b_hash()
-        direct_children = self.world.get_direct_child_bodies_with_collision(
-            self.connection
-        )
-
-        self.buffer_zone_distance = max(
-            b.get_collision_config().buffer_zone_distance
-            for b in direct_children
-            if b.get_collision_config().buffer_zone_distance is not None
-        )
-        self.violated_distance = max(
-            b.get_collision_config().violated_distance for b in direct_children
-        )
         b_result_cases = []
-        for body in self.world.bodies_with_enabled_collision:
+        for body in context.world.bodies_with_enabled_collision:
             if body.get_collision_config().buffer_zone_distance is None:
                 continue
             if body.get_collision_config().disabled:
@@ -93,7 +100,6 @@ class ExternalCA(Goal):
                 b_result_cases.append(
                     (body.__hash__(), body.get_collision_config().buffer_zone_distance)
                 )
-
         if len(b_result_cases) > 0:
             buffer_zone_expr = cas.if_eq_cases(
                 a=actual_link_b_hash,
@@ -102,87 +108,123 @@ class ExternalCA(Goal):
             )
         else:
             buffer_zone_expr = self.buffer_zone_distance
+        return buffer_zone_expr
+
+    def create_upper_slack(
+        self,
+        context: BuildContext,
+        lower_limit: cas.Expression,
+        buffer_zone_expr: cas.Expression,
+    ) -> cas.Expression:
+        qp_limits_for_lba = (
+            self.max_velocity
+            * context.qp_controller_config.mpc_dt
+            * self.compute_control_horizon(context.qp_controller_config)
+        )
+
+        direct_children = context.world.get_direct_child_bodies_with_collision(
+            self.connection
+        )
+
+        self.buffer_zone_distance = max(
+            b.get_collision_config().buffer_zone_distance
+            for b in direct_children
+            if b.get_collision_config().buffer_zone_distance is not None
+        )
+        self.violated_distance = max(
+            b.get_collision_config().violated_distance for b in direct_children
+        )
 
         hard_threshold = cas.min(self.violated_distance, buffer_zone_expr / 2)
-        lower_limit = buffer_zone_expr - actual_distance
 
         lower_limit_limited = cas.limit(
             lower_limit, -qp_limits_for_lba, qp_limits_for_lba
         )
 
-        self.actual_distance = actual_distance
-        self.hard_threshold = hard_threshold
         upper_slack = cas.if_greater(
-            actual_distance,
+            self.get_actual_distance(),
             hard_threshold,
-            lower_limit_limited + cas.max(0, actual_distance - hard_threshold),
+            lower_limit_limited
+            + cas.max(0, self.get_actual_distance() - hard_threshold),
             lower_limit_limited - 1e-4,
         )
         # undo factor in A
-        upper_slack /= sample_period
+        upper_slack /= context.qp_controller_config.mpc_dt
 
         upper_slack = cas.if_greater(
-            actual_distance,
+            self.get_actual_distance(),
             50,  # assuming that distance of unchecked closest points is 100
             cas.Expression(1e4),
             cas.max(0, upper_slack),
         )
+        return upper_slack
 
-        # if 'r_wrist_roll_link' in self.link_name:
-        #     god_map.debug_expression_manager.add_debug_expression(f'{self.name}/actual_distance', actual_distance)
-        #     god_map.debug_expression_manager.add_debug_expression(f'{self.name}/hard_threshold', hard_threshold)
-        #     god_map.debug_expression_manager.add_debug_expression(f'{self.name}/soft_threshold', soft_threshold)
-        #     god_map.debug_expression_manager.add_debug_expression(f'{self.name}/upper_slack', upper_slack)
-        #     god_map.debug_expression_manager.add_debug_expression(f'{self.name}/lower_limit', lower_limit)
-        #     god_map.debug_expression_manager.add_debug_expression(f'{self.name}/qp_limits_for_lba', qp_limits_for_lba)
-        #     god_map.debug_expression_manager.add_debug_expression(f'{self.name}/actual_distance > hard_threshold', cas.greater(actual_distance, hard_threshold))
-        #     god_map.debug_expression_manager.add_debug_expression(f'{self.name}/soft_threshold - hard_threshold', soft_threshold - hard_threshold)
-
-        # weight = cas.if_greater(actual_distance, 50, 0, WEIGHT_COLLISION_AVOIDANCE)
-
+    def create_weight(self) -> cas.Expression:
+        number_of_external_collisions = self.get_number_of_external_collisions()
         weight = cas.Expression(
             data=DefaultWeights.WEIGHT_COLLISION_AVOIDANCE
         ).safe_division(cas.min(number_of_external_collisions, self.max_avoided_bodies))
-        distance_monitor = MotionStatechartNode(
-            name=f"collision distance {self.name}", _plot=False
+        return weight
+
+    def create_task_expression(self, context: BuildContext) -> cas.Expression:
+        self.root = context.world.root
+        a_P_pa = self.get_closest_point_on_a_in_a()
+        map_V_n = self.map_V_n_symbol()
+
+        map_T_a = context.world.compose_forward_kinematics_expression(
+            self.root, self._main_body
         )
-        distance_monitor.observation_expression = actual_distance > 50
-        self.add_monitor(distance_monitor)
-        task = Task(name=self.name + "/task", _plot=False)
-        self.add_task(task)
-        task.plot = False
-        task.pause_condition = distance_monitor
+
+        map_V_pa = cas.Vector3.from_iterable(map_T_a @ a_P_pa)
+
+        # the position distance is not accurate, but the derivative is still correct
+        return map_V_n @ map_V_pa
+
+    def build_task(self, context: BuildContext) -> Task:
+
+        buffer_zone_expr = self.create_buffer_zone_expression(context)
+
+        lower_limit = buffer_zone_expr - self.get_actual_distance()
+
+        task = Task(name=PrefixedName("task", str(self.name)), _plot=False)
+        self.add_node(task)
+
         task.add_inequality_constraint(
             reference_velocity=self.max_velocity,
             lower_error=lower_limit,
             upper_error=float("inf"),
-            weight=weight,
-            task_expression=dist,
+            weight=self.create_weight(),
+            task_expression=self.create_task_expression(context),
             lower_slack_limit=-float("inf"),
-            upper_slack_limit=upper_slack,
+            upper_slack_limit=self.create_upper_slack(
+                context, lower_limit, buffer_zone_expr
+            ),
         )
+        return task
 
     def map_V_n_symbol(self):
-        return god_map.collision_scene.external_map_V_n_symbol(self.main_body, self.idx)
+        return god_map.collision_scene.external_map_V_n_symbol(
+            self._main_body, self.idx
+        )
 
     def get_closest_point_on_a_in_a(self):
         return god_map.collision_scene.external_new_a_P_pa_symbol(
-            self.main_body, self.idx
+            self._main_body, self.idx
         )
 
     def get_actual_distance(self):
         return god_map.collision_scene.external_contact_distance_symbol(
-            self.main_body, self.idx
+            self._main_body, self.idx
         )
 
     def get_link_b_hash(self):
         return god_map.collision_scene.external_link_b_hash_symbol(
-            self.main_body, self.idx
+            self._main_body, self.idx
         )
 
     def get_number_of_external_collisions(self):
         return god_map.collision_scene.external_number_of_collisions_symbol(
-            self.main_body
+            self._main_body
         )
 
 
@@ -202,8 +244,8 @@ class SelfCA(Goal):
         self._plot = False
         self.name = f"{self.name_prefix}/{self.__class__.__name__}/{self.body_a.name}/{self.body_b.name}/{self.idx}"
         self.root = self.world.root
-        self.control_horizon = god_map.qp_controller.config.prediction_horizon - (
-            god_map.qp_controller.config.max_derivative - 1
+        self.control_horizon = context.config.prediction_horizon - (
+            context.config.max_derivative - 1
         )
         self.control_horizon = max(1, self.control_horizon)
         # buffer_zone_distance = max(self.body_a.collision_config.buffer_zone_distance,
@@ -215,7 +257,7 @@ class SelfCA(Goal):
         violated_distance = cas.min(violated_distance, self.buffer_zone_distance / 2)
         actual_distance = self.get_actual_distance()
         number_of_self_collisions = self.get_number_of_self_collisions()
-        sample_period = god_map.qp_controller.config.mpc_dt
+        sample_period = context.config.mpc_dt
 
         b_T_a = god_map.world._forward_kinematic_manager.compose_expression(
             self.body_b, self.body_a
@@ -481,7 +523,7 @@ class CollisionAvoidance(Goal):
                     )
                 for idx in range(max_avoided_bodies):
                     self.add_goal(
-                        ExternalCA(
+                        ExternalCollisionAvoidance(
                             connection=connection,
                             world=god_map.world,
                             name_prefix=self.name,

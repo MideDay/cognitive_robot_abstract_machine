@@ -2,13 +2,13 @@ import json
 
 import pytest
 
+from conftest import mini_world
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     ObservationStateValues,
 )
 from giskardpy.motion_statechart.graph_node import TrinaryCondition, EndMotion
-from giskardpy.motion_statechart.monitors.monitors import TrueMonitor
 from giskardpy.motion_statechart.motion_statechart import (
     MotionStatechart,
     LifeCycleState,
@@ -16,6 +16,7 @@ from giskardpy.motion_statechart.motion_statechart import (
 )
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
+from giskardpy.motion_statechart.test_nodes.test_nodes import TrueMonitor
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     KinematicStructureEntityKwargsTracker,
@@ -34,19 +35,6 @@ from semantic_digital_twin.world_description.connections import (
 from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
 from semantic_digital_twin.world_description.world_entity import Body
 import numpy as np
-
-
-@pytest.fixture()
-def mini_world():
-    world = World()
-    with world.modify_world():
-        body = Body(name=PrefixedName("root"))
-        body2 = Body(name=PrefixedName("tip"))
-        connection = RevoluteConnection.create_with_dofs(
-            world=world, parent=body, child=body2, axis=Vector3.Z()
-        )
-        world.add_connection(connection)
-    return world
 
 
 def test_TrueMonitor():

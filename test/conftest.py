@@ -4,7 +4,13 @@ import pytest
 
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
-from semantic_digital_twin.world_description.connections import OmniDrive
+from semantic_digital_twin.spatial_types import Vector3, TransformationMatrix
+from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.connections import (
+    OmniDrive,
+    RevoluteConnection,
+    FixedConnection,
+)
 from semantic_digital_twin.world_description.world_entity import Body
 
 
@@ -29,3 +35,35 @@ def pr2_world():
         world_with_pr2.add_connection(c_root_bf)
 
     return world_with_pr2
+
+
+@pytest.fixture()
+def mini_world():
+    world = World()
+    with world.modify_world():
+        body = Body(name=PrefixedName("root"))
+        body2 = Body(name=PrefixedName("tip"))
+        connection = RevoluteConnection.create_with_dofs(
+            world=world, parent=body, child=body2, axis=Vector3.Z()
+        )
+        world.add_connection(connection)
+    return world
+
+
+@pytest.fixture()
+def box_bot_world():
+    world = World()
+    with world.modify_world():
+        body = Body(name=PrefixedName("map"))
+        body2 = Body(name=PrefixedName("bot"))
+        connection = OmniDrive.create_with_dofs(world=world, parent=body, child=body2)
+        world.add_connection(connection)
+
+        environment = Body(name=PrefixedName("environment"))
+        env_connection = FixedConnection(
+            parent=body,
+            child=environment,
+            parent_T_connection_expression=TransformationMatrix.from_xyz_rpy(1),
+        )
+        world.add_connection(env_connection)
+    return world

@@ -1,11 +1,29 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
-from giskardpy.motion_statechart.context import ExecutionContext
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
+import semantic_digital_twin.spatial_types.spatial_types as cas
+from giskardpy.motion_statechart.context import ExecutionContext, BuildContext
+from giskardpy.motion_statechart.graph_node import (
+    MotionStatechartNode,
+    Goal,
+    NodeArtifacts,
+)
+from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
+class TrueMonitor(MotionStatechartNode):
+    def build(self, context: BuildContext) -> NodeArtifacts:
+        return NodeArtifacts(observation=cas.TrinaryTrue)
+
+
+@dataclass(eq=False, repr=False)
+class FalseMonitor(MotionStatechartNode):
+    def build(self, context: BuildContext) -> NodeArtifacts:
+        return NodeArtifacts(observation=cas.TrinaryFalse)
+
+
+@dataclass(repr=False, eq=False)
 class ChangeStateOnEvents(MotionStatechartNode):
     state: Optional[str] = None
 
@@ -23,3 +41,36 @@ class ChangeStateOnEvents(MotionStatechartNode):
 
     def on_reset(self, context: ExecutionContext):
         self.state = "on_reset"
+
+
+@dataclass(repr=False, eq=False)
+class TestGoal(Goal):
+    sub_node1: TrueMonitor = field(init=False)
+    sub_node2: TrueMonitor = field(init=False)
+
+    def expand(self, context: BuildContext) -> None:
+        self.sub_node1 = TrueMonitor(name=PrefixedName("sub muh1"))
+        self.add_node(self.sub_node1)
+        self.sub_node2 = TrueMonitor(name=PrefixedName("sub muh2"))
+        self.add_node(self.sub_node2)
+        self.sub_node1.end_condition = self.sub_node1.observation_variable
+        self.sub_node2.start_condition = self.sub_node1.observation_variable
+
+    def build(self, context: BuildContext) -> NodeArtifacts:
+        return NodeArtifacts(observation=self.sub_node2.observation_variable)
+
+
+@dataclass(repr=False, eq=False)
+class TestNestedGoal(Goal):
+    sub_node1: TestGoal = field(init=False)
+    sub_node2: TestGoal = field(init=False)
+    inner: TestGoal = field(init=False)
+
+    def expand(self, context: BuildContext) -> None:
+        self.inner = TestGoal(name=PrefixedName("inner"))
+        self.add_node(self.inner)
+
+    def build(self, context: BuildContext) -> NodeArtifacts:
+        return NodeArtifacts(
+            observation=cas.Expression(self.inner.observation_variable)
+        )

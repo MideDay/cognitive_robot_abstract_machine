@@ -394,17 +394,26 @@ class MotionStatechart(SubclassJSONSerializer):
 
     def _build_nodes(self, context: BuildContext):
         for node in self.nodes:
-            artifacts = node.build(context=context)
-            node._constraint_collection = artifacts.constraints
-            node._constraint_collection.link_to_motion_statechart_node(node)
-            node._observation_expression = artifacts.observation
-            node._debug_expressions = artifacts.debug_expressions
+            self._build_and_apply_artifacts(node, context=context)
+
+    def _build_and_apply_artifacts(
+        self, node: MotionStatechartNode, context: BuildContext
+    ):
+        if isinstance(node, Goal):
+            for child_node in node.nodes:
+                self._build_and_apply_artifacts(child_node, context=context)
+        artifacts = node.build(context=context)
+        node._constraint_collection = artifacts.constraints
+        node._constraint_collection.link_to_motion_statechart_node(node)
+        node._observation_expression = artifacts.observation
+        node._debug_expressions = artifacts.debug_expressions
 
     def _apply_goal_conditions_to_their_children(self):
         for goal in self.get_nodes_by_type(Goal):
             goal.apply_goal_conditions_to_children()
 
     def compile(self, context: BuildContext):
+        self._expand_goals(context=context)
         self._apply_goal_conditions_to_their_children()
         self._build_nodes(context=context)
         self._add_transitions()
@@ -417,6 +426,16 @@ class MotionStatechart(SubclassJSONSerializer):
                 observation_state=self.observation_state,
             )
         )
+
+    def _expand_goals(self, context: BuildContext):
+        for goal in self.get_nodes_by_type(Goal):
+            self._expand_goal(goal, context=context)
+
+    def _expand_goal(self, goal: Goal, context: BuildContext):
+        goal.expand(context)
+        for child_node in goal.nodes:
+            if isinstance(child_node, Goal):
+                self._expand_goal(child_node, context=context)
 
     def combine_constraint_collections_of_nodes(self) -> ConstraintCollection:
         combined_constraint_collection = ConstraintCollection()

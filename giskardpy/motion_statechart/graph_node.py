@@ -288,8 +288,11 @@ class MotionStatechartNode(SubclassJSONSerializer):
     _observation_variable: ObservationVariable = field(init=False)
 
     _constraint_collection: ConstraintCollection = field(init=False)
+    """The parameter is set after build() using its NodeArtifacts."""
     _observation_expression: cas.Expression = field(init=False)
+    """The parameter is set after build() using its NodeArtifacts."""
     _debug_expressions: List[DebugExpression] = field(default_factory=list, init=False)
+    """The parameter is set after build() using its NodeArtifacts."""
 
     _start_condition: TrinaryCondition = field(init=False)
     _pause_condition: TrinaryCondition = field(init=False)
@@ -366,6 +369,7 @@ class MotionStatechartNode(SubclassJSONSerializer):
         """
         Describe this node by returning its constraints and the observation expression.
         Called exactly once during motion statechart compilation.
+        .. warning:: Don't create other nodes within this function.
         """
         return NodeArtifacts(
             constraints=ConstraintCollection(),
@@ -531,6 +535,13 @@ class Goal(MotionStatechartNode):
     def motion_statechart(self, motion_statechart: MotionStatechart) -> None:
         self._motion_statechart = motion_statechart
         self._link_child_nodes_with_motion_statechart()
+
+    def expand(self, context: BuildContext) -> None:
+        """
+        Instantiate child nodes and wire their life cycle transition conditions.
+        ..warning:: Nodes have not been built yet.
+        """
+        pass
 
     def add_node(self, node: MotionStatechartNode) -> None:
         self.nodes.append(node)
