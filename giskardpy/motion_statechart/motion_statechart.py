@@ -267,7 +267,7 @@ class StateHistoryItem:
 
     def __repr__(self) -> str:
         merged = {
-            node.name.name: f"{self.observation_state[node]} | {life_cycle.name}"
+            node.name: f"{self.observation_state[node]} | {life_cycle.name}"
             for node, life_cycle in self.life_cycle_state.items()
         }
         return str(merged)
@@ -353,18 +353,28 @@ class MotionStatechart(SubclassJSONSerializer):
     """
 
     control_cycle_counter: int = field(default=0, init=False)
+    """
+    Increases by 1 each time tick() is called.
+    """
     history: StateHistory = field(default_factory=StateHistory, init=False)
+    """
+    The history of how the state of the motion statechart changed over time.
+    """
 
     def __post_init__(self):
         self.life_cycle_state = LifeCycleState(self)
         self.observation_state = ObservationState(self)
 
-    def create_compressed_copy(self) -> MotionStatechart:
+    def create_structure_copy(self) -> MotionStatechart:
+        """
+        Creates a copy of the motion statechart, where all nodes are MotionStatechartNodes or Goals.
+        This is useful if only the structure of the motion statechart is needed, for example, for visualization.
+        """
         motion_statechart_copy = MotionStatechart()
-        self._create_compressed_copy(self.top_level_nodes, motion_statechart_copy)
+        self._create_structure_copy(self.top_level_nodes, motion_statechart_copy)
         return motion_statechart_copy
 
-    def _create_compressed_copy(
+    def _create_structure_copy(
         self, nodes: List[MotionStatechartNode], destination: MotionStatechart | Goal
     ):
         for node in nodes:
@@ -382,7 +392,7 @@ class MotionStatechart(SubclassJSONSerializer):
             node_copy.end_condition = node.end_condition
             node_copy.reset_condition = node.reset_condition
             if isinstance(node, Goal):
-                self._create_compressed_copy(node.nodes, node_copy)
+                self._create_structure_copy(node.nodes, node_copy)
 
     @property
     def nodes(self) -> List[MotionStatechartNode]:

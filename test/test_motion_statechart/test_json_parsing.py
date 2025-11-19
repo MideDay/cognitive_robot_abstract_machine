@@ -282,7 +282,7 @@ def test_compressed_copy_can_be_plotted(pr2_world: World):
     end.start_condition = cart_goal.observation_variable
 
     msc._expand_goals(BuildContext.empty())
-    json_data = msc.create_compressed_copy().to_json()
+    json_data = msc.create_structure_copy().to_json()
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
 
@@ -305,7 +305,7 @@ def test_nested_goals():
     end.start_condition = outer.observation_variable
 
     msc._expand_goals(BuildContext.empty())
-    json_data = msc.create_compressed_copy().to_json()
+    json_data = msc.create_structure_copy().to_json()
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
 
