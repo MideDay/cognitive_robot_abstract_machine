@@ -59,7 +59,7 @@ class TrinaryCondition(SubclassJSONSerializer):
     """
     The type of transition associated with this condition.
     """
-    expression: cas.Expression = cas.TrinaryUnknown
+    expression: cas.Expression = field(default=lambda: cas.TrinaryUnknown)
     """
     The logical trinary condition to be evaluated.
     """
@@ -736,7 +736,7 @@ class ThreadPayloadMonitor(MotionStatechartNode, ABC):
     # Cache of last successful result from _compute_observation
     _has_result: bool = field(default=False, init=False, repr=False)
     _last_result: float = field(
-        default=float(cas.TrinaryUnknown.to_np()), init=False, repr=False
+        default=ObservationStateValues.UNKNOWN, init=False, repr=False
     )
 
     def __post_init__(self):

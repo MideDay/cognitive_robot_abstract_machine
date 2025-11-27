@@ -17,7 +17,7 @@ from semantic_digital_twin.world_description.connections import (
 from semantic_digital_twin.world_description.world_entity import Connection
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class SetSeedConfiguration(MotionStatechartNode):
     """
     Overwrite the configuration of the world to allow starting the planning from a different state.
@@ -37,7 +37,7 @@ class SetSeedConfiguration(MotionStatechartNode):
             connection.position = value
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class SetOdometry(MotionStatechartNode):
     base_pose: cas.TransformationMatrix = field(kw_only=True)
     _odom_joints: Tuple[Type[Connection], ...] = field(default=(OmniDrive,), init=False)
