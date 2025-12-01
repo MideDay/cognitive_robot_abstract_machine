@@ -173,7 +173,7 @@ class Executor:
     def _compile_qp_controller(self, controller_config: QPControllerConfig):
         ordered_dofs = sorted(
             self.world.active_degrees_of_freedom,
-            key=lambda dof: self.world.state._index[dof.name],
+            key=lambda dof: self.world.state._index[dof.id],
         )
         constraint_collection = (
             self.motion_statechart.combine_constraint_collections_of_nodes()
