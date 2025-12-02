@@ -17,6 +17,12 @@ on:
     paths:
       - '.github/docker/Dockerfile'
       - '.github/docker/entrypoint.sh'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/docker/Dockerfile'
+      - '.github/docker/entrypoint.sh'
 
 jobs:
   build_and_push_docker_image:
