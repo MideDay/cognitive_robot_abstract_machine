@@ -1,0 +1,42 @@
+ARG FROM_IMAGE=ros:jazzy
+ARG OVERLAY_WS=/opt/ros/overlay_ws
+
+FROM $FROM_IMAGE AS builder
+ARG OVERLAY_WS=/opt/ros/overlay_ws
+WORKDIR $OVERLAY_WS/src
+SHELL ["/bin/bash", "-c"]
+
+WORKDIR /opt/ros
+RUN apt update && apt install python3.12-venv ros-jazzy-xacro python3-vcstool git ros-dev-tools default-jre graphviz graphviz-dev -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN vcs import --input https://raw.githubusercontent.com/cram2/cognitive_robot_abstract_machine/main/semantic_digital_twin/rosinstall/semantic_digital_twin-https.rosinstall
+RUN mv iai_maps /opt/ros/overlay_ws/src/iai_maps
+RUN mv iai_pr2 /opt/ros/overlay_ws/src/iai_pr2
+RUN source /opt/ros/jazzy/setup.bash && cd $OVERLAY_WS && colcon build --symlink-install
+RUN echo "source $OVERLAY_WS/install/setup.bash" >> ~/.bashrc
+
+RUN python3 -m venv cram-env --system-site-packages  \
+    && source cram-env/bin/activate  \
+    && pip install poetry \
+    && poetry install \
+    && pip install -U pip  \
+    && pip install -U setuptools
+#    && pip install -r krrood/requirements.txt  \
+#    && pip install -r semantic_digital_twin/requirements.txt  \
+#    && pip install -r giskardpy/requirements.txt  \
+#    && pip install -r pycram/requirements.txt  \
+#    && pip install https://nc.uni-bremen.de/public.php/dav/files/nxxi4QSBcYmmxba/?accept=zip  \
+#    && pip install -e krrood \
+#    && pip install -e semantic_digital_twin \
+#    && pip install -e giskardpy \
+#    && pip install -e pycram
+
+# Install the Multiverse Parser outside of the overlay workspace
+
+#RUN git clone https://github.com/Multiverse-Framework/Multiverse-Parser.git
+#RUN source $OVERLAY_WS/src/semantic_digital_twin-venv/bin/activate && pip install -r Multiverse-Parser/requirements.txt && pip install pyside6 pyopengl jinja2 &&  ./Multiverse-Parser/setup.sh --usd && pip install -e Multiverse-Parser
+
+RUN source /opt/ros/jazzy/setup.bash && cd $OVERLAY_WS && colcon build --symlink-install
+RUN echo "source $OVERLAY_WS/install/setup.bash" >> ~/.bashrc
+
+COPY entrypoint.sh /
+ENTRYPOINT ["bash", "/entrypoint.sh"]
