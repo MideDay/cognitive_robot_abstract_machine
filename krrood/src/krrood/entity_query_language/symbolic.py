@@ -915,7 +915,7 @@ class QueryObjectDescriptor(SymbolicExpression[T], ABC):
         """
 
         def key(result: Dict[int, HashedValue]) -> Any:
-            variable_value = result[self._order_by.variable._id_].value
+            variable_value = result[self._order_by.variable._var_._id_].value
             if self._order_by.key:
                 return self._order_by.key(variable_value)
             else:
