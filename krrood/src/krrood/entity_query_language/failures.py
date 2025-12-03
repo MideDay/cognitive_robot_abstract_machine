@@ -5,9 +5,9 @@ This module defines some custom exception types used by the entity_query_languag
 from __future__ import annotations
 
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from typing_extensions import TYPE_CHECKING, Type, Any
+from typing_extensions import TYPE_CHECKING, Type, Any, List
 
 from ..utils import DataclassException
 
@@ -189,21 +189,40 @@ class NegativeQuantificationError(QuantificationConsistencyError):
 
 
 @dataclass
-class InvalidEntityType(UsageError):
+class InvalidChildType(UsageError):
     """
     Raised when an invalid entity type is given to the quantification operation.
     """
 
-    invalid_entity_type: Type
+    invalid_child_type: Type
     """
-    The invalid entity type.
+    The invalid child type.
+    """
+    correct_child_types: List[Type]
+    """
+    The list of valid child types.
     """
 
     def __post_init__(self):
         self.message = (
-            f"The entity type {self.invalid_entity_type} is not valid. It must be a subclass of QueryObjectDescriptor class."
-            f"e.g. Entity, or SetOf"
+            f"The child type {self.invalid_child_type} is not valid. It must be a subclass of {self.correct_child_types}"
         )
+        super().__post_init__()
+
+@dataclass
+class InvalidEntityType(InvalidChildType):
+    """
+    Raised when an invalid entity type is given to the quantification operation.
+    """
+
+    correct_child_types: List[Type] = field(init=False)
+    """
+    The list of valid child types.
+    """
+
+    def __post_init__(self):
+        from .symbolic import QueryObjectDescriptor
+        self.correct_child_types = [QueryObjectDescriptor]
         super().__post_init__()
 
 

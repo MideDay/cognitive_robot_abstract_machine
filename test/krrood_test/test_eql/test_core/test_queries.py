@@ -15,10 +15,8 @@ from krrood.entity_query_language.entity import (
     exists,
     flatten,
     count,
-    max_,
-    min_,
-    sum_,
 )
+import krrood.entity_query_language.entity as eql
 from krrood.entity_query_language.quantify_entity import an, a, the
 from krrood.entity_query_language.failures import (
     MultipleSolutionFound,
@@ -775,21 +773,21 @@ def test_order_by(handles_and_containers_world):
 def test_sum(handles_and_containers_world):
     heights = [1, 2, 3, 4, 5]
     heights_var = let(int, domain=heights)
-    query = sum_(entity(heights_var))
+    query = eql.sum(entity(heights_var))
     assert query.evaluate() == sum(heights)
 
 
 def test_sum_on_empty_list(handles_and_containers_world):
     empty_list = []
     empty_var = let(int, domain=empty_list)
-    query = sum_(entity(empty_var))
+    query = eql.sum(entity(empty_var))
     assert query.evaluate() is None
 
 
 def test_sum_without_entity():
     heights = [1, 2, 3, 4, 5]
     heights_var = let(int, domain=heights)
-    query = sum_(heights_var)
+    query = eql.sum(heights_var)
     assert query.evaluate() == sum(heights)
 
 def test_limit(handles_and_containers_world):
@@ -866,19 +864,19 @@ def test_max_min_no_variable():
     values = [2, 1, 3, 5, 4]
     value = let(int, domain=values)
 
-    max_query = max_(entity(value))
+    max_query = eql.max(entity(value))
     assert max_query.evaluate() == max(values)
 
-    min_query = min_(entity(value))
+    min_query = eql.min(entity(value))
     assert min_query.evaluate() == min(values)
 def test_max_min_without_entity():
     values = [2, 1, 3, 5, 4]
     value = let(int, domain=values)
 
-    max_query = max_(value)
+    max_query = eql.max(value)
     assert max_query.evaluate() == max(values)
 
-    min_query = min_(value)
+    min_query = eql.min(value)
     assert min_query.evaluate() == min(values)
 
 
@@ -886,10 +884,10 @@ def test_max_min_with_empty_list():
     empty_list = []
     value = let(int, domain=empty_list)
 
-    max_query = max_(entity(value))
+    max_query = eql.max(entity(value))
     assert max_query.evaluate() is None
 
-    min_query = min_(entity(value))
+    min_query = eql.min(entity(value))
     assert min_query.evaluate() is None
 
 

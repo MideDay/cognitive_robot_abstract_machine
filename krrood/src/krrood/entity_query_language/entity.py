@@ -284,7 +284,7 @@ def inference(
     )
 
 
-def max_(variable: Selectable[T], key: Optional[Callable] = None, default: Optional[T] = None) -> Union[T, Max[T]]:
+def max(variable: Selectable[T], key: Optional[Callable] = None, default: Optional[T] = None) -> Union[T, Max[T]]:
     """
     Maps the variable values to their maximum value.
 
@@ -296,7 +296,7 @@ def max_(variable: Selectable[T], key: Optional[Callable] = None, default: Optio
     return Max(variable, _key_func_=key, _default_value_=default)
 
 
-def min_(variable: Selectable[T], key: Optional[Callable] = None, default: Optional[T] = None) -> Union[T, Min[T]]:
+def min(variable: Selectable[T], key: Optional[Callable] = None, default: Optional[T] = None) -> Union[T, Min[T]]:
     """
     Maps the variable values to their minimum value.
 
@@ -308,7 +308,7 @@ def min_(variable: Selectable[T], key: Optional[Callable] = None, default: Optio
     return Min(variable, _key_func_=key, _default_value_=default)
 
 
-def sum_(variable: Selectable[T], key: Optional[Callable] = None, default: Optional[T] = None) -> Union[T, Sum[T]]:
+def sum(variable: Selectable[T], key: Optional[Callable] = None, default: Optional[T] = None) -> Union[T, Sum[T]]:
     """
     Computes the sum of values produced by the given variable.
 

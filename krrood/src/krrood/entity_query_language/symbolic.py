@@ -43,7 +43,7 @@ from .failures import (
     GreaterThanExpectedNumberOfSolutions,
     LessThanExpectedNumberOfSolutions,
     InvalidEntityType,
-    UnSupportedOperand, NonPositiveLimitValue,
+    UnSupportedOperand, NonPositiveLimitValue, InvalidChildType,
 )
 from .hashed_data import HashedValue, HashedIterable, T
 from .result_quantification_constraint import (
@@ -603,7 +603,7 @@ class EntityAggregator(Aggregator[T], ABC):
 
     def __post_init__(self):
         if not isinstance(self._child_, Selectable):
-            raise InvalidEntityType(type(self._child_))
+            raise InvalidChildType(type(self._child_), [Selectable])
         super().__post_init__()
 
     def _get_child_value_from_result_(self, result: OperationResult) -> Any:
@@ -875,6 +875,9 @@ class QueryObjectDescriptor(SymbolicExpression[T], ABC):
     """
 
     _child_: Optional[SymbolicExpression[T]] = field(default=None)
+    """
+    The child of the query object descriptor is the root of the conditions in the query/sub-query graph.
+    """
     _selected_variables: List[CanBehaveLikeAVariable[T]] = field(default_factory=list)
     """
     The variables that are selected by the query object descriptor.
