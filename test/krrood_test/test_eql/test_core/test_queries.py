@@ -871,7 +871,6 @@ def test_max_min_no_variable():
 
     min_query = min_(entity(value))
     assert min_query.evaluate() == min(values)
-
 def test_max_min_without_entity():
     values = [2, 1, 3, 5, 4]
     value = let(int, domain=values)
