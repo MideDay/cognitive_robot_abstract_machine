@@ -1537,6 +1537,9 @@ class Attribute(DomainMapping):
         if not is_dataclass(self._owner_class_):
             return None
 
+        if not self._attr_name_ in [f.name for f in fields(self._owner_class_)]:
+            return None
+
         if self._wrapped_owner_class_:
             # try to get the type endpoint from a field
             try:
