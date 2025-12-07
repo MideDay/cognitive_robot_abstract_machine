@@ -5,34 +5,27 @@ from dataclasses import dataclass, field
 from enum import IntEnum, Enum
 from functools import reduce
 from operator import or_
+from typing import overload
 
-from krrood.entity_query_language.entity import (
-    let,
-    entity,
-    not_,
-    in_,
-    From,
-    for_all,
-)
-from krrood.entity_query_language.quantify_entity import an
 from numpy import ndarray
 from probabilistic_model.probabilistic_circuit.rx.helper import (
     uniform_measure_of_simple_event,
 )
 from random_events.interval import Bound
 from random_events.product_algebra import *
-from typing_extensions import Generic, TypeVar
+from typing_extensions import Generic, TypeVar, Type
 
+from krrood.entity_query_language.entity import (
+    let,
+    entity,
+    not_,
+    in_,
+    for_all,
+)
+from krrood.entity_query_language.quantify_entity import an
 from ..datastructures.prefixed_name import PrefixedName
 from ..datastructures.variables import SpatialVariables
-from ..exceptions import InvalidAxisError
-from ..spatial_types.derivatives import DerivativeMap
-from ..spatial_types.spatial_types import (
-    TransformationMatrix,
-    Vector3,
-    Point3,
-)
-from ..utils import IDGenerator
+from ..exceptions import InvalidAxisError, MissingSemanticPositionError
 from ..semantic_annotations.semantic_annotations import (
     Container,
     Handle,
@@ -44,6 +37,13 @@ from ..semantic_annotations.semantic_annotations import (
     Room,
     Floor,
 )
+from ..spatial_types.derivatives import DerivativeMap
+from ..spatial_types.spatial_types import (
+    TransformationMatrix,
+    Vector3,
+    Point3,
+)
+from ..utils import IDGenerator
 from ..world import World
 from ..world_description.connections import (
     PrismaticConnection,
@@ -71,27 +71,82 @@ class Direction(IntEnum):
     NEGATIVE_Z = 5
 
 
+T = TypeVar("T")
+GenericSemanticAnnotationFactory = TypeVar("GenericSemanticAnnotationFactory")
+
+
+@dataclass
+class ConfigForParentFactory:
+
+    factory_instance: SemanticAnnotationFactory
+    parent_T_child: TransformationMatrix
+
+
+GenericConfigForParentFactory = TypeVar(
+    "GenericConfigForParentFactory", bound=ConfigForParentFactory
+)
+
+
+@dataclass
+class SemanticAnnotationFactory(Generic[T, GenericConfigForParentFactory], ABC):
+    """
+    Abstract factory for the creation of worlds containing a single semantic annotation of type T.
+    """
+
+    name: PrefixedName = field(kw_only=True)
+    """
+    The name of the semantic annotation.
+    """
+
+    @abstractmethod
+    def _create(self, world: World) -> World:
+        """
+        Create the world containing a semantic annotation of type T.
+        Put the custom logic in here.
+
+        :param world: The world to create the semantic annotation in.
+        :return: The world.
+        """
+        raise NotImplementedError()
+
+    def create(self) -> World:
+        """
+        Create the world containing a semantic annotation of type T.
+
+        :return: The world.
+        """
+        world = World(name=self.name.name)
+        with world.modify_world():
+            world = self._create(world)
+        return world
+
+    @property
+    @abstractmethod
+    def _config_type_for_parent_factory(self) -> Type[GenericConfigForParentFactory]:
+        """
+        The type of the configuration for the parent factory.
+        """
+
+    @abstractmethod
+    def get_config_for_parent_factory(
+        self, *args, **kwargs
+    ) -> GenericConfigForParentFactory:
+        """
+        Return the configuration for the parent factory.
+        """
+
+
 @dataclass
 class HasDoorLikeFactories(ABC):
     """
     Mixin for factories receiving multiple DoorLikeFactories.
     """
 
-    door_factories: List[DoorLikeFactory] = field(default_factory=list, hash=False)
-    """
-    The factories used to create the doors.
-    """
-
-    door_transforms: List[TransformationMatrix] = field(
+    door_like_factory_configs: List[DoorLikeConfigForParentFactory] = field(
         default_factory=list, hash=False
     )
     """
-    The transformations for the doors relative their parent container.
-    """
-
-    door_opening_axes: List[Vector3] = field(default_factory=list, hash=False)
-    """
-    The axes around which the doors open.
+    The door factories used to create the doors.
     """
 
     def _create_door_upper_lower_limits(
@@ -213,22 +268,21 @@ class HasDoorLikeFactories(ABC):
         """
         Adds door-like semantic annotations to the parent world.
         """
-        for door_factory, door_transform, door_opening_axis in zip(
-            self.door_factories, self.door_transforms, self.door_opening_axes
-        ):
-            if isinstance(door_factory, DoorFactory):
-                self._add_door_to_world(
-                    door_factory=door_factory,
-                    parent_T_door=door_transform,
-                    parent_world=parent_world,
-                    opening_axis=door_opening_axis,
-                )
-            elif isinstance(door_factory, DoubleDoorFactory):
-                self._add_double_door_to_world(
-                    door_factory=door_factory,
-                    parent_T_double_door=door_transform,
-                    parent_world=parent_world,
-                )
+        for config in self.door_like_factory_configs:
+            match config:
+                case DoorConfigForParentFactory():
+                    self._add_door_to_world(
+                        door_factory=config.factory_instance,
+                        parent_T_door=config.parent_T_child,
+                        opening_axis=config.hinge_axis,
+                        parent_world=parent_world,
+                    )
+                case DoubleDoorConfigForParentFactory():
+                    self._add_double_door_to_world(
+                        door_factory=config.factory_instance,
+                        parent_T_double_door=config.parent_T_child,
+                        parent_world=parent_world,
+                    )
 
     def _calculate_door_pivot_point(
         self,
@@ -313,8 +367,8 @@ class HasDoorLikeFactories(ABC):
                 double_door_world.remove_semantic_annotation(double_door)
                 parent_world.add_semantic_annotation(double_door)
 
+    @staticmethod
     def _move_door_into_new_world(
-        self,
         new_parent: KinematicStructureEntity,
         door: Door,
         parent_T_double_door: TransformationMatrix,
@@ -380,7 +434,8 @@ class HasDoorLikeFactories(ABC):
         if not all_doors_event.is_empty():
             self._remove_doors_from_bodies(all_bodies_not_door, all_doors_event)
 
-    def _get_all_bodies_excluding_doors_from_world(self, world: World) -> List[Body]:
+    @staticmethod
+    def _get_all_bodies_excluding_doors_from_world(world: World) -> List[Body]:
         """
         Return all bodies in the world that are not part of any door semantic annotation.
 
@@ -414,8 +469,9 @@ class HasDoorLikeFactories(ABC):
             return reduce(or_, door_events)
         return Event()
 
+    @staticmethod
     def _build_single_door_event(
-        self, door: Door, wall_event_thickness: float = 0.1
+        door: Door, wall_event_thickness: float = 0.1
     ) -> Event:
         """
         Build an event representing a single door by creating a bounding box event around the door's collision shapes
@@ -454,7 +510,8 @@ class HasDoorLikeFactories(ABC):
         for body in bodies:
             self._remove_door_from_body(body, all_doors_event)
 
-    def _remove_door_from_body(self, body: Body, all_doors_event: Event):
+    @staticmethod
+    def _remove_door_from_body(body: Body, all_doors_event: Event):
         """
         Remove the door volumes from the given body by subtracting the all_doors_event from the body's collision event.
 
@@ -612,35 +669,7 @@ class HasHandleFactory(ABC):
     prioritized.
     """
 
-    handle_factory: HandleFactory = field(kw_only=True)
-    """
-    The factory used to create the handle of the door.
-    """
-
-    semantic_handle_position: Optional[SemanticPositionDescription] = field(
-        default=None
-    )
-    """
-    The direction on the door in which the handle positioned.
-    """
-
-    parent_T_handle: Optional[TransformationMatrix] = field(default=None)
-    """
-    The transformation matrix of the handle from the parent
-    """
-
-    def __post_init__(self):
-        assert (
-            self.parent_T_handle is not None
-            or self.semantic_handle_position is not None
-        ), "Either parent_T_handle or semantic_position must be set."
-        if (
-            self.parent_T_handle is not None
-            and self.semantic_handle_position is not None
-        ):
-            logging.warning(
-                f"During the creation of a factory, both parent_T_handle and semantic_position were set. Prioritizing parent_T_handle."
-            )
+    handle_factory_config: HandleConfigForParentFactory
 
     def create_parent_T_handle_from_parent_scale(
         self, scale: Scale
@@ -649,8 +678,10 @@ class HasHandleFactory(ABC):
         Return a transformation matrix that defines the position and orientation of the handle relative to its parent.
         :raises: NotImplementedError if the handle direction is Z or NEGATIVE_Z.
         """
-        assert self.semantic_handle_position is not None
-        sampled_2d_point = self.semantic_handle_position.sample_point_from_event(
+        semantic_handle_position = self.handle_factory_config.semantic_handle_position
+        if semantic_handle_position is None:
+            raise MissingSemanticPositionError()
+        sampled_2d_point = semantic_handle_position.sample_point_from_event(
             scale.simple_event.as_composite_set().marginal(SpatialVariables.yz)
         )
 
@@ -670,7 +701,7 @@ class HasHandleFactory(ABC):
         to the parent world.
         :param parent_world: The world to which the handle will be added.
         """
-        handle_world = self.handle_factory.create()
+        handle_world = self.handle_factory_config.factory_instance.create()
 
         connection = FixedConnection(
             parent=parent_world.root,
@@ -687,17 +718,7 @@ class HasDrawerFactories(ABC):
     Mixin for factories receiving multiple DrawerFactories.
     """
 
-    drawers_factories: List[DrawerFactory] = field(default_factory=list, hash=False)
-    """
-    The factories used to create drawers.
-    """
-
-    parent_T_drawers: List[TransformationMatrix] = field(
-        default_factory=list, hash=False
-    )
-    """
-    The transformations for the drawers their parent container.
-    """
+    drawer_factory_configs: List[DrawerConfigForParentFactory]
 
     def _add_drawer_to_world(
         self,
@@ -741,12 +762,10 @@ class HasDrawerFactories(ABC):
         Adds drawers to the parent world. A prismatic connection is created for each drawer.
         """
 
-        for drawer_factory, transform in zip(
-            self.drawers_factories, self.parent_T_drawers
-        ):
+        for config in self.drawer_factory_configs:
             self._add_drawer_to_world(
-                drawer_factory=drawer_factory,
-                parent_T_drawer=transform,
+                drawer_factory=config.factory_instance,
+                parent_T_drawer=config.parent_T_child,
                 parent_world=parent_world,
             )
 
@@ -760,50 +779,26 @@ class HasDrawerFactories(ABC):
         lower_limits = DerivativeMap[float]()
         upper_limits = DerivativeMap[float]()
         lower_limits.position = 0.0
-        upper_limits.position = drawer_factory.container_factory.scale.x * 0.75
+        upper_limits.position = (
+            drawer_factory.container_factory_config.factory_instance.scale.x * 0.75
+        )
 
         return upper_limits, lower_limits
 
 
-T = TypeVar("T")
+@dataclass
+class ContainerConfigForParentFactory(ConfigForParentFactory):
+    """
+    Configuration for creating a container from a parent factory.
+    """
+
+    factory_instance: ContainerFactory
 
 
 @dataclass
-class SemanticAnnotationFactory(Generic[T], ABC):
-    """
-    Abstract factory for the creation of worlds containing a single semantic annotation of type T.
-    """
-
-    name: PrefixedName = field(kw_only=True)
-    """
-    The name of the semantic annotation.
-    """
-
-    @abstractmethod
-    def _create(self, world: World) -> World:
-        """
-        Create the world containing a semantic annotation of type T.
-        Put the custom logic in here.
-
-        :param world: The world to create the semantic annotation in.
-        :return: The world.
-        """
-        raise NotImplementedError()
-
-    def create(self) -> World:
-        """
-        Create the world containing a semantic annotation of type T.
-
-        :return: The world.
-        """
-        world = World(name=self.name.name)
-        with world.modify_world():
-            world = self._create(world)
-        return world
-
-
-@dataclass
-class ContainerFactory(SemanticAnnotationFactory[Container]):
+class ContainerFactory(
+    SemanticAnnotationFactory[Container, ContainerConfigForParentFactory]
+):
     """
     Factory for creating a container with walls of a specified thickness and its opening in direction.
     """
@@ -822,6 +817,23 @@ class ContainerFactory(SemanticAnnotationFactory[Container]):
     """
     The direction in which the container is open.
     """
+
+    @property
+    def _config_type_for_parent_factory(self) -> Type[ContainerConfigForParentFactory]:
+        return ContainerConfigForParentFactory
+
+    def get_config_for_parent_factory(
+        self,
+        parent_T_child: Optional[TransformationMatrix],
+        *args,
+        **kwargs,
+    ) -> ContainerConfigForParentFactory:
+        """
+        Return the configuration for the parent factory.
+        """
+        return self._config_type_for_parent_factory(
+            factory_instance=self, parent_T_child=parent_T_child
+        )
 
     def _create(self, world: World) -> World:
         """
@@ -906,7 +918,32 @@ class ContainerFactory(SemanticAnnotationFactory[Container]):
 
 
 @dataclass
-class HandleFactory(SemanticAnnotationFactory[Handle]):
+class HandleConfigForParentFactory(ConfigForParentFactory):
+    """
+    Configuration for creating a handle from a parent factory.
+    """
+
+    factory_instance: HandleFactory
+
+    semantic_handle_position: Optional[SemanticPositionDescription] = field(
+        default=None
+    )
+
+    def __post_init__(self):
+        assert (
+            self.parent_T_child is not None or self.semantic_handle_position is not None
+        ), "Either parent_T_handle or semantic_position must be set."
+        if (
+            self.parent_T_child is not None
+            and self.semantic_handle_position is not None
+        ):
+            logging.warning(
+                f"During the creation of a factory, both parent_T_handle and semantic_position were set. Prioritizing parent_T_handle."
+            )
+
+
+@dataclass
+class HandleFactory(SemanticAnnotationFactory[Handle, HandleConfigForParentFactory]):
     """
     Factory for creating a handle with a specified scale and thickness.
     The handle is represented as a box with an inner cutout to create the handle shape.
@@ -921,6 +958,26 @@ class HandleFactory(SemanticAnnotationFactory[Handle]):
     """
     Thickness of the handle bar.
     """
+
+    @property
+    def _config_type_for_parent_factory(self) -> Type[HandleConfigForParentFactory]:
+        return HandleConfigForParentFactory
+
+    def get_config_for_parent_factory(
+        self,
+        parent_T_child: Optional[TransformationMatrix] = None,
+        semantic_handle_position: Optional[SemanticPositionDescription] = None,
+        *args,
+        **kwargs,
+    ) -> HandleConfigForParentFactory:
+        """
+        Return the configuration for the parent factory.
+        """
+        return self._config_type_for_parent_factory(
+            factory_instance=self,
+            parent_T_child=parent_T_child,
+            semantic_handle_position=semantic_handle_position,
+        )
 
     def _create(self, world: World) -> World:
         """
@@ -993,14 +1050,32 @@ class HandleFactory(SemanticAnnotationFactory[Handle]):
 
 
 @dataclass
-class DoorLikeFactory(SemanticAnnotationFactory[T], ABC):
+class DoorLikeFactory(SemanticAnnotationFactory[T, GenericConfigForParentFactory], ABC):
     """
     Abstract factory for creating door-like factories such as doors or double doors.
     """
 
 
 @dataclass
-class DoorFactory(DoorLikeFactory[Door], HasHandleFactory):
+class DoorLikeConfigForParentFactory(ConfigForParentFactory):
+    """
+    Configuration for creating door-like factories from a parent factory.
+    """
+
+
+@dataclass
+class DoorConfigForParentFactory(DoorLikeConfigForParentFactory):
+    """
+    Configuration for creating a door from a parent factory.
+    """
+
+    factory_instance: DoorFactory
+
+    hinge_axis: Vector3
+
+
+@dataclass
+class DoorFactory(DoorLikeFactory[Door, DoorConfigForParentFactory], HasHandleFactory):
     """
     Factory for creating a door with a handle. The door is defined by its scale and handle direction.
     The doors origin is at the pivot point of the door, not at the center.
@@ -1010,6 +1085,24 @@ class DoorFactory(DoorLikeFactory[Door], HasHandleFactory):
     """
     The scale of the entryway.
     """
+
+    @property
+    def _config_type_for_parent_factory(self) -> Type[DoorConfigForParentFactory]:
+        return DoorConfigForParentFactory
+
+    def get_config_for_parent_factory(
+        self,
+        parent_T_child: Optional[TransformationMatrix],
+        hinge_axis: Vector3,
+        *args,
+        **kwargs,
+    ) -> DoorConfigForParentFactory:
+        """
+        Return the configuration for the parent factory.
+        """
+        return self._config_type_for_parent_factory(
+            factory_instance=self, parent_T_child=parent_T_child, hinge_axis=hinge_axis
+        )
 
     def _create(self, world: World) -> World:
         """
@@ -1029,7 +1122,7 @@ class DoorFactory(DoorLikeFactory[Door], HasHandleFactory):
         self.create_parent_T_handle_from_parent_scale(self.scale)
 
         door_T_handle = (
-            self.parent_T_handle
+            self.handle_factory_config.parent_T_child
             or self.create_parent_T_handle_from_parent_scale(self.scale)
         )
         self.add_handle_to_world(door_T_handle, world)
@@ -1044,15 +1137,38 @@ class DoorFactory(DoorLikeFactory[Door], HasHandleFactory):
 
 
 @dataclass
-class DoubleDoorFactory(DoorLikeFactory[DoubleDoor], HasDoorLikeFactories):
+class DoubleDoorConfigForParentFactory(DoorLikeConfigForParentFactory):
+    """
+    Configuration for creating a double door from a parent factory.
+    """
+
+    factory_instance: DoubleDoorFactory
+
+
+@dataclass
+class DoubleDoorFactory(
+    DoorLikeFactory[DoubleDoor, DoubleDoorConfigForParentFactory], HasDoorLikeFactories
+):
     """
     Factory for creating a double door with two doors and their handles.
     """
 
-    def __post_init__(self):
-        assert (
-            len(self.door_factories) == len(self.door_transforms) == 2
-        ), "Double door must have exactly two door factories and transforms"
+    @property
+    def _config_type_for_parent_factory(self) -> Type[DoubleDoorConfigForParentFactory]:
+        return DoubleDoorConfigForParentFactory
+
+    def get_config_for_parent_factory(
+        self,
+        parent_T_child: Optional[TransformationMatrix],
+        *args,
+        **kwargs,
+    ) -> DoubleDoorConfigForParentFactory:
+        """
+        Return the configuration for the parent factory.
+        """
+        return self._config_type_for_parent_factory(
+            factory_instance=self, parent_T_child=parent_T_child
+        )
 
     def _create(self, world: World) -> World:
         """
@@ -1089,26 +1205,54 @@ class DoubleDoorFactory(DoorLikeFactory[DoubleDoor], HasDoorLikeFactories):
 
 
 @dataclass
-class DrawerFactory(SemanticAnnotationFactory[Drawer], HasHandleFactory):
+class DrawerConfigForParentFactory(ConfigForParentFactory):
+    """
+    Configuration for creating a drawer from a parent factory.
+    """
+
+    factory_instance: DrawerFactory
+
+
+@dataclass
+class DrawerFactory(
+    SemanticAnnotationFactory[Drawer, DrawerConfigForParentFactory], HasHandleFactory
+):
     """
     Factory for creating a drawer with a handle and a container.
     """
 
-    container_factory: ContainerFactory = field(default=None)
+    container_factory_config: ContainerConfigForParentFactory
     """
     The factory used to create the container of the drawer.
     """
+
+    @property
+    def _config_type_for_parent_factory(self) -> Type[DrawerConfigForParentFactory]:
+        return DrawerConfigForParentFactory
+
+    def get_config_for_parent_factory(
+        self,
+        parent_T_child: Optional[TransformationMatrix],
+        *args,
+        **kwargs,
+    ) -> DrawerConfigForParentFactory:
+        """
+        Return the configuration for the parent factory.
+        """
+        return self._config_type_for_parent_factory(
+            factory_instance=self, parent_T_child=parent_T_child
+        )
 
     def _create(self, world: World) -> World:
         """
         Return a world with a drawer at its root. The drawer consists of a container and a handle.
         """
 
-        container_world = self.container_factory.create()
+        container_world = self.container_factory_config.factory_instance.create()
         parent_T_handle = (
-            self.parent_T_handle
+            self.handle_factory_config.parent_T_child
             or self.create_parent_T_handle_from_parent_scale(
-                self.container_factory.scale
+                self.container_factory_config.factory_instance.scale
             )
         )
 
@@ -1132,26 +1276,48 @@ class DrawerFactory(SemanticAnnotationFactory[Drawer], HasHandleFactory):
 
 
 @dataclass
+class DresserConfigForParentFactory(ConfigForParentFactory):
+    """
+    Configuration for creating a dresser from a parent factory.
+    """
+
+    factory_instance: DresserFactory
+
+
+@dataclass
 class DresserFactory(
-    SemanticAnnotationFactory[Dresser], HasDoorLikeFactories, HasDrawerFactories
+    SemanticAnnotationFactory[Dresser, DresserConfigForParentFactory],
+    HasDoorLikeFactories,
+    HasDrawerFactories,
 ):
     """
     Factory for creating a dresser with drawers, and doors.
     """
 
-    container_factory: ContainerFactory = field(default=None)
-    """
-    The factory used to create the container of the dresser.
-    """
+    container_factory_config: ContainerConfigForParentFactory = field(kw_only=True)
+
+    @property
+    def _config_type_for_parent_factory(self) -> Type[DresserConfigForParentFactory]:
+        return DresserConfigForParentFactory
+
+    def get_config_for_parent_factory(
+        self,
+        parent_T_child: Optional[TransformationMatrix],
+        *args,
+        **kwargs,
+    ) -> DresserConfigForParentFactory:
+        """
+        Return the configuration for the parent factory.
+        """
+        return self._config_type_for_parent_factory(
+            factory_instance=self, parent_T_child=parent_T_child
+        )
 
     def _create(self, world: World) -> World:
         """
         Return a world with a dresser at its root. The dresser consists of a container, potentially drawers, and doors.
         Assumes that the number of drawers matches the number of drawer transforms.
         """
-        assert len(self.drawers_factories) == len(
-            self.parent_T_drawers
-        ), "Number of drawers must match number of transforms"
 
         dresser_world = self._make_dresser_world()
         dresser_world.name = world.name
@@ -1161,7 +1327,7 @@ class DresserFactory(
         """
         Create a world with a dresser semantic annotation that contains a container, drawers, and doors, but no interior yet.
         """
-        dresser_world = self.container_factory.create()
+        dresser_world = self.container_factory_config.factory_instance.create()
         with dresser_world.modify_world():
             semantic_container_annotation: Container = (
                 dresser_world.get_semantic_annotations_by_type(Container)[0]
@@ -1263,7 +1429,16 @@ class DresserFactory(
 
 
 @dataclass
-class RoomFactory(SemanticAnnotationFactory[Room]):
+class RoomConfigForParentFactory(ConfigForParentFactory):
+    """
+    Configuration for creating a room from a parent factory.
+    """
+
+    factory_instance: RoomFactory
+
+
+@dataclass
+class RoomFactory(SemanticAnnotationFactory[Room, RoomConfigForParentFactory]):
     """
     Factory for creating a room with a specific region.
     """
@@ -1272,6 +1447,23 @@ class RoomFactory(SemanticAnnotationFactory[Room]):
     """
     The region that defines the room's boundaries and reference frame.
     """
+
+    @property
+    def _config_type_for_parent_factory(self) -> Type[RoomConfigForParentFactory]:
+        return RoomConfigForParentFactory
+
+    def get_config_for_parent_factory(
+        self,
+        parent_T_child: Optional[TransformationMatrix],
+        *args,
+        **kwargs,
+    ) -> RoomConfigForParentFactory:
+        """
+        Return the configuration for the parent factory.
+        """
+        return self._config_type_for_parent_factory(
+            factory_instance=self, parent_T_child=parent_T_child
+        )
 
     def _create(self, world: World) -> World:
         """
@@ -1304,12 +1496,40 @@ class RoomFactory(SemanticAnnotationFactory[Room]):
 
 
 @dataclass
-class WallFactory(SemanticAnnotationFactory[Wall], HasDoorLikeFactories):
+class WallConfigForParentFactory(ConfigForParentFactory):
+    """
+    Configuration for creating a wall from a parent factory.
+    """
+
+    factory_instance: WallFactory
+
+
+@dataclass
+class WallFactory(
+    SemanticAnnotationFactory[Wall, WallConfigForParentFactory], HasDoorLikeFactories
+):
 
     scale: Scale = field(kw_only=True)
     """
     The scale of the wall.
     """
+
+    @property
+    def _config_type_for_parent_factory(self) -> Type[WallConfigForParentFactory]:
+        return WallConfigForParentFactory
+
+    def get_config_for_parent_factory(
+        self,
+        parent_T_child: Optional[TransformationMatrix],
+        *args,
+        **kwargs,
+    ) -> WallConfigForParentFactory:
+        """
+        Return the configuration for the parent factory.
+        """
+        return self._config_type_for_parent_factory(
+            factory_instance=self, parent_T_child=parent_T_child
+        )
 
     def _create(self, world: World) -> World:
         """

@@ -1,26 +1,11 @@
 import unittest
-from time import sleep
 
 import rclpy
 
 from semantic_digital_twin.adapters.viz_marker import VizMarkerPublisher
-from semantic_digital_twin.world_description.geometry import Scale
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
-from semantic_digital_twin.spatial_types.spatial_types import (
-    TransformationMatrix,
-    Vector3,
-)
-from semantic_digital_twin.semantic_annotations.semantic_annotations import (
-    Handle,
-    Door,
-    Container,
-    Drawer,
-    Dresser,
-    Wall,
-)
 from semantic_digital_twin.semantic_annotations.factories import (
     HandleFactory,
-    Direction,
     DoorFactory,
     ContainerFactory,
     DoubleDoorFactory,
@@ -31,6 +16,19 @@ from semantic_digital_twin.semantic_annotations.factories import (
     HorizontalSemanticDirection,
     VerticalSemanticDirection,
 )
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Handle,
+    Door,
+    Container,
+    Drawer,
+    Dresser,
+    Wall,
+)
+from semantic_digital_twin.spatial_types.spatial_types import (
+    TransformationMatrix,
+    Vector3,
+)
+from semantic_digital_twin.world_description.geometry import Scale
 
 
 class TestFactories(unittest.TestCase):
@@ -55,16 +53,19 @@ class TestFactories(unittest.TestCase):
         self.assertEqual(11, len(world.bodies))
 
     def test_door_factory(self):
-        factory = DoorFactory(
-            name=PrefixedName("door"),
-            handle_factory=HandleFactory(name=PrefixedName("handle")),
+        handle_factory = HandleFactory(name=PrefixedName("handle"))
+        handle_factory_config = handle_factory.get_config_for_parent_factory(
             semantic_handle_position=SemanticPositionDescription(
                 horizontal_direction_chain=[
                     HorizontalSemanticDirection.RIGHT,
                     HorizontalSemanticDirection.FULLY_CENTER,
                 ],
                 vertical_direction_chain=[VerticalSemanticDirection.FULLY_CENTER],
-            ),
+            )
+        )
+        factory = DoorFactory(
+            name=PrefixedName("door"),
+            handle_factory_config=handle_factory_config,
         )
         world = factory.create()
         semantic_door_annotations = world.get_semantic_annotations_by_type(Door)
@@ -75,9 +76,8 @@ class TestFactories(unittest.TestCase):
         self.assertIsInstance(door.handle, Handle)
 
     def test_double_door_factory(self):
-        door_factory = DoorFactory(
-            name=PrefixedName("door"),
-            handle_factory=HandleFactory(name=PrefixedName("handle")),
+        handle_factory = HandleFactory(name=PrefixedName("handle"))
+        handle_factory_config = handle_factory.get_config_for_parent_factory(
             semantic_handle_position=SemanticPositionDescription(
                 horizontal_direction_chain=[
                     HorizontalSemanticDirection.RIGHT,
@@ -86,11 +86,16 @@ class TestFactories(unittest.TestCase):
                 vertical_direction_chain=[VerticalSemanticDirection.FULLY_CENTER],
             ),
         )
-        door_transform = TransformationMatrix.from_xyz_rpy(y=-0.5)
+        door_factory = DoorFactory(
+            name=PrefixedName("door"), handle_factory_config=handle_factory_config
+        )
+        door_factory_config = door_factory.get_config_for_parent_factory(
+            parent_T_child=TransformationMatrix.from_xyz_rpy(y=-0.5),
+            hinge_axis=Vector3.Z(),
+        )
 
-        door_factory2 = DoorFactory(
-            name=PrefixedName("door2"),
-            handle_factory=HandleFactory(name=PrefixedName("handle2")),
+        handle_factory2 = HandleFactory(name=PrefixedName("handle2"))
+        handle_factory_config2 = handle_factory.get_config_for_parent_factory(
             semantic_handle_position=SemanticPositionDescription(
                 horizontal_direction_chain=[
                     HorizontalSemanticDirection.LEFT,
@@ -99,15 +104,17 @@ class TestFactories(unittest.TestCase):
                 vertical_direction_chain=[VerticalSemanticDirection.FULLY_CENTER],
             ),
         )
-        door_transform2 = TransformationMatrix.from_xyz_rpy(y=0.5)
-
-        door_factories = [door_factory, door_factory2]
-        door_transforms = [door_transform, door_transform2]
+        door_factory2 = DoorFactory(
+            name=PrefixedName("door2"), handle_factory_config=handle_factory_config2
+        )
+        door_factory_config2 = door_factory2.get_config_for_parent_factory(
+            parent_T_child=TransformationMatrix.from_xyz_rpy(y=0.5),
+            hinge_axis=Vector3.Z(),
+        )
 
         factory = DoubleDoorFactory(
             name=PrefixedName("double_door"),
-            door_factories=door_factories,
-            door_transforms=door_transforms,
+            door_like_factory_configs=[door_factory_config, door_factory_config2],
         )
         world = factory.create()
         doors = world.get_semantic_annotations_by_type(Door)
@@ -135,17 +142,24 @@ class TestFactories(unittest.TestCase):
         self.assertEqual(world.root, container.body)
 
     def test_drawer_factory(self):
+        container_factory = ContainerFactory(name=PrefixedName("container"))
+        container_factory_config = container_factory.get_config_for_parent_factory(
+            TransformationMatrix()
+        )
 
-        factory = DrawerFactory(
-            name=PrefixedName("drawer"),
-            container_factory=ContainerFactory(name=PrefixedName("container")),
-            handle_factory=HandleFactory(name=PrefixedName("handle")),
+        handle_factory = HandleFactory(name=PrefixedName("handle"))
+        handle_factory_config = handle_factory.get_config_for_parent_factory(
             semantic_handle_position=SemanticPositionDescription(
                 horizontal_direction_chain=[
                     HorizontalSemanticDirection.FULLY_CENTER,
                 ],
                 vertical_direction_chain=[VerticalSemanticDirection.FULLY_CENTER],
             ),
+        )
+        factory = DrawerFactory(
+            name=PrefixedName("drawer"),
+            container_factory_config=container_factory_config,
+            handle_factory_config=handle_factory_config,
         )
         world = factory.create()
         semantic_drawer_annotations = world.get_semantic_annotations_by_type(Drawer)
@@ -155,10 +169,13 @@ class TestFactories(unittest.TestCase):
         self.assertEqual(world.root, drawer.container.body)
 
     def test_dresser_factory(self):
-        drawer_factory = DrawerFactory(
-            name=PrefixedName("drawer"),
-            container_factory=ContainerFactory(name=PrefixedName("drawer_container")),
-            handle_factory=HandleFactory(name=PrefixedName("drawer_handle")),
+        container_factory = ContainerFactory(name=PrefixedName("drawer_container"))
+        container_factory_config = container_factory.get_config_for_parent_factory(
+            TransformationMatrix()
+        )
+
+        handle_factory = HandleFactory(name=PrefixedName("drawer_handle"))
+        handle_factory_config = handle_factory.get_config_for_parent_factory(
             semantic_handle_position=SemanticPositionDescription(
                 horizontal_direction_chain=[
                     HorizontalSemanticDirection.FULLY_CENTER,
@@ -166,12 +183,17 @@ class TestFactories(unittest.TestCase):
                 vertical_direction_chain=[VerticalSemanticDirection.FULLY_CENTER],
             ),
         )
-        drawer_transform = TransformationMatrix()
+        drawer_factory = DrawerFactory(
+            name=PrefixedName("drawer"),
+            container_factory_config=container_factory_config,
+            handle_factory_config=handle_factory_config,
+        )
+        drawer_factory_config = drawer_factory.get_config_for_parent_factory(
+            parent_T_child=TransformationMatrix.from_xyz_rpy(x=0.5)
+        )
 
-        door_factory = DoorFactory(
-            name=PrefixedName("door"),
-            handle_factory=HandleFactory(name=PrefixedName("door_handle")),
-            scale=Scale(0.03, 1, 1.0),
+        handle_factory2 = HandleFactory(name=PrefixedName("door_handle"))
+        handle_factory_config2 = handle_factory2.get_config_for_parent_factory(
             semantic_handle_position=SemanticPositionDescription(
                 horizontal_direction_chain=[
                     HorizontalSemanticDirection.LEFT,
@@ -183,19 +205,27 @@ class TestFactories(unittest.TestCase):
                 ],
             ),
         )
+        door_factory = DoorFactory(
+            name=PrefixedName("door"),
+            handle_factory_config=handle_factory_config2,
+            scale=Scale(0.03, 1, 1.0),
+        )
 
-        door_transform = TransformationMatrix.from_xyz_rpy(x=0.5)
+        door_factory_config = door_factory.get_config_for_parent_factory(
+            parent_T_child=TransformationMatrix.from_xyz_rpy(y=-0.5),
+            hinge_axis=Vector3.Z(),
+        )
 
         container_factory = ContainerFactory(name=PrefixedName("dresser_container"))
+        container_factory_config = container_factory.get_config_for_parent_factory(
+            TransformationMatrix()
+        )
 
         dresser_factory = DresserFactory(
             name=PrefixedName("dresser"),
-            # parent_T_drawers=[drawer_transform],
-            # drawers_factories=[drawer_factory],
-            door_transforms=[door_transform],
-            door_factories=[door_factory],
-            door_opening_axes=[Vector3.Z()],
-            container_factory=container_factory,
+            drawer_factory_configs=[drawer_factory_config],
+            door_like_factory_configs=[door_factory_config],
+            container_factory_config=container_factory_config,
         )
 
         world = dresser_factory.create()
@@ -217,10 +247,8 @@ class TestFactories(unittest.TestCase):
         self.assertEqual(world.root, dresser.container.body)
 
     def test_wall_factory(self):
-
-        door_factory = DoorFactory(
-            name=PrefixedName("door"),
-            handle_factory=HandleFactory(name=PrefixedName("handle")),
+        handle_factory = HandleFactory(name=PrefixedName("handle"))
+        handle_factory_config = handle_factory.get_config_for_parent_factory(
             semantic_handle_position=SemanticPositionDescription(
                 horizontal_direction_chain=[
                     HorizontalSemanticDirection.RIGHT,
@@ -229,11 +257,17 @@ class TestFactories(unittest.TestCase):
                 vertical_direction_chain=[VerticalSemanticDirection.FULLY_CENTER],
             ),
         )
-        door_transform = TransformationMatrix.from_xyz_rpy(y=-0.5)
+        door_factory = DoorFactory(
+            name=PrefixedName("door"),
+            handle_factory_config=handle_factory_config,
+        )
+        door_factory_config = door_factory.get_config_for_parent_factory(
+            parent_T_child=TransformationMatrix.from_xyz_rpy(y=-0.5),
+            hinge_axis=Vector3.Z(),
+        )
 
-        door_factory2 = DoorFactory(
-            name=PrefixedName("door2"),
-            handle_factory=HandleFactory(name=PrefixedName("handle2")),
+        handle_factory2 = HandleFactory(name=PrefixedName("handle2"))
+        handle_factory_config2 = handle_factory.get_config_for_parent_factory(
             semantic_handle_position=SemanticPositionDescription(
                 horizontal_direction_chain=[
                     HorizontalSemanticDirection.LEFT,
@@ -242,36 +276,55 @@ class TestFactories(unittest.TestCase):
                 vertical_direction_chain=[VerticalSemanticDirection.FULLY_CENTER],
             ),
         )
-        door_transform2 = TransformationMatrix.from_xyz_rpy(y=0.5)
-
-        door_factories = [door_factory, door_factory2]
-        door_transforms = [door_transform, door_transform2]
+        door_factory2 = DoorFactory(
+            name=PrefixedName("door2"),
+            handle_factory_config=handle_factory_config2,
+        )
+        door_factory_config2 = door_factory2.get_config_for_parent_factory(
+            parent_T_child=TransformationMatrix.from_xyz_rpy(y=0.5),
+            hinge_axis=Vector3.Z(),
+        )
 
         double_door_factory = DoubleDoorFactory(
             name=PrefixedName("double_door"),
-            door_factories=door_factories,
-            door_transforms=door_transforms,
+            door_like_factory_configs=[door_factory_config, door_factory_config2],
         )
-        double_door_transform = TransformationMatrix()
+        double_door_factory_config = double_door_factory.get_config_for_parent_factory(
+            parent_T_child=TransformationMatrix.from_xyz_rpy(x=0.5)
+        )
 
+        single_door_handle_factory = HandleFactory(
+            name=PrefixedName("single_door_handle")
+        )
+        single_door_handle_factory_config = (
+            single_door_handle_factory.get_config_for_parent_factory(
+                semantic_handle_position=SemanticPositionDescription(
+                    horizontal_direction_chain=[
+                        HorizontalSemanticDirection.RIGHT,
+                        HorizontalSemanticDirection.FULLY_CENTER,
+                    ],
+                    vertical_direction_chain=[VerticalSemanticDirection.FULLY_CENTER],
+                ),
+            )
+        )
         single_door_factory = DoorFactory(
             name=PrefixedName("single_door"),
-            handle_factory=HandleFactory(name=PrefixedName("single_door_handle")),
-            semantic_handle_position=SemanticPositionDescription(
-                horizontal_direction_chain=[
-                    HorizontalSemanticDirection.RIGHT,
-                    HorizontalSemanticDirection.FULLY_CENTER,
-                ],
-                vertical_direction_chain=[VerticalSemanticDirection.FULLY_CENTER],
-            ),
+            handle_factory_config=single_door_handle_factory_config,
         )
-        single_door_transform = TransformationMatrix.from_xyz_rpy(y=-1.5)
+        single_door_factory_config = (
+            single_door_handle_factory.get_config_for_parent_factory(
+                parent_T_child=TransformationMatrix.from_xyz_rpy(y=-1.5),
+                hinge_axis=Vector3.Z(),
+            )
+        )
 
         factory = WallFactory(
             name=PrefixedName("wall"),
             scale=Scale(0.1, 4, 2),
-            door_transforms=[single_door_transform, double_door_transform],
-            door_factories=[single_door_factory, double_door_factory],
+            door_like_factory_configs=[
+                double_door_factory_config,
+                single_door_factory_config,
+            ],
         )
         world = factory.create()
         semantic_wall_annotations = world.get_semantic_annotations_by_type(Wall)

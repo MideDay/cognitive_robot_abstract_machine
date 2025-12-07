@@ -101,6 +101,14 @@ class UsageError(LogicalError):
 
 
 @dataclass
+class MissingSemanticPositionError(UsageError):
+
+    def __post_init__(self):
+        msg = f"Semantic position is missing."
+        super().__init__(msg)
+
+
+@dataclass
 class InvalidAxisError(UsageError):
     axis: Vector3
 
