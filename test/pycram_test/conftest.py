@@ -38,7 +38,8 @@ world = setup_world()
 pr2 = PR2.from_world(world)
 
 
-@pytest.fixture(scope="function")
+
+@pytest.fixture
 def immutable_model_world():
     state = deepcopy(world.state.data)
     yield world, pr2, Context(world, pr2)
