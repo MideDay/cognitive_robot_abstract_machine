@@ -656,7 +656,7 @@ def test_select_predicate(handles_and_containers_world):
 
     handle1 = query.evaluate()
     assert isinstance(handle1, HasName), "Should generate a handle."
-    assert has_name.body.name == "Handle1", "The generated handle should have the expected name."
+    assert handle1.body.name == "Handle1", "The generated handle should have the expected name."
 
 
 
