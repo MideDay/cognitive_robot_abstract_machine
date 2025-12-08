@@ -36,7 +36,7 @@ from ..world_description.inertial_properties import (
     PrincipalAxes,
 )
 from ..world_description.shape_collection import ShapeCollection
-from .multi_sim import MujocoActuator, GeomVisibilityAndCollisionType
+from .multi_sim import MujocoActuator, GeomVisibilityAndCollisionType, MujocoCamera
 
 
 @dataclass

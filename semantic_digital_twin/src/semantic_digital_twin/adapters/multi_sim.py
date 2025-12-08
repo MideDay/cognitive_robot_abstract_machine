@@ -88,13 +88,6 @@ class GeomVisibilityAndCollisionType(IntEnum):
     """
     Geometry is both visible and collidable (variant 1).
     """
-class MultiSimError(Exception):
-    """Base class for all MultiSim-related exceptions."""
-
-
-@dataclass(eq=False)
-class MultiSimCamera(SemanticAnnotation):
-    """Semantic annotation declaring that a Body is a Camera."""
 
     VISIBLE_AND_COLLIDABLE_2 = 1
     """
@@ -128,7 +121,7 @@ class MultiSimError(Exception):
 
 @dataclass(eq=False)
 class MultiSimCamera(SemanticAnnotation):
-    """Semantic annotation declaring that a Body is a Camera."""
+    """Semantic annotation declaring that a Body is a MultiSimCamera."""
 
     body: Body
     """
