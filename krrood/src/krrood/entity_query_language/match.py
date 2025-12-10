@@ -21,7 +21,7 @@ from .entity import (
 )
 from .failures import NoneWrappedFieldError
 from .predicate import HasType
-from .rxnode import RWXNode, ColorLegend
+from .rxnode import RWXNode
 from .symbolic import (
     CanBehaveLikeAVariable,
     Attribute,
