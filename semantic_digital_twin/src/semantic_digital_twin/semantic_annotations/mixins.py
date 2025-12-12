@@ -44,6 +44,7 @@ from ..world_description.world_entity import (
     SemanticAnnotation,
     Body,
     Region,
+    Connection,
 )
 
 if TYPE_CHECKING:
@@ -204,7 +205,9 @@ class HasBody(SemanticAnnotation, ABC):
 
     @classmethod
     @abstractmethod
-    def create_with_new_body(cls, *args, **kwargs) -> Self: ...
+    def create_with_new_body_in_world(
+        cls, name: PrefixedName, world: World, connection: Connection, *args, **kwargs
+    ) -> Self: ...
 
 
 @dataclass(eq=False)
@@ -613,8 +616,8 @@ class HasCorpus(HasSupportingSurface, ABC):
     def opening_direction(self) -> Direction: ...
 
     @classmethod
-    def create_with_new_body(
-        cls, name: PrefixedName, scale: Scale, wall_thickness: float = 0.01
+    def create_with_new_body_in_world(
+        cls, scale: Scale, wall_thickness: float = 0.01, *args, **kwargs
     ) -> Self:
         container_event = cls._create_container_event(scale, wall_thickness)
 

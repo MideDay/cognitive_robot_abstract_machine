@@ -9,13 +9,12 @@ from typing_extensions import List
 
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Table,
-    Corpus,
     IsPerceivable,
+    Furniture,
 )
 from semantic_digital_twin.semantic_annotations.mixins import (
     HasBody,
     HasSupportingSurface,
-    Furniture,
 )
 from ...world_description.world_entity import SemanticAnnotation
 
@@ -69,7 +68,7 @@ class ProcthorResolver:
 
 
 @dataclass(eq=False)
-class Bottle(Corpus):
+class Bottle(HasBody):
     """
     Abstract class for bottles.
     """
@@ -101,7 +100,7 @@ class MustardBottle(Bottle):
 
 
 @dataclass(eq=False)
-class DrinkingContainer(Corpus, HasBody): ...
+class DrinkingContainer(HasBody): ...
 
 
 @dataclass(eq=False)
@@ -119,7 +118,7 @@ class Mug(DrinkingContainer):
 
 
 @dataclass(eq=False)
-class CookingContainer(Corpus, HasBody): ...
+class CookingContainer(HasBody): ...
 
 
 @dataclass(eq=False)
@@ -155,14 +154,14 @@ class PotLid(Lid):
 
 
 @dataclass(eq=False)
-class Plate(HasBody, HasSupportingSurface):
+class Plate(HasSupportingSurface):
     """
     A plate.
     """
 
 
 @dataclass(eq=False)
-class Bowl(HasBody, IsPerceivable, HasSupportingSurface):
+class Bowl(HasSupportingSurface, IsPerceivable):
     """
     A bowl.
     """
@@ -382,7 +381,7 @@ class Potato(Produce): ...
 
 
 @dataclass(eq=False)
-class GarbageBin(Corpus):
+class GarbageBin(HasBody):
     """
     A garbage bin.
     """
@@ -393,7 +392,7 @@ class Drone(HasBody): ...
 
 
 @dataclass(eq=False)
-class ProcthorBox(Corpus): ...
+class ProcthorBox(HasBody): ...
 
 
 @dataclass(eq=False)

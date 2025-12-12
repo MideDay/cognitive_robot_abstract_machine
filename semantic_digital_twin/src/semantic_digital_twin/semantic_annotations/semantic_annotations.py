@@ -50,7 +50,7 @@ class IsPerceivable:
 class Handle(HasBody):
 
     @classmethod
-    def create_with_new_body(
+    def create_with_new_body_in_world(
         cls, name: PrefixedName, scale: Scale, thickness: float
     ) -> Self:
         handle_event = cls._create_handle_geometry(scale=scale).as_composite_set()
@@ -123,7 +123,7 @@ class Door(HasBody, HasHandle):
     """
 
     @classmethod
-    def create_with_new_body(
+    def create_with_new_body_in_world(
         cls,
         name: PrefixedName,
         scale: Scale,
@@ -160,7 +160,7 @@ class Furniture(SemanticAnnotation, ABC): ...
 
 
 @dataclass(eq=False)
-class Table(Furniture):
+class Table(Furniture, HasBody):
     """
     A semantic annotation that represents a table.
     """
@@ -216,7 +216,7 @@ class Wardrobe(HasCorpus, Furniture, HasDrawers, HasDoors):
 class Floor(HasSupportingSurface):
 
     @classmethod
-    def create_with_new_body(cls, name: PrefixedName, scale: Scale) -> Self:
+    def create_with_new_body_in_world(cls, name: PrefixedName, scale: Scale) -> Self:
         """
         Create a Floor semantic annotation with a new body defined by the given scale.
 
@@ -258,7 +258,7 @@ class Room(SemanticAnnotation):
 class Wall(HasBody):
 
     @classmethod
-    def create_with_new_body(
+    def create_with_new_body_in_world(
         cls, name: PrefixedName, scale: Scale, *args, **kwargs
     ) -> Self:
         wall_body = Body(name=name)
