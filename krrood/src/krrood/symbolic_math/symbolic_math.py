@@ -318,7 +318,7 @@ class CompiledFunctionWithViews:
     """
 
     def __post_init__(self):
-        combined_expression = Expression.vstack(self.expressions)
+        combined_expression = Matrix.vstack(self.expressions)
         self.compiled_function = combined_expression.compile(
             parameters=self.variable_parameters, sparse=False
         )
@@ -754,7 +754,7 @@ class Expression(SymbolicType):
         self.casadi_sx = casadi_sx
 
     def __copy__(self) -> Expression:
-        return Expression(_copy.copy(self.casadi_sx))
+        return self.from_casadi_sx(_copy.copy(self.casadi_sx))
 
     def __neg__(self) -> _te.Self:
         return self.from_casadi_sx(self.casadi_sx.__neg__())
