@@ -6,7 +6,6 @@ from typing import Type
 
 import numpy as np
 import pytest
-from giskardpy_ros.utils.utils import is_in_github_workflow
 
 from giskardpy.data_types.exceptions import DuplicateNameException
 from giskardpy.executor import Executor, SimulationPacer
