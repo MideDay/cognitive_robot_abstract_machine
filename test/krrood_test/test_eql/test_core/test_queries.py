@@ -11,7 +11,7 @@ from krrood.entity_query_language.entity import (
     in_,
     entity,
     set_of,
-    variable as var,
+    variable,
     or_,
     exists,
     flatten,
@@ -56,7 +56,7 @@ def test_empty_conditions(handles_and_containers_world, doors_and_drawers_world)
     world = handles_and_containers_world
     world2 = doors_and_drawers_world
 
-    B = var(type_=Body, domain=world.bodies)
+    B = variable(type_=Body, domain=world.bodies)
     query = an(entity(B))
     assert len(list(query.evaluate())) == len(world.bodies), "Should generate 6 bodies."
 
@@ -67,7 +67,7 @@ def test_empty_conditions_and_no_domain(
     world = handles_and_containers_world
     world2 = doors_and_drawers_world
 
-    B = var(Body, domain=None)
+    B = variable(Body, domain=None)
     query = an(entity(B).where(B.world == world))
 
     assert len(list(query.evaluate())) == len(world.bodies), "Should generate 6 bodies."
@@ -75,14 +75,15 @@ def test_empty_conditions_and_no_domain(
 
 def test_empty_conditions_without_using_entity(handles_and_containers_world):
     world = handles_and_containers_world
-    B = var(Body, domain=world.bodies)
+    B = variable(Body, domain=world.bodies)
     query = an(entity(B))
     assert len(list(query.evaluate())) == len(world.bodies), "Should generate 6 bodies."
 
 
 def test_reevaluation_of_simple_query(handles_and_containers_world):
     world = handles_and_containers_world
-    query = an(entity(body := var(type_=Body, domain=world.bodies)))
+    body = variable(Body, domain=world.bodies)
+    query = an(entity(body))
     assert len(list(query.evaluate())) == len(world.bodies), "Should generate 6 bodies."
     assert len(list(query.evaluate())) == len(
         world.bodies
@@ -94,7 +95,7 @@ def test_filtering_connections_without_joining_with_parent_or_child_queries(
 ):
     world = handles_and_containers_world
 
-    C = var(Connection, domain=world.connections)
+    C = variable(Connection, domain=world.connections)
     query = an(
         entity(C).where(
             HasType(C.parent, Container),
@@ -116,7 +117,7 @@ def test_generate_with_using_attribute_and_callables(handles_and_containers_worl
     world = handles_and_containers_world
 
     def generate_handles():
-        B = var(Body, domain=world.bodies)
+        B = variable(Body, domain=world.bodies)
         yield from an(entity(B).where(B.name.startswith("Handle"))).evaluate()
 
     handles = list(generate_handles())
@@ -132,7 +133,7 @@ def test_generate_with_using_contains(handles_and_containers_world):
     """
     world = handles_and_containers_world
 
-    B = var(Body, domain=world.bodies)
+    B = variable(Body, domain=world.bodies)
     query = an(
         entity(B).where(
             contains(B.name, "Handle"),
@@ -152,7 +153,7 @@ def test_generate_with_using_in(handles_and_containers_world):
     """
     world = handles_and_containers_world
 
-    B = var(Body, domain=world.bodies, name="B")
+    B = variable(Body, domain=world.bodies, name="B")
     query = an(
         entity(B).where(
             in_("Handle", B.name),
@@ -172,7 +173,7 @@ def test_generate_with_using_and(handles_and_containers_world):
     """
     world = handles_and_containers_world
 
-    B = var(Body, domain=world.bodies)
+    B = variable(Body, domain=world.bodies)
     query = an(
         entity(B).where(
             contains(B.name, "Handle") & contains(B.name, "1"),
@@ -192,7 +193,7 @@ def test_generate_with_using_or(handles_and_containers_world):
     """
     world = handles_and_containers_world
 
-    B = var(Body, domain=world.bodies)
+    B = variable(Body, domain=world.bodies)
     query = an(
         entity(B).where(
             contains(B.name, "Handle1") | contains(B.name, "Handle2"),
@@ -212,7 +213,7 @@ def test_generate_with_using_multi_or(handles_and_containers_world):
     """
     world = handles_and_containers_world
 
-    B = var(Body, domain=world.bodies)
+    B = variable(Body, domain=world.bodies)
     generate_handles_and_container1 = an(
         entity(B).where(
             contains(B.name, "Handle1")
@@ -230,7 +231,7 @@ def test_generate_with_or_and(handles_and_containers_world):
 
     def generate_handles_and_container1():
 
-        B = var(Body, domain=world.bodies)
+        B = variable(Body, domain=world.bodies)
         yield from an(
             entity(B).where(
                 or_(
@@ -247,7 +248,7 @@ def test_generate_with_or_and(handles_and_containers_world):
 def test_reevaluation_of_or_and_query(handles_and_containers_world):
     world = handles_and_containers_world
 
-    B = var(Body, domain=world.bodies)
+    B = variable(Body, domain=world.bodies)
     query = an(
         entity(B).where(
             or_(
@@ -272,7 +273,7 @@ def test_generate_with_and_or(handles_and_containers_world):
 
     def generate_handles_and_container1():
 
-        B = var(Body, domain=world.bodies)
+        B = variable(Body, domain=world.bodies)
         query = an(
             entity(B).where(
                 or_(contains(B.name, "Handle"), contains(B.name, "1")),
@@ -291,7 +292,7 @@ def test_generate_with_multi_and(handles_and_containers_world):
 
     def generate_container1():
 
-        B = var(Body, domain=world.bodies)
+        B = variable(Body, domain=world.bodies)
         query = an(
             entity(B).where(
                 contains(B.name, "n"),
@@ -313,7 +314,7 @@ def test_generate_with_multi_and(handles_and_containers_world):
 
 def test_reevaluate_with_multi_and(handles_and_containers_world):
     world = handles_and_containers_world
-    B = var(Body, domain=world.bodies)
+    B = variable(Body, domain=world.bodies)
     query = an(
         entity(B).where(
             contains(B.name, "n"),
@@ -341,10 +342,10 @@ def test_reevaluate_with_multi_and(handles_and_containers_world):
 def test_generate_with_more_than_one_source(handles_and_containers_world):
     world = handles_and_containers_world
 
-    C = var(Container, domain=world.bodies)
-    H = var(Handle, domain=world.bodies)
-    FC = var(FixedConnection, domain=world.connections)
-    PC = var(PrismaticConnection, domain=world.connections)
+    C = variable(Container, domain=world.bodies)
+    H = variable(Handle, domain=world.bodies)
+    FC = variable(FixedConnection, domain=world.connections)
+    PC = variable(PrismaticConnection, domain=world.connections)
 
     solutions = a(
         set_of(C, H, FC, PC).where(
@@ -367,8 +368,8 @@ def test_generate_with_more_than_one_source(handles_and_containers_world):
 def test_generate_with_more_than_one_source_optimized(handles_and_containers_world):
     world = handles_and_containers_world
 
-    FC = var(FixedConnection, domain=world.connections)
-    PC = var(PrismaticConnection, domain=world.connections)
+    FC = variable(FixedConnection, domain=world.connections)
+    PC = variable(PrismaticConnection, domain=world.connections)
     query = a(
         set_of(FC, PC).where(
             HasType(FC.parent, Container),
@@ -391,11 +392,11 @@ def test_generate_with_more_than_one_source_optimized(handles_and_containers_wor
 
 def test_sources(handles_and_containers_world):
 
-    W = var(World, domain=handles_and_containers_world)
-    C = var(Container, domain=W.bodies)
-    H = var(Handle, domain=W.bodies)
-    FC = var(FixedConnection, domain=W.connections)
-    PC = var(PrismaticConnection, domain=W.connections)
+    W = variable(World, domain=handles_and_containers_world)
+    C = variable(Container, domain=W.bodies)
+    H = variable(Handle, domain=W.bodies)
+    FC = variable(FixedConnection, domain=W.connections)
+    PC = variable(PrismaticConnection, domain=W.connections)
     query = a(
         set_of(C, H, FC, PC).where(
             C == FC.parent,
@@ -412,7 +413,7 @@ def test_sources(handles_and_containers_world):
 def test_the(handles_and_containers_world):
     world = handles_and_containers_world
 
-    H = var(Handle, domain=world.bodies)
+    H = variable(Handle, domain=world.bodies)
 
     with pytest.raises(MultipleSolutionFound):
         handle = the(
@@ -431,7 +432,7 @@ def test_the(handles_and_containers_world):
 def test_not_domain_mapping(handles_and_containers_world):
     world = handles_and_containers_world
 
-    B = var(Body, domain=world.bodies)
+    B = variable(Body, domain=world.bodies)
     not_handle = an(
         entity(B).where(
             not_(B.name.startswith("Handle")),
@@ -445,7 +446,7 @@ def test_not_domain_mapping(handles_and_containers_world):
 def test_not_comparator(handles_and_containers_world):
     world = handles_and_containers_world
 
-    B = var(Body, domain=world.bodies)
+    B = variable(Body, domain=world.bodies)
     not_handle = an(
         entity(B).where(
             not_(contains(B.name, "Handle")),
@@ -459,7 +460,7 @@ def test_not_comparator(handles_and_containers_world):
 def test_not_and(handles_and_containers_world):
     world = handles_and_containers_world
 
-    B = var(Body, domain=world.bodies)
+    B = variable(Body, domain=world.bodies)
     query = an(
         entity(B).where(
             not_(contains(B.name, "Handle") & contains(B.name, "1")),
@@ -476,7 +477,7 @@ def test_not_and(handles_and_containers_world):
 def test_not_or(handles_and_containers_world):
     world = handles_and_containers_world
 
-    B = var(Body, domain=world.bodies)
+    B = variable(Body, domain=world.bodies)
     query = an(
         entity(B).where(
             not_(contains(B.name, "Handle1") | contains(B.name, "Handle2")),
@@ -493,7 +494,7 @@ def test_not_or(handles_and_containers_world):
 def test_not_and_or(handles_and_containers_world):
     world = handles_and_containers_world
 
-    B = var(Body, domain=world.bodies)
+    B = variable(Body, domain=world.bodies)
     query = an(
         entity(B).where(
             not_(
@@ -518,9 +519,9 @@ def test_not_and_or(handles_and_containers_world):
 
 def test_empty_list_literal(handles_and_containers_world):
     world = handles_and_containers_world
-
+    body = variable(Body, domain=world.bodies)
     query = an(
-        entity(body := var(type_=Body, domain=world.bodies)).where(
+        entity(body).where(
             not_(contains([], "Handle") & contains(body.name, "1")),
         )
     )
@@ -529,9 +530,9 @@ def test_empty_list_literal(handles_and_containers_world):
 
 def test_not_and_or_with_domain_mapping(handles_and_containers_world):
     world = handles_and_containers_world
-
+    body = variable(Body, domain=world.bodies)
     not_handle1_and_not_container1 = an(
-        entity(body := var(type_=Body, domain=world.bodies)).where(
+        entity(body).where(
             not_(
                 and_(
                     or_(body.name.startswith("Handle"), body.name.endswith("1")),
@@ -559,14 +560,10 @@ def test_generate_with_using_decorated_predicate(handles_and_containers_world):
     def is_handle(body_: Body):
         return body_.name.startswith("Handle")
 
-    query_kwargs = an(
-        entity(body := var(type_=Body, domain=world.bodies)).where(
-            is_handle(body_=body)
-        )
-    )
-    query_args = an(
-        entity(body := var(type_=Body, domain=world.bodies)).where(is_handle(body))
-    )
+    body = variable(Body, domain=world.bodies)
+    query_kwargs = an(entity(body).where(is_handle(body_=body)))
+    body = variable(Body, domain=world.bodies)
+    query_args = an(entity(body).where(is_handle(body)))
 
     handles = list(query_kwargs.evaluate())
     assert handles == list(
@@ -594,12 +591,11 @@ def test_generate_with_using_inherited_predicate(handles_and_containers_world):
         def __call__(self):
             return self.body1.name[0] == self.body2.name[0] == self.body3.name[0]
 
+    body1 = variable(Body, world.bodies)
+    body2 = variable(Body, world.bodies)
+    body3 = variable(Body, world.bodies)
     query = a(
-        set_of(
-            body1 := var(Body, world.bodies),
-            body2 := var(Body, world.bodies),
-            body3 := var(Body, world.bodies),
-        ).where(
+        set_of(body1, body2, body3).where(
             body1 != body2,
             body2 != body3,
             body3 != body1,
@@ -647,7 +643,7 @@ def test_select_predicate(handles_and_containers_world):
         def __call__(self):
             return self.body.name == self.name
 
-    body = var(Body, world.bodies)
+    body = variable(Body, world.bodies)
     has_name = HasName(body, "Handle1")
     query = the(entity(has_name).where(has_name))
 
@@ -671,7 +667,7 @@ def test_literal_predicate(handles_and_containers_world):
 
     has_name = HasName(world.bodies[0], world.bodies[0].name)
     with pytest.raises(LiteralConditionError):
-        query = the(entity(var(Body, world.bodies)).where(has_name))
+        query = the(entity(variable(Body, world.bodies)).where(has_name))
 
 
 def test_contains_type():
@@ -680,9 +676,8 @@ def test_contains_type():
     fb1 = FruitBox("FruitBox1", fb1_fruits)
     fb2 = FruitBox("FruitBox2", fb2_fruits)
 
-    fruit_box_query = an(
-        entity(fb := var(FruitBox, domain=None)).where(ContainsType(fb.fruits, Apple))
-    )
+    fb = variable(FruitBox, domain=None)
+    fruit_box_query = an(entity(fb).where(ContainsType(fb.fruits, Apple)))
 
     query_result = list(fruit_box_query.evaluate())
     assert len(query_result) == 1, "Should generate 1 fruit box."
@@ -693,8 +688,10 @@ def test_equivalent_to_contains_type_using_exists():
     fb2_fruits = [Body("Body3"), Body("Body2")]
     fb1 = FruitBox("FruitBox1", fb1_fruits)
     fb2 = FruitBox("FruitBox2", fb2_fruits)
+
+    fb = variable(FruitBox, domain=None)
     fruit_box_query = an(
-        entity(fb := var(FruitBox, domain=None)).where(
+        entity(fb).where(
             exists(fb, HasType(flatten(fb.fruits), Apple)),
         )
     )
@@ -706,8 +703,9 @@ def test_equivalent_to_contains_type_using_exists():
 def test_double_not(handles_and_containers_world):
     world = handles_and_containers_world
 
+    body = variable(type_=Body, domain=world.bodies)
     query = an(
-        entity(body := var(type_=Body, domain=world.bodies)).where(
+        entity(body).where(
             not_(not_(contains(body.name, "Handle"))),
         )
     )
@@ -717,7 +715,7 @@ def test_double_not(handles_and_containers_world):
 
 def test_reuse_of_condition_in_another_query_with_not(handles_and_containers_world):
     world = handles_and_containers_world
-    body = var(type_=Body, domain=world.bodies)
+    body = variable(type_=Body, domain=world.bodies)
     reusable_condition = contains(body.name, "Handle")
     query = an(
         entity(body).where(
@@ -741,7 +739,7 @@ def test_reuse_of_condition_in_another_query_with_not(handles_and_containers_wor
 
 def test_unsupported_negation(handles_and_containers_world):
     world = handles_and_containers_world
-    body = var(type_=Body, domain=world.bodies)
+    body = variable(type_=Body, domain=world.bodies)
     with pytest.raises(UnsupportedNegation):
         query = not_(
             an(
@@ -759,8 +757,9 @@ def test_quantified_query(handles_and_containers_world):
     world = handles_and_containers_world
 
     def get_quantified_query(quantification: ResultQuantificationConstraint):
+        body = variable(type_=Body, domain=world.bodies)
         query = an(
-            entity(body := var(type_=Body, domain=world.bodies)).where(
+            entity(body).where(
                 contains(body.name, "Handle"),
             ),
             quantification=quantification,
@@ -783,8 +782,9 @@ def test_quantified_query(handles_and_containers_world):
 
 def test_count(handles_and_containers_world):
     world = handles_and_containers_world
+    body = variable(type_=Body, domain=world.bodies)
     query = count(
-        entity(body := var(type_=Body, domain=world.bodies)).where(
+        entity(body).where(
             contains(body.name, "Handle"),
         )
     )
@@ -793,52 +793,49 @@ def test_count(handles_and_containers_world):
 
 def test_count_without_entity(handles_and_containers_world):
     world = handles_and_containers_world
-    query = count(var(type_=Body, domain=world.bodies))
+    query = count(variable(type_=Body, domain=world.bodies))
     assert query.evaluate() == len(world.bodies)
 
 
 def test_order_by(handles_and_containers_world):
     names = ["Handle1", "Handle1", "Handle2", "Container1", "Container1", "Container3"]
-    body_name = var(str, domain=names)
+    body_name = variable(str, domain=names)
     query = an(entity(body_name).order_by(variable=body_name, descending=False))
     assert list(query.evaluate()) == sorted(names, reverse=False)
 
 
 def test_sum(handles_and_containers_world):
     heights = [1, 2, 3, 4, 5]
-    heights_var = var(int, domain=heights)
+    heights_var = variable(int, domain=heights)
     query = eql.sum(entity(heights_var))
     assert query.evaluate() == sum(heights)
 
 
 def test_average(handles_and_containers_world):
     heights = [1, 2, 3, 4, 5]
-    heights_var = var(int, domain=heights)
+    heights_var = variable(int, domain=heights)
     query = eql.average(entity(heights_var))
     assert query.evaluate() == sum(heights) / len(heights)
 
 
 def test_sum_on_empty_list(handles_and_containers_world):
     empty_list = []
-    empty_var = var(int, domain=empty_list)
+    empty_var = variable(int, domain=empty_list)
     query = eql.sum(entity(empty_var))
     assert query.evaluate() is None
 
 
 def test_sum_without_entity():
     heights = [1, 2, 3, 4, 5]
-    heights_var = var(int, domain=heights)
+    heights_var = variable(int, domain=heights)
     query = eql.sum(heights_var)
     assert query.evaluate() == sum(heights)
 
 
 def test_limit(handles_and_containers_world):
     world = handles_and_containers_world
-    query = an(
-        entity(body := var(type_=Body, domain=world.bodies)).where(
-            contains(body.name, "Handle")
-        )
-    )
+    body = variable(type_=Body, domain=world.bodies)
+    query = an(entity(body).where(contains(body.name, "Handle")))
     assert len(list(query.evaluate(limit=2))) == 2
     assert len(list(query.evaluate(limit=1))) == 1
     assert len(list(query.evaluate(limit=3))) == 3
@@ -851,9 +848,9 @@ def test_limit(handles_and_containers_world):
 
 
 def test_unification_dict(handles_and_containers_world):
-    drawer = var(Drawer, domain=None)
+    drawer = variable(Drawer, domain=None)
     drawer_1 = an(entity(drawer))
-    handle = var(Handle, domain=None)
+    handle = variable(Handle, domain=None)
     query = a(set_of(drawer, handle).where(drawer.handle.name == handle.name))
     results = list(query.evaluate())
     assert results[0][drawer] is results[0][drawer_1]
@@ -861,7 +858,7 @@ def test_unification_dict(handles_and_containers_world):
 
 def test_distinct_entity():
     names = ["Handle1", "Handle1", "Handle2", "Container1", "Container1", "Container3"]
-    body_name = var(str, domain=names)
+    body_name = variable(str, domain=names)
     query = an(
         entity(body_name)
         .where(
@@ -876,8 +873,8 @@ def test_distinct_entity():
 def test_distinct_set_of():
     handle_names = ["Handle1", "Handle1", "Handle2"]
     container_names = ["Container1", "Container1", "Container3"]
-    handle_name = var(str, domain=handle_names)
-    container_name = var(str, domain=container_names)
+    handle_name = variable(str, domain=handle_names)
+    container_name = variable(str, domain=container_names)
     query = a(set_of(handle_name, container_name).distinct())
     results = list(query.evaluate())
     assert len(results) == 4
@@ -892,8 +889,8 @@ def test_distinct_set_of():
 def test_distinct_on():
     handle_names = ["Handle1", "Handle1", "Handle2"]
     container_names = ["Container1", "Container1", "Container3"]
-    handle_name = var(str, domain=handle_names)
-    container_name = var(str, domain=container_names)
+    handle_name = variable(str, domain=handle_names)
+    container_name = variable(str, domain=container_names)
     query = a(set_of(handle_name, container_name).distinct(handle_name))
     results = list(query.evaluate())
     assert len(results) == 2
@@ -905,7 +902,7 @@ def test_distinct_on():
 
 def test_max_min_no_variable():
     values = [2, 1, 3, 5, 4]
-    value = var(int, domain=values)
+    value = variable(int, domain=values)
 
     max_query = eql.max(entity(value))
     assert max_query.evaluate() == max(values)
@@ -916,7 +913,7 @@ def test_max_min_no_variable():
 
 def test_max_min_without_entity():
     values = [2, 1, 3, 5, 4]
-    value = var(int, domain=values)
+    value = variable(int, domain=values)
 
     max_query = eql.max(value)
     assert max_query.evaluate() == max(values)
@@ -927,7 +924,7 @@ def test_max_min_without_entity():
 
 def test_max_min_with_empty_list():
     empty_list = []
-    value = var(int, domain=empty_list)
+    value = variable(int, domain=empty_list)
 
     max_query = eql.max(entity(value))
     assert max_query.evaluate() is None
@@ -938,7 +935,7 @@ def test_max_min_with_empty_list():
 
 def test_order_by_key():
     names = ["Handle1", "handle2", "Handle3", "container1", "Container2", "container3"]
-    body_name = var(str, domain=names)
+    body_name = variable(str, domain=names)
     key = lambda x: int(x[-1])
     query = an(
         entity(body_name).order_by(
@@ -953,7 +950,7 @@ def test_order_by_key():
 
 def test_distinct_with_order_by():
     values = [5, 1, 1, 2, 1, 4, 3, 3, 5]
-    values_var = var(int, domain=values)
+    values_var = variable(int, domain=values)
     query = an(
         entity(values_var).distinct().order_by(variable=values_var, descending=False)
     )

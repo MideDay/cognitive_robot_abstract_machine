@@ -21,7 +21,7 @@ from ..dataset.ormatic_interface import (
     BodyDAO,
 )
 from krrood.entity_query_language.entity import (
-    variable as var,
+    variable,
     entity,
     contains,
     and_,
@@ -38,7 +38,8 @@ def test_translate_simple_greater(session, database):
     session.add(PositionDAO(x=1, y=2, z=4))
     session.commit()
 
-    query = an(entity(position := var(type_=Position, domain=[])).where(position.z > 3))
+    position = variable(type_=Position, domain=[])
+    query = an(entity(position).where(position.z > 3))
 
     translator = eql_to_sql(query, session)
     query_by_hand = select(PositionDAO).where(PositionDAO.z > 3)
@@ -58,8 +59,9 @@ def test_translate_or_condition(session, database):
     session.add(PositionDAO(x=2, y=9, z=10))
     session.commit()
 
+    position = variable(type_=Position, domain=[])
     query = an(
-        entity(position := var(type_=Position, domain=[])).where(
+        entity(position).where(
             or_(position.z == 4, position.x == 2),
         )
     )
@@ -96,7 +98,8 @@ def test_translate_join_one_to_one(session, database):
     )
     session.commit()
 
-    query = an(entity(pose := var(type_=Pose, domain=[])).where(pose.position.z > 3))
+    pose = variable(type_=Pose, domain=[])
+    query = an(entity(pose).where(pose.position.z > 3))
     translator = eql_to_sql(query, session)
     query_by_hand = select(PoseDAO).join(PoseDAO.position).where(PositionDAO.z > 3)
 
@@ -117,8 +120,9 @@ def test_translate_in_operator(session, database):
     session.add(PositionDAO(x=7, y=8, z=9))
     session.commit()
 
+    position = variable(Position, domain=[])
     query = an(
-        entity(position := var(Position, domain=[])).where(
+        entity(position).where(
             in_(position.x, [1, 7]),
         )
     )
@@ -143,13 +147,12 @@ def test_the_quantifier(session, database):
     session.commit()
 
     def get_query(domain=None):
+        position = variable(
+            type_=Position,
+            domain=domain,
+        )
         query = the(
-            entity(
-                position := var(
-                    type_=Position,
-                    domain=domain,
-                )
-            ).where(
+            entity(position).where(
                 position.y == 2,
             )
         )
@@ -186,12 +189,12 @@ def test_equal(session, database):
     # Query for the kinematic tree of the drawer which has more than one component.
     # Declare the placeholders
 
-    prismatic_connection = var(
+    prismatic_connection = variable(
         type_=PrismaticConnection,
         domain=world.connections,
         name="prismatic_connection",
     )
-    fixed_connection = var(
+    fixed_connection = variable(
         type_=FixedConnection, domain=world.connections, name="fixed_connection"
     )
 
@@ -240,19 +243,19 @@ def test_complicated_equal(session, database):
 
     # Query for the kinematic tree of the drawer which has more than one component.
     # Declare the placeholders
-    parent_container = var(
+    parent_container = variable(
         type_=Container, domain=world.bodies, name="parent_connection"
     )
-    prismatic_connection = var(
+    prismatic_connection = variable(
         type_=PrismaticConnection,
         domain=world.connections,
         name="prismatic_connection",
     )
-    drawer_body = var(type_=Container, domain=world.bodies, name="drawer_body")
-    fixed_connection = var(
+    drawer_body = variable(type_=Container, domain=world.bodies, name="drawer_body")
+    fixed_connection = variable(
         type_=FixedConnection, domain=world.connections, name="fixed_connection"
     )
-    handle = var(type_=Handle, domain=world.bodies, name="handle")
+    handle = variable(type_=Handle, domain=world.bodies, name="handle")
 
     # Write the query body - this was previously failing with "Attribute chain ended on a relationship"
     query = the(
@@ -278,8 +281,9 @@ def test_contains(session, database):
     session.add(BodyDAO(name="Body3", size=1))
     session.commit()
 
+    b = variable(type_=Body, domain=[], name="b")
     query = an(
-        entity(b := var(type_=Body, domain=[], name="b")).where(
+        entity(b).where(
             contains("Body1TestName", b.name),
         )
     )

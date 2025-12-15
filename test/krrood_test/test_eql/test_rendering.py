@@ -21,7 +21,7 @@ from ..dataset.semantic_world_like_classes import (
 )
 from krrood.entity_query_language.entity import (
     entity,
-    variable as var,
+    variable,
     inference,
     and_,
 )
@@ -36,7 +36,7 @@ from krrood.entity_query_language.rule import alternative
 def test_render_rx_graph_as_igraph_simple(handles_and_containers_world):
     world = handles_and_containers_world
 
-    fixed_connection = var(FixedConnection, world.connections)
+    fixed_connection = variable(FixedConnection, world.connections)
     container = fixed_connection.parent
     handle = fixed_connection.child
     rule = an(
@@ -58,17 +58,17 @@ def test_render_rx_graph_as_igraph_simple(handles_and_containers_world):
 def test_render_rx_graph_as_igraph_complex(doors_and_drawers_world):
     world = doors_and_drawers_world
 
-    body = var(Body, domain=world.bodies)
-    handle = var(Handle, domain=world.bodies)
-    container = var(Container, domain=world.bodies)
+    body = variable(Body, domain=world.bodies)
+    handle = variable(Handle, domain=world.bodies)
+    container = variable(Container, domain=world.bodies)
 
-    fixed_connection = var(FixedConnection, domain=world.connections)
+    fixed_connection = variable(FixedConnection, domain=world.connections)
     fixed_connection_condition = and_(
         fixed_connection.parent == body, fixed_connection.child == handle
     )
-    prismatic_connection = var(PrismaticConnection, domain=world.connections)
-    revolute_connection = var(RevoluteConnection, domain=world.connections)
-    views = var(View, domain=None, inferred=True)
+    prismatic_connection = variable(PrismaticConnection, domain=world.connections)
+    revolute_connection = variable(RevoluteConnection, domain=world.connections)
+    views = variable(View, domain=None, inferred=True)
     rule = an(
         entity(views).where(
             fixed_connection_condition,

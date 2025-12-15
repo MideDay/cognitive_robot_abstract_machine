@@ -15,7 +15,7 @@ kernelspec:
 
 EQL provides a concise pattern-matching API for building nested structural queries.
 Use `match_var(type_, domain=domain)(kwarg1=match(type_2)(...),...)` to describe a nested pattern on attributes.
-This replaces `var()` when you want to match a nested structure.
+This replaces `variable()` when you want to match a nested structure.
 
 The following example shows how nested patterns translate
 into an equivalent manual query built with `entity(...).where(...)`.
@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from typing_extensions import List
 
 from krrood.entity_query_language.entity import (
-    variable as var, entity, Symbol,
+    variable, entity, Symbol,
 )
 from krrood.entity_query_language.entity_result_processors import the, a
 from krrood.entity_query_language.match import (
@@ -110,11 +110,11 @@ fixed_connection_query = the(entity(fixed_connection))
 
 ## The equivalent manual query
 
-You can express the same query explicitly using `entity`, `var`, attribute comparisons, and `HasType` for
+You can express the same query explicitly using `entity`, `variable`, attribute comparisons, and `HasType` for
 attribute type constraints:
 
 ```{code-cell} ipython3
-fc = var(FixedConnection, domain=None)
+fc = variable(FixedConnection, domain=None)
 fixed_connection_query_manual = the(
     entity(
         fc).where(
@@ -140,4 +140,4 @@ Notes:
 - Use `match_var` as the outermost match because it allows binding domains and returns an expression.
 - Nested `match(...)` can be composed arbitrarily deep following your object graph.
 - `match_var(...)` is syntactic sugar that allows creating a variable with a specific structure pre filtered.
-- if you do not need a specific structure, just use `var()` instead.
+- if you do not need a specific structure, just use `variable()` instead.

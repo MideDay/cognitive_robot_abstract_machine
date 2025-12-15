@@ -4,7 +4,7 @@ from krrood.entity_query_language.entity import (
     not_,
     in_,
     for_all,
-    variable as var,
+    variable,
     exists,
 )
 from krrood.entity_query_language.entity_result_processors import an, the
@@ -22,7 +22,7 @@ class CabinetLike(View):
 def test_flatten_iterable_attribute(handles_and_containers_world):
     world = handles_and_containers_world
 
-    views = var(Cabinet, world.views)
+    views = variable(Cabinet, world.views)
     drawers = flatten(views.drawers)
     query = an(entity(drawers))
 
@@ -36,10 +36,9 @@ def test_flatten_iterable_attribute(handles_and_containers_world):
 def test_flatten_iterable_attribute_and_use_not_equal(handles_and_containers_world):
     world = handles_and_containers_world
 
-    cabinets = var(Cabinet, world.views)
-    drawer_1 = an(
-        entity(d := var(Drawer, world.views)).where(d.handle.name == "Handle1")
-    )
+    cabinets = variable(Cabinet, world.views)
+    drawer_1_var = variable(Drawer, world.views)
+    drawer_1 = an(entity(drawer_1_var).where(drawer_1_var.handle.name == "Handle1"))
     drawers = flatten(cabinets.drawers)
     query = an(entity(drawers).where(drawer_1 != drawers))
 
@@ -53,10 +52,9 @@ def test_flatten_iterable_attribute_and_use_not_equal(handles_and_containers_wor
 def test_exists_and_for_all(handles_and_containers_world):
     world = handles_and_containers_world
 
-    cabinets = var(Cabinet, world.views)
-    my_drawers = an(
-        entity(d := var(Drawer, world.views)).where(d.handle.name == "Handle1")
-    )
+    cabinets = variable(Cabinet, world.views)
+    drawer_var = variable(Drawer, world.views)
+    my_drawers = an(entity(drawer_var).where(drawer_var.handle.name == "Handle1"))
     cabinet_drawers = cabinets.drawers
     query = an(
         entity(my_drawers).where(
@@ -68,10 +66,9 @@ def test_exists_and_for_all(handles_and_containers_world):
 
     assert len(results) == 0
 
-    cabinets = var(Cabinet, world.views)
-    my_drawers = an(
-        entity(d := var(Drawer, world.views)).where(d.handle.name == "Handle1")
-    )
+    cabinets = variable(Cabinet, world.views)
+    drawer_var_2 = variable(Drawer, world.views)
+    my_drawers = an(entity(drawer_var_2).where(drawer_var_2.handle.name == "Handle1"))
     drawers = cabinets.drawers
     query = an(entity(my_drawers).where(exists(drawers, in_(my_drawers, drawers))))
 
@@ -85,9 +82,10 @@ def test_exists_and_for_all(handles_and_containers_world):
 def test_for_all(handles_and_containers_world):
     world = handles_and_containers_world
 
-    cabinets = var(Cabinet, world.views)
+    cabinets = variable(Cabinet, world.views)
+    container_var = variable(Container, world.bodies)
     the_cabinet_container = the(
-        entity(c := var(Container, world.bodies)).where(c.name == "Container2")
+        entity(container_var).where(container_var.name == "Container2")
     )
     query = an(
         entity(the_cabinet_container).where(
@@ -101,9 +99,10 @@ def test_for_all(handles_and_containers_world):
     assert len(results) == 1
     assert results[0].name == "Container2"
 
-    cabinets = var(Cabinet, world.views)
+    cabinets = variable(Cabinet, world.views)
+    container_var_2 = variable(Container, world.bodies)
     the_cabinet_container = the(
-        entity(c := var(Container, world.bodies)).where(c.name == "Container2")
+        entity(container_var_2).where(container_var_2.name == "Container2")
     )
     query = an(
         entity(the_cabinet_container).where(
@@ -121,4 +120,5 @@ def test_property_selection():
     """
     Test that properties can be selected from entities in a query.
     """
-    q = an(entity(v := var(VectorsWithProperty, None)).where(v.vectors[0].x == 1))
+    v = variable(VectorsWithProperty, None)
+    q = an(entity(v).where(v.vectors[0].x == 1))

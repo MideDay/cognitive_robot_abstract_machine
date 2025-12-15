@@ -22,7 +22,7 @@ from .entity import (
     contains,
     in_,
     flatten,
-    variable as var,
+    variable,
     set_of,
     entity,
     exists,
@@ -221,7 +221,7 @@ class Match(AbstractMatchExpression[T]):
         self.parent = parent
 
     def create_variable(self):
-        self.variable = var(self.type, domain=None)
+        self.variable = variable(self.type, domain=None)
 
     def evaluate(self):
         """
@@ -248,7 +248,7 @@ class MatchVar(Match[T]):
     """
 
     def create_variable(self):
-        self.variable = var(self.type, domain=self.domain)
+        self.variable = variable(self.type, domain=self.domain)
 
     def __call__(self, **kwargs) -> Union[An[T], T]:
         """

@@ -28,7 +28,7 @@ from dataclasses import dataclass
 
 from typing_extensions import List
 
-from krrood.entity_query_language.entity import entity, variable as var, contains, Symbol
+from krrood.entity_query_language.entity import entity, variable, contains, Symbol
 from krrood.entity_query_language.entity_result_processors import an
 
 
@@ -45,7 +45,7 @@ class World:
 
 world = World(1, [Body("Body1"), Body("Body2")])
 
-body = var(Body, domain=world.bodies)
+body = variable(Body, domain=world.bodies)
 query = an(entity(body).where(contains(body.name, "2"),
                   body.name.startswith("Body"))
                )

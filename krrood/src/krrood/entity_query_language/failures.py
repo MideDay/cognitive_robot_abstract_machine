@@ -107,7 +107,7 @@ class NoKwargsInMatchVar(UsageError):
     def __post_init__(self):
         self.message = (
             f"The match variable {self.match_var} was used without any keyword arguments."
-            f"If you don't want to specify keyword arguments use var() instead"
+            f"If you don't want to specify keyword arguments use variable() instead"
         )
 
 

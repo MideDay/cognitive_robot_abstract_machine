@@ -18,13 +18,13 @@ alternatives (mutually exclusive branches). It shows how to:
 - Add a refined exception (more specific case) that overrides the base when a further condition is met;
 - Add alternatives that apply under different conditions.
 
-We will construct objects symbolically using symbolic_rule and Add, with var placeholders to describe relationships.
+We will construct objects symbolically using symbolic_rule and Add, with variable placeholders to describe relationships.
 
 Lets define our domain model and build a small world. We will then build a rule tree that adds Drawer, Door, and Wardrobe
 instances to the world.
 
 ```{code-cell} ipython3
-from krrood.entity_query_language.entity import entity, variable as var, and_, Symbol, inference
+from krrood.entity_query_language.entity import entity, variable, and_, Symbol, inference
 from krrood.entity_query_language.entity_result_processors import an
 
 from krrood.entity_query_language.rule import refinement, alternative
@@ -120,8 +120,8 @@ from krrood.entity_query_language.predicate import HasType
 
 # --- Build the starting query
 # Declare the variables
-fixed_connection = var(type_=FixedConnection, domain=world.connections)
-revolute_connection = var(type_=RevoluteConnection, domain=world.connections)
+fixed_connection = variable(type_=FixedConnection, domain=world.connections)
+revolute_connection = variable(type_=RevoluteConnection, domain=world.connections)
 views = inference(View)()
 
 # Define aliases for convenience

@@ -1,5 +1,5 @@
 from krrood.entity_query_language.entity import (
-    variable as var,
+    variable,
     entity,
     contains,
 )
@@ -11,10 +11,10 @@ from semantic_digital_twin.world_description.degree_of_freedom import PositionVa
 
 
 def test_querying_equations(world_setup):
-    position_var = var(PositionVariable, domain=None)
+    position_var = variable(PositionVariable, domain=None)
     results = list(an(entity(position_var)).evaluate())
     expr = results[0] + results[1]
-    e = var(Expression, domain=None)
+    e = variable(Expression, domain=None)
     found_expr = the(
         entity(e).where(
             e.is_scalar(),

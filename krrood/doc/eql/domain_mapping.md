@@ -29,7 +29,7 @@ from typing_extensions import List, Dict
 from krrood.entity_query_language.entity import (
     entity,
     set_of,
-    variable as var,
+    variable,
     flatten,
     Symbol,
 )
@@ -98,7 +98,7 @@ Flatten turns an iterable-of-iterables into a flat sequence of items while keepi
 It is handy when a selected variable has an attribute that is a list and you want one row per element of that list.
 
 ```{code-cell} ipython3
-views = var(type_=View, domain=world.views)
+views = variable(type_=View, domain=world.views)
 drawers = flatten(views.drawers)  # UNNEST-like flatten of each view's drawers
 query = an(set_of(views, drawers))
 
@@ -135,7 +135,7 @@ score_world = ScoreWorld([
     ScoredBody("Body2", {"score": 2}),
 ])
 
-b = var(type_=ScoredBody, domain=score_world.bodies)
+b = variable(type_=ScoredBody, domain=score_world.bodies)
 # Use indexing on a dict field; the indexing is preserved symbolically
 query = an(entity(b).where(b.props["score"] == 2))
 

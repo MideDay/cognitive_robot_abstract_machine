@@ -21,7 +21,7 @@ from dataclasses import dataclass
 
 from typing_extensions import List
 
-from krrood.entity_query_language.entity import entity, or_, Symbol, variable as var, not_, and_
+from krrood.entity_query_language.entity import entity, or_, Symbol, variable, not_, and_
 from krrood.entity_query_language.entity_result_processors import an
 
 
@@ -59,7 +59,7 @@ structure as how the computation is done internally. Take note that whenever con
 explicit logical operator, `and` is assumed.
 
 ```{code-cell} ipython3
-body = var(type_=Body, domain=world.bodies)
+body = variable(type_=Body, domain=world.bodies)
 query = an(entity(body).where(
                   or_(body.name.startswith("C"), body.name.endswith("1")),
                   or_(body.name.startswith("H"), body.name.endswith("1"))
@@ -107,8 +107,8 @@ from krrood.entity_query_language.entity import in_, for_all
 
 
 # A variable ranging over drawers in the world
-drawer = var(Drawer, [drawer1, drawer2, drawer3])
-views = var(CabinetLike, world.views)
+drawer = variable(Drawer, [drawer1, drawer2, drawer3])
+views = variable(CabinetLike, world.views)
 all_cabinets_drawers = views.drawers # A nested iterable where there is a list of views each with a list of drawers.
 # Find drawers that are NOT in the list 
 # (expected to find only the drawer3 since it is not part of any cabinet)
@@ -126,8 +126,8 @@ Now if we look for drawers that are part of any cabinet using `exists` we should
 from krrood.entity_query_language.entity import exists
 
 # A variable ranging over drawers in the world
-drawer = var(Drawer, [drawer1, drawer2, drawer3])
-cabinets = var(CabinetLike, world.views)
+drawer = variable(Drawer, [drawer1, drawer2, drawer3])
+cabinets = variable(CabinetLike, world.views)
 all_cabinets_drawers = cabinets.drawers # A nested iterable where there is a list of views each with a list of drawers.
 # Find drawers that are in the list
 # (expected to find drawer1 and drawer2 since they are part of a cabinet)
@@ -141,7 +141,8 @@ print(*found_cabinet_drawers, sep="\n")
 In EQL Negation is a filter that chooses only the False values of the expression that was negated.
 
 ```{code-cell} ipython3
-query = an(entity(body := var(type_=Body, domain=world.bodies)).where(
+body = variable(type_=Body, domain=world.bodies)
+query = an(entity(body).where(
                   not_(or_(body.name.startswith("C"), body.name.endswith("1")),
                        )
                   )
@@ -151,10 +152,10 @@ print(*query.evaluate(), sep="\n")
 
 In some cases,
 EQL tries to optimize the query when negation is used by replacing the original expression with an equivalent one that
-is easier to compute, this happens for example when negating `exists(var, expression)` it becomes `for_all(var, not_(expression))`.
+is easier to compute, this happens for example when negating `exists(variable, expression)` it becomes `for_all(var, not_(expression))`.
 
 ```{code-cell} ipython3
-body = var(type_=Body, domain=world.bodies)
+body = variable(type_=Body, domain=world.bodies)
 expression = not_(exists(body, body.name.startswith("A")))
 print("exists(...) got translated to",type(expression))
 ```
@@ -168,7 +169,7 @@ In other words: same variables → `ElseIf`; different variables → `Or` (Union
 An example for a query that gets optimized to `ElseIf` is
 
 ```{code-cell} ipython3
-body = var(type_=Body, domain=world.bodies)
+body = variable(type_=Body, domain=world.bodies)
 or_expression = or_(
             body.name.startswith("C"),  # left uses {body}
             body.name.endswith("1"),  # right uses {body}
@@ -179,8 +180,8 @@ print(type(or_expression))
 And here is one where an actual union is performed.
 
 ```{code-cell} ipython3
-body = var(type_=Body, domain=world.bodies)
-other = var(type_=Body, domain=world.bodies)
+body = variable(type_=Body, domain=world.bodies)
+other = variable(type_=Body, domain=world.bodies)
 or_expression = or_(
             body.name.startswith("C"),
             # Introduces `other`, so the variable sets differ → treated as Union

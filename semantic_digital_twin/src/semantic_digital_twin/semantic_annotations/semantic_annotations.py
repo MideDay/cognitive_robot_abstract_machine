@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Set, Iterable, Optional
 
 import numpy as np
-from krrood.entity_query_language.entity import entity, variable as var
+from krrood.entity_query_language.entity import entity, variable
 from krrood.entity_query_language.entity_result_processors import an
 from probabilistic_model.probabilistic_circuit.rx.helper import uniform_measure_of_event
 from typing_extensions import List
@@ -156,7 +156,7 @@ class Wall(SemanticAnnotation):
 
     @property
     def doors(self) -> Iterable[Door]:
-        door = var(Door, self._world.semantic_annotations)
+        door = variable(Door, self._world.semantic_annotations)
         query = an(
             entity(door).where(InsideOf(self.body, door.entry_way.region)() > 0.1)
         )

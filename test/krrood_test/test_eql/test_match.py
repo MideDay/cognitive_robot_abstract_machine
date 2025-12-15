@@ -2,7 +2,7 @@ import pytest
 
 from krrood.entity_query_language.entity import (
     entity,
-    variable as var,
+    variable,
     set_of,
 )
 from krrood.entity_query_language.entity_result_processors import the
@@ -26,8 +26,9 @@ def test_match(handles_and_containers_world):
     )
     fixed_connection_query = the(entity(fixed_connection))
 
+    fc = variable(FixedConnection, domain=None)
     fixed_connection_query_manual = the(
-        entity(fc := var(FixedConnection, domain=None)).where(
+        entity(fc).where(
             HasType(fc.parent, Container),
             HasType(fc.child, Handle),
             fc.parent.name == "Container1",
@@ -56,7 +57,7 @@ def test_select(handles_and_containers_world):
     )
 
     # Method 2
-    fixed_connection_2 = var(FixedConnection, domain=world.connections)
+    fixed_connection_2 = variable(FixedConnection, domain=world.connections)
     container_and_handle_2 = the(
         set_of(
             container_2 := fixed_connection_2.parent,
@@ -94,7 +95,7 @@ def test_select_where(handles_and_containers_world):
     )
 
     # Method 2
-    fixed_connection_2 = var(FixedConnection, domain=world.connections)
+    fixed_connection_2 = variable(FixedConnection, domain=world.connections)
     container_and_handle_2 = the(
         set_of(
             container_2 := fixed_connection_2.parent,

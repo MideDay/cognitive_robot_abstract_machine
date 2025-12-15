@@ -1,6 +1,6 @@
 import unittest
 
-from krrood.entity_query_language.entity import entity, variable as var, and_, contains
+from krrood.entity_query_language.entity import entity, variable, and_, contains
 from krrood.entity_query_language.entity_result_processors import an, the
 
 from pycram.designator import EQLObjectDesignator, NamedObject
@@ -12,9 +12,10 @@ from pycram.testing import ApartmentWorldTestCase
 class TestObjectDesignator(ApartmentWorldTestCase):
 
     def test_eql_designator(self):
+        obj = variable(type_=Body, domain=self.world.bodies)
         milk_desig = EQLObjectDesignator(
             an(
-                entity(obj := var(type_=Body, domain=self.world.bodies)).where(
+                entity(obj).where(
                     contains(obj.name.name, "milk"),
                 )
             )
