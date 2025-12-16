@@ -18,6 +18,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     DoubleDoor,
     Fridge,
     Slider,
+    Floor,
 )
 from semantic_digital_twin.spatial_types.spatial_types import (
     TransformationMatrix,
@@ -281,6 +282,20 @@ class TestFactories(unittest.TestCase):
         assert drawer.body.parent_kinematic_structure_entity == slider.body
         assert isinstance(slider.body.parent_connection, PrismaticConnection)
         assert drawer.slider == slider
+
+    def test_floor_factory(self):
+        world = World()
+        root = Body(name=PrefixedName("root"))
+        with world.modify_world():
+            world.add_body(root)
+        floor = Floor.create_with_new_body_in_world(
+            name=PrefixedName("floor"),
+            world=world,
+            parent=root,
+            scale=Scale(5, 5, 0.01),
+        )
+        semantic_floor_annotations = world.get_semantic_annotations_by_type(Floor)
+        self.assertEqual(len(semantic_floor_annotations), 1)
 
     # def test_wall_factory(self):
     #     handle_factory = HandleFactory(name=PrefixedName("handle"))

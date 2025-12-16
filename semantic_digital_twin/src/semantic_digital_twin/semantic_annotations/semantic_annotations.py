@@ -263,7 +263,15 @@ class Wardrobe(HasCase, Furniture, HasDrawers, HasDoors):
 class Floor(HasSupportingSurface):
 
     @classmethod
-    def create_with_new_body_in_world(cls, name: PrefixedName, scale: Scale) -> Self:
+    def create_with_new_body_in_world(
+        cls,
+        name: PrefixedName,
+        world: World,
+        parent: KinematicStructureEntity,
+        parent_T_self: Optional[TransformationMatrix] = None,
+        *,
+        scale: Scale = Scale(),
+    ) -> Self:
         """
         Create a Floor semantic annotation with a new body defined by the given scale.
 
@@ -271,12 +279,16 @@ class Floor(HasSupportingSurface):
         :param scale: The scale defining the floor polytope.
         """
         polytope = scale.to_bounding_box().get_points()
-        return cls.create_with_new_body_fron_polytope(
+        self = cls.create_with_new_body_from_polytope(
             name=name, floor_polytope=polytope
         )
+        self._create_with_fixed_connection_in_world(
+            name, world, self.body, parent, parent_T_self
+        )
+        return self
 
     @classmethod
-    def create_with_new_body_fron_polytope(
+    def create_with_new_body_from_polytope(
         cls, name: PrefixedName, floor_polytope: List[Point3]
     ) -> Self:
         """
