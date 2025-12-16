@@ -1,4 +1,4 @@
-from krrood.ormatic.utils import inheritance_path_length
+from krrood.utils import inheritance_path_length
 from ..dataset.example_classes import *
 
 

@@ -12,7 +12,7 @@ from typing_extensions import Dict, Any, Self, Union, Callable, Type, ClassVar, 
 
 from ..ormatic.dao import HasGeneric
 from ..singleton import SingletonMeta
-from ..utils import get_full_class_name, recursive_subclasses
+from ..utils import get_full_class_name, recursive_subclasses, inheritance_path_length
 
 list_like_classes = (
     list,
@@ -110,12 +110,31 @@ class JSONSerializableTypeRegistry(metaclass=SingletonMeta):
     """
 
     def get_external_serializer(self, clazz: Type) -> Type[ExternalClassJSONSerializer]:
+        """
+        Get the external serializer for the given class.
+
+        This returns the serializer of the closest superclass if no direct match is found.
+
+        :param clazz: The class to get the serializer for.
+        :return: The serializer class.
+        """
         if issubclass(clazz, enum.Enum):
             return EnumJSONSerializer
+
+        distances = {}  # mapping of subclasses to the distance to the clazz
+
         for subclass in recursive_subclasses(ExternalClassJSONSerializer):
             if subclass.original_class() == clazz:
                 return subclass
-        raise ClassNotSerializableError(clazz)
+            else:
+                distance = inheritance_path_length(clazz, subclass.original_class())
+                if distance is not None:
+                    distances[subclass] = distance
+
+        if not distances:
+            raise ClassNotSerializableError(clazz)
+        else:
+            return min(distances, key=distances.get)
 
 
 class SubclassJSONSerializer:
@@ -301,4 +320,4 @@ class ExceptionJSONSerializer(ExternalClassJSONSerializer[Exception]):
     def from_json(
         cls, data: Dict[str, Any], clazz: Type[Exception], **kwargs
     ) -> Exception:
-        return Exception(data["value"])
+        return clazz(data["value"])

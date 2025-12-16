@@ -223,3 +223,12 @@ def test_list_of_enums():
     data = to_json(obj)
     result = from_json(data)
     assert result == obj
+
+
+def test_exception():
+    e = ImportError("test")
+    data = to_json(e)
+    result = from_json(data)
+
+    assert isinstance(result, ImportError)
+    assert result.args == e.args
