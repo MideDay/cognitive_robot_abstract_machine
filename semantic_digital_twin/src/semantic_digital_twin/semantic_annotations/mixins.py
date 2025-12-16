@@ -25,6 +25,7 @@ from random_events.product_algebra import SimpleEvent, Event
 from random_events.variable import Continuous
 from typing_extensions import TYPE_CHECKING, assert_never
 
+from krrood.ormatic.utils import classproperty
 from ..datastructures.prefixed_name import PrefixedName
 from ..datastructures.variables import SpatialVariables
 from ..exceptions import InvalidAxisError
@@ -216,8 +217,10 @@ class HasBody(SemanticAnnotation, ABC):
     ) -> Self: ...
 
     @classmethod
-    def _create_with_fixed_connection_in_world(cls, world, body, parent, parent_T_self):
-        self_instance = cls(body=body)
+    def _create_with_fixed_connection_in_world(
+        cls, name, world, body, parent, parent_T_self
+    ):
+        self_instance = cls(name=name, body=body)
         parent_T_self = (
             parent_T_self if parent_T_self is not None else TransformationMatrix()
         )
@@ -756,28 +759,38 @@ class HasSupportingSurface(HasBody, ABC):
 
 
 @dataclass(eq=False)
-class HasCorpus(HasSupportingSurface, ABC):
+class HasCabinet(HasSupportingSurface, ABC):
 
-    @property
+    @classproperty
     @abstractmethod
     def opening_direction(self) -> Direction: ...
 
     @classmethod
     def create_with_new_body_in_world(
-        cls, scale: Scale, wall_thickness: float = 0.01, *args, **kwargs
+        cls,
+        name: PrefixedName,
+        world: World,
+        parent: KinematicStructureEntity,
+        parent_T_self: Optional[TransformationMatrix] = None,
+        *,
+        scale: Scale = Scale(),
+        wall_thickness: float = 0.01,
     ) -> Self:
         container_event = cls._create_container_event(scale, wall_thickness)
 
-        corpus_body = Body(name=name)
+        cabinet_body = Body(name=name)
         collision_shapes = BoundingBoxCollection.from_event(
-            corpus_body, container_event
+            cabinet_body, container_event
         ).as_shapes()
-        corpus_body.collision = collision_shapes
-        corpus_body.visual = collision_shapes
-
-        semantic_container_annotation = cls(body=corpus_body, name=name)
-
-        return semantic_container_annotation
+        cabinet_body.collision = collision_shapes
+        cabinet_body.visual = collision_shapes
+        return cls._create_with_fixed_connection_in_world(
+            name=name,
+            world=world,
+            body=cabinet_body,
+            parent=parent,
+            parent_T_self=parent_T_self,
+        )
 
     @classmethod
     def _create_container_event(cls, scale: Scale, wall_thickness: float) -> Event:
@@ -785,15 +798,11 @@ class HasCorpus(HasSupportingSurface, ABC):
         Return an event representing a container with walls of a specified thickness.
         """
         outer_box = scale.to_simple_event()
-        inner_scale = Scale(
+        inner_box = Scale(
             scale.x - wall_thickness,
             scale.y - wall_thickness,
             scale.z - wall_thickness,
-        ).to_simple_event(self.opening_direction, wall_thickness)
-
-        inner_box = cls._extend_inner_event_in_direction(
-            outer_scale=scale, inner_scale=inner_scale
-        )
+        ).to_simple_event(cls.opening_direction, wall_thickness)
 
         container_event = outer_box.as_composite_set() - inner_box.as_composite_set()
 

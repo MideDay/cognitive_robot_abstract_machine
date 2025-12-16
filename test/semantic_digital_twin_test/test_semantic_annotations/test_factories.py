@@ -6,6 +6,7 @@ import rclpy
 from semantic_digital_twin.adapters.viz_marker import VizMarkerPublisher
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import InvalidDoorDimensions
+from semantic_digital_twin.semantic_annotations.mixins import HasCabinet
 
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Handle,
@@ -15,6 +16,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Wall,
     Hinge,
     DoubleDoor,
+    Fridge,
 )
 from semantic_digital_twin.spatial_types.spatial_types import (
     TransformationMatrix,
@@ -192,15 +194,25 @@ class TestFactories(unittest.TestCase):
 
         self.assertEqual(len(semantic_double_door_annotations), 1)
 
-    # def test_container_factory(self):
-    #     factory = ContainerFactory(name=PrefixedName("container"))
-    #     world = factory.create()
-    #     semantic_container_annotations = world.get_semantic_annotations_by_type(Corpus)
-    #     self.assertEqual(len(semantic_container_annotations), 1)
-    #
-    #     container: Corpus = semantic_container_annotations[0]
-    #     self.assertEqual(world.root, container.body)
-    #
+    def test_container_factory(self):
+        world = World()
+        root = Body(name=PrefixedName("root"))
+        with world.modify_world():
+            world.add_body(root)
+        fridge = Fridge.create_with_new_body_in_world(
+            name=PrefixedName("container"),
+            world=world,
+            parent=root,
+            scale=Scale(1, 1, 2.0),
+        )
+
+        assert isinstance(fridge, HasCabinet)
+
+        semantic_container_annotations = world.get_semantic_annotations_by_type(Fridge)
+        self.assertEqual(len(semantic_container_annotations), 1)
+
+        assert len(world.get_semantic_annotations_by_type(HasCabinet)) == 1
+
     # def test_drawer_factory(self):
     #     container_factory = ContainerFactory(name=PrefixedName("container"))
     #     container_factory_config = container_factory.get_config_for_parent_factory(

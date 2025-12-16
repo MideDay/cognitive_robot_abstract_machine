@@ -12,6 +12,7 @@ from typing_extensions import List
 
 from krrood.entity_query_language.entity import entity, let
 from krrood.entity_query_language.quantify_entity import an
+from krrood.ormatic.utils import classproperty
 from .mixins import (
     HasBody,
     HasSupportingSurface,
@@ -19,7 +20,7 @@ from .mixins import (
     HasDrawers,
     HasDoors,
     HasHandle,
-    HasCorpus,
+    HasCabinet,
     HasHinge,
     HasActiveConnection,
     HasRevoluteConnection,
@@ -85,7 +86,7 @@ class Handle(HasBody):
         handle_body.collision = collision
         handle_body.visual = collision
         return cls._create_with_fixed_connection_in_world(
-            world, handle_body, parent, parent_T_self
+            name, world, handle_body, parent, parent_T_self
         )
 
     @classmethod
@@ -118,14 +119,14 @@ class Handle(HasBody):
 
 @dataclass(eq=False)
 class Fridge(
-    HasCorpus,
+    HasCabinet,
     HasDoors,
 ):
     """
     A semantic annotation representing a fridge that has a door and a body.
     """
 
-    @property
+    @classproperty
     def opening_direction(self) -> Direction:
         return Direction.NEGATIVE_X
 
@@ -156,7 +157,7 @@ class Hinge(HasBody):
         hinge_body = Body(name=name)
 
         return cls._create_with_fixed_connection_in_world(
-            world, hinge_body, parent, parent_T_self
+            name, world, hinge_body, parent, parent_T_self
         )
 
 
@@ -188,7 +189,7 @@ class Door(HasBody, HasHandle, HasHinge):
         door_body.collision = collision
         door_body.visual = collision
         return cls._create_with_fixed_connection_in_world(
-            world, door_body, parent, parent_T_self
+            name, world, door_body, parent, parent_T_self
         )
 
 
@@ -220,7 +221,7 @@ class DoubleDoor(SemanticAnnotation, HasLeftRightDoor):
 
 
 @dataclass(eq=False)
-class Drawer(HasCorpus, HasHandle):
+class Drawer(HasCabinet, HasHandle):
 
     @property
     def opening_direction(self) -> Direction:
@@ -258,28 +259,28 @@ class Table(Furniture, HasBody):
 
 
 @dataclass(eq=False)
-class Cabinet(HasCorpus, Furniture, HasDrawers, HasDoors):
+class Cabinet(HasCabinet, Furniture, HasDrawers, HasDoors):
     @property
     def opening_direction(self) -> Direction:
         return Direction.NEGATIVE_X
 
 
 @dataclass(eq=False)
-class Dresser(HasCorpus, Furniture, HasDrawers, HasDoors):
+class Dresser(HasCabinet, Furniture, HasDrawers, HasDoors):
     @property
     def opening_direction(self) -> Direction:
         return Direction.NEGATIVE_X
 
 
 @dataclass(eq=False)
-class Cupboard(HasCorpus, Furniture, HasDoors):
+class Cupboard(HasCabinet, Furniture, HasDoors):
     @property
     def opening_direction(self) -> Direction:
         return Direction.NEGATIVE_X
 
 
 @dataclass(eq=False)
-class Wardrobe(HasCorpus, Furniture, HasDrawers, HasDoors):
+class Wardrobe(HasCabinet, Furniture, HasDrawers, HasDoors):
     @property
     def opening_direction(self) -> Direction:
         return Direction.NEGATIVE_X

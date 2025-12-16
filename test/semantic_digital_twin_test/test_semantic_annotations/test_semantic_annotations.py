@@ -173,7 +173,9 @@ def test_generated_semantic_annotations(kitchen_world):
         "semantic_annotations"
     ]
     drawer_container_names = [
-        v.body.name.name for v in found_semantic_annotations if isinstance(v, HasCorpus)
+        v.body.name.name
+        for v in found_semantic_annotations
+        if isinstance(v, HasCabinet)
     ]
     assert len(drawer_container_names) == 14
 
@@ -189,7 +191,9 @@ def test_apartment_semantic_annotations(apartment_world):
 
     found_semantic_annotations = world_reasoner.infer_semantic_annotations()
     drawer_container_names = [
-        v.body.name.name for v in found_semantic_annotations if isinstance(v, HasCorpus)
+        v.body.name.name
+        for v in found_semantic_annotations
+        if isinstance(v, HasCabinet)
     ]
     assert len(drawer_container_names) == 19
 
