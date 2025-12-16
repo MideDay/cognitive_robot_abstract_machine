@@ -16,6 +16,7 @@ from test.krrood_test.test_symbolic_math.reference_implementations import (
     normalize_angle,
     rotation_matrix_from_quaternion,
 )
+import casadi as ca
 
 TrinaryTrue = 1
 TrinaryFalse = 0
@@ -57,6 +58,33 @@ def logic_or(a, b):
         return TrinaryUnknown
     else:
         raise ValueError(f"Invalid truth values: {a}, {b}")
+
+
+def test_to_sx():
+    v = cas.FloatVariable(name="muh")
+    v_sx = v.casadi_sx
+    # constants
+    assert ca.is_equal(cas.to_sx(1), ca.SX(1))
+    assert ca.is_equal(cas.to_sx(np.array([1, 2])), ca.SX([1, 2]))
+    assert ca.is_equal(cas.to_sx([1, 2]), ca.SX([1, 2]))
+    assert ca.is_equal(cas.to_sx([ca.SX(1), 2]), ca.SX([1, 2]))
+    assert ca.is_equal(cas.to_sx(cas.Vector([1, 2, 3])), ca.SX([1, 2, 3]))
+
+    # with variable
+    assert ca.is_equal(cas.to_sx(v), v_sx)
+
+    sx_list = cas.to_sx([v, 2])
+    assert ca.is_equal(sx_list[0], v_sx)
+    assert ca.is_equal(sx_list[1], 2)
+
+    sx_list = cas.to_sx([v_sx, 2])
+    assert ca.is_equal(sx_list[0], v_sx)
+    assert ca.is_equal(sx_list[1], 2)
+
+    sx_list = cas.to_sx(cas.Vector([v, 2, 3]))
+    assert ca.is_equal(sx_list[0], v_sx)
+    assert ca.is_equal(sx_list[1], 2)
+    assert ca.is_equal(sx_list[2], 3)
 
 
 class TestLogic3:
@@ -594,7 +622,7 @@ class TestSymbolicType:
         assert str(result[2]) == "s_2"
 
     def test_to_str(self):
-        expr = cas.FloatVariable(name="muh") * cas.Expression(23)
+        expr = cas.FloatVariable(name="muh") * cas.Scalar(23)
         assert expr.pretty_str() == [["(23*muh)"]]
 
 
@@ -884,6 +912,20 @@ class TestVector:
         b = cas.Vector(np.array([2, 2, 2, 2]))
         assert not cas.logic_all(a <= b)
 
+    def test_logic_any(self):
+        a = cas.Vector(np.array([1, 2, 3, 4]))
+        b = cas.Vector(np.array([2, 2, 2, 2]))
+        result = cas.logic_any(a <= b)
+        assert isinstance(result, cas.Scalar)
+        assert result == 1
+
+    def test_logic_all(self):
+        a = cas.Vector(np.array([1, 2, 3, 4]))
+        b = cas.Vector(np.array([2, 2, 2, 2]))
+        result = cas.logic_all(a <= b)
+        assert isinstance(result, cas.Scalar)
+        assert result == 0
+
     def test_float_casting(self):
         with pytest.raises(TypeError):
             # noinspection PyTypeChecker
@@ -1038,7 +1080,7 @@ class TestMatrix:
     def test_trace(self):
         m = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
         actual = cas.Matrix(m).trace()
-        assert isinstance(actual, cas.Matrix)
+        assert isinstance(actual, cas.Scalar)
         assert np.allclose(actual, np.trace(m))
 
         m2 = np.array([[1, 2, 3], [4, 5, 6]])
@@ -1253,6 +1295,6 @@ class TestMatrix:
         assert m[1, 0] == 0
         assert isinstance(m[0, 0], cas.Scalar)
         assert np.allclose(m[2, :], cas.Vector([0, 0, 1, 0]))
-        assert isinstance(m[2, :], cas.Matrix)
+        assert isinstance(m[2, :], cas.Vector)
         assert np.allclose(m[:2, :2], np.eye(2))
         assert isinstance(m[:2, :2], cas.Matrix)

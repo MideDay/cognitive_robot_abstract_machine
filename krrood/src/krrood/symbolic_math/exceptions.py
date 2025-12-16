@@ -49,7 +49,7 @@ class WrongDimensionsError(SymbolicMathError):
     Represents an error for mismatched dimensions.
     """
 
-    expected_dimensions: Tuple[int, int]
+    expected_dimensions: Tuple[int, int] | str
     actual_dimensions: Tuple[int, int]
 
     def __post_init__(self):

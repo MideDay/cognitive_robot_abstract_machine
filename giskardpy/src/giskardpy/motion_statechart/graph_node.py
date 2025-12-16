@@ -65,7 +65,7 @@ class TrinaryCondition(SubclassJSONSerializer):
     """
     The type of transition associated with this condition.
     """
-    expression: cas.Expression = field(default=lambda: cas.TrinaryUnknown)
+    expression: cas.Scalar = field(default=lambda: cas.Scalar.const_trinary_unknown())
     """
     The logical trinary condition to be evaluated.
     """
@@ -158,7 +158,7 @@ class TrinaryCondition(SubclassJSONSerializer):
         """
         free_symbols = self.expression.free_variables()
         if not free_symbols:
-            str_representation = str(cas.is_const_binary_true(self.expression))
+            str_representation = str(self.expression.is_const_true())
         else:
             str_representation = cas.trinary_logic_to_str(self.expression)
         str_representation = re.sub(
@@ -550,11 +550,11 @@ class MotionStatechartNode(SubclassJSONSerializer):
         return self.motion_statechart.observation_state[self]
 
     @property
-    def start_condition(self) -> cas.Expression:
+    def start_condition(self) -> cas.Scalar:
         return self._start_condition.expression
 
     @start_condition.setter
-    def start_condition(self, expression: cas.Expression) -> None:
+    def start_condition(self, expression: cas.Scalar) -> None:
         if self._start_condition is None:
             raise NotInMotionStatechartError(self.name)
         free_variables = expression.free_variables
@@ -562,31 +562,31 @@ class MotionStatechartNode(SubclassJSONSerializer):
         self._start_condition.update_expression(expression, self)
 
     @property
-    def pause_condition(self) -> cas.Expression:
+    def pause_condition(self) -> cas.Scalar:
         return self._pause_condition.expression
 
     @pause_condition.setter
-    def pause_condition(self, expression: cas.Expression) -> None:
+    def pause_condition(self, expression: cas.Scalar) -> None:
         if self._pause_condition is None:
             raise NotInMotionStatechartError(self.name)
         self._pause_condition.update_expression(expression, self)
 
     @property
-    def end_condition(self) -> cas.Expression:
+    def end_condition(self) -> cas.Scalar:
         return self._end_condition.expression
 
     @end_condition.setter
-    def end_condition(self, expression: cas.Expression) -> None:
+    def end_condition(self, expression: cas.Scalar) -> None:
         if self._end_condition is None:
             raise NotInMotionStatechartError(self.name)
         self._end_condition.update_expression(expression, self)
 
     @property
-    def reset_condition(self) -> cas.Expression:
+    def reset_condition(self) -> cas.Scalar:
         return self._reset_condition.expression
 
     @reset_condition.setter
-    def reset_condition(self, expression: cas.Expression) -> None:
+    def reset_condition(self, expression: cas.Scalar) -> None:
         if self._reset_condition is None:
             raise NotInMotionStatechartError(self.name)
         self._reset_condition.update_expression(expression, self)
@@ -724,7 +724,7 @@ class Goal(MotionStatechartNode):
         Links the start condition of this goal to the start condition of the node.
         Ensures that the node can only be started when this goal is started.
         """
-        if cas.is_const_trinary_true(node.start_condition):
+        if node.start_condition.is_const_true():
             node.start_condition = self.start_condition
             return
         node.start_condition = cas.trinary_logic_and(
@@ -736,9 +736,9 @@ class Goal(MotionStatechartNode):
         Links the pause condition of this goal to the pause condition of the node.
         Ensures that the node is always paused when the goal is paused.
         """
-        if cas.is_const_trinary_false(node.pause_condition):
+        if node.pause_condition.is_const_false():
             node.pause_condition = self.pause_condition
-        elif not cas.is_const_trinary_false(node.pause_condition):
+        elif not node.pause_condition.is_const_false():
             node.pause_condition = cas.trinary_logic_or(
                 node.pause_condition, self.pause_condition
             )
@@ -748,9 +748,9 @@ class Goal(MotionStatechartNode):
         Links the end condition of this goal to the end condition of the node.
         Ensures that the node is automatically ended when the goal is ended.
         """
-        if cas.is_const_trinary_false(node.end_condition):
+        if node.end_condition.is_const_false():
             node.end_condition = self.end_condition
-        elif not cas.is_const_trinary_false(self.end_condition):
+        elif not self.end_condition.is_const_false():
             node.end_condition = cas.trinary_logic_or(
                 node.end_condition, self.end_condition
             )
@@ -760,9 +760,9 @@ class Goal(MotionStatechartNode):
         Links the reset condition of this goal to the reset condition of the node.
         Ensures that the node is reset, when the goal is reset.
         """
-        if cas.is_const_trinary_false(node.reset_condition):
+        if node.reset_condition.is_const_false():
             node.reset_condition = self.reset_condition
-        elif not cas.is_const_trinary_false(node.pause_condition):
+        elif not node.pause_condition.is_const_false():
             node.reset_condition = cas.trinary_logic_or(
                 node.reset_condition, self.reset_condition
             )
