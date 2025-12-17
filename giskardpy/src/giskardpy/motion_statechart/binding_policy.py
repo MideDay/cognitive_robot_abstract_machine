@@ -1,11 +1,7 @@
 from dataclasses import dataclass, field, InitVar
-from enum import Enum
-from typing import Dict, Any, Self
 
 import numpy as np
-from krrood.adapters.json_serializer import SubclassJSONSerializer
 
-import krrood.symbolic_math.symbolic_math as cas
 from giskardpy.motion_statechart.auxilary_variable_manager import (
     AuxiliaryVariableManager,
 )

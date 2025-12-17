@@ -26,7 +26,7 @@ import operator
 import sys
 from abc import ABC, abstractmethod
 from collections import Counter
-from dataclasses import field, dataclass, InitVar
+from dataclasses import field, dataclass
 from enum import IntEnum
 from functools import partial
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 from enum import IntEnum, Enum
 from typing import Union
 
-import krrood.symbolic_math.symbolic_math as cas
 from krrood.symbolic_math.symbolic_math import Scalar
 
 goal_parameter = Union[str, float, bool, dict, list, IntEnum, None]

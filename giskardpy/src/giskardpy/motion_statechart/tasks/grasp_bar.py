@@ -2,7 +2,6 @@ from __future__ import division
 
 from dataclasses import dataclass
 
-import krrood.symbolic_math.symbolic_math as cas
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.graph_node import Task
 from semantic_digital_twin.spatial_types import Point3, Vector3

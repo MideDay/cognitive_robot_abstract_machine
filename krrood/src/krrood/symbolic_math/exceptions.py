@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from typing_extensions import (
     List,
     Tuple,
-    Union,
     TYPE_CHECKING,
     Any,
 )

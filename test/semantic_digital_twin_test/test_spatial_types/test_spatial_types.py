@@ -54,7 +54,6 @@ class TestRotationMatrix:
         RotationMatrix()
         actual_angle = RotationMatrix(data=m1).rotational_error(RotationMatrix(data=m2))
         _, expected_angle = axis_angle_from_rotation_matrix(m1.T.dot(m2))
-        expected_angle = expected_angle
         try:
             assert np.allclose(
                 shortest_angular_distance(actual_angle.to_np()[0], expected_angle),

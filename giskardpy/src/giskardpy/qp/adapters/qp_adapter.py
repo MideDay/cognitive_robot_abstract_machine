@@ -1270,7 +1270,7 @@ class EqualityModel(ProblemDataPart):
                 slack_model = cas.Matrix.diag(
                     [
                         self.config.mpc_dt
-                        for c in self.constraint_collection.eq_constraints
+                        for _ in self.constraint_collection.eq_constraints
                     ]
                 )
                 return model, slack_model
@@ -1321,7 +1321,7 @@ class EqualityModel(ProblemDataPart):
                 slack_model = cas.Matrix.diag(
                     [
                         self.config.mpc_dt
-                        for c in self.constraint_collection.eq_constraints
+                        for _ in self.constraint_collection.eq_constraints
                     ]
                 )
                 return model, slack_model
@@ -1634,7 +1634,7 @@ class InequalityModel(ProblemDataPart):
                 slack_model = cas.Matrix.diag(
                     [
                         self.config.mpc_dt
-                        for c in self.constraint_collection.neq_constraints
+                        for _ in self.constraint_collection.neq_constraints
                     ]
                 )
                 return model, slack_model
@@ -1680,7 +1680,7 @@ class InequalityModel(ProblemDataPart):
 
             # slack variable for total error
             slack_model = cas.Matrix.diag(
-                [self.config.mpc_dt for c in self.constraint_collection.neq_constraints]
+                [self.config.mpc_dt for _ in self.constraint_collection.neq_constraints]
             )
             return model, slack_model
         return cas.Matrix(), cas.Matrix()

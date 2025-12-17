@@ -1,28 +1,20 @@
 from __future__ import annotations
 
 import inspect
-from copy import copy, deepcopy
-
 import itertools
 from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import Iterable, Mapping
+from copy import deepcopy
 from dataclasses import dataclass, field
 from dataclasses import fields
 from functools import lru_cache
+from typing import ClassVar
 from uuid import UUID, uuid4
-from typing import ClassVar, List, Dict, Any
 
 import numpy as np
 import trimesh
 import trimesh.boolean
-from krrood.adapters.json_serializer import (
-    SubclassJSONSerializer,
-    to_json,
-    from_json,
-)
-from krrood.adapters.exceptions import JSON_TYPE_NAME
-from krrood.entity_query_language.predicate import Symbol
 from scipy.stats import geom
 from trimesh.proximity import closest_point, nearby_faces
 from trimesh.sample import sample_surface
@@ -37,7 +29,14 @@ from typing_extensions import (
 from typing_extensions import List, Optional, TYPE_CHECKING, Tuple
 from typing_extensions import Set
 
-from krrood.symbolic_math.symbolic_math import Vector, Matrix
+from krrood.adapters.exceptions import JSON_TYPE_NAME
+from krrood.adapters.json_serializer import (
+    SubclassJSONSerializer,
+    to_json,
+    from_json,
+)
+from krrood.entity_query_language.predicate import Symbol
+from krrood.symbolic_math.symbolic_math import Matrix
 from .geometry import TriangleMesh
 from .inertial_properties import Inertial
 from .shape_collection import ShapeCollection, BoundingBoxCollection
