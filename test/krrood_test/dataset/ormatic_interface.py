@@ -53,6 +53,12 @@ parentalternativelymappedmappingdao_entities_association = Table(
     ),
     Column("customentitydao_id", ForeignKey("CustomEntityDAO.database_id")),
 )
+persondao_knows_association = Table(
+    "persondao_knows_association",
+    Base.metadata,
+    Column("persondao_id", ForeignKey("PersonDAO.database_id")),
+    Column("persondao_id", ForeignKey("PersonDAO.database_id")),
+)
 alternativemappingaggregatordao_entities1_association = Table(
     "alternativemappingaggregatordao_entities1_association",
     Base.metadata,
@@ -407,6 +413,25 @@ class ChildLevel2NormallyMappedDAO(
         "polymorphic_identity": "ChildLevel2NormallyMappedDAO",
         "inherit_condition": database_id == ChildLevel1NormallyMappedDAO.database_id,
     }
+
+
+class PersonDAO(
+    Base, DataAccessObject[test.krrood_test.dataset.example_classes.Person]
+):
+
+    __tablename__ = "PersonDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    name: Mapped[builtins.str] = mapped_column(String(255), use_existing_column=True)
+
+    knows: Mapped[typing.List[PersonDAO]] = relationship(
+        "PersonDAO",
+        secondary="persondao_knows_association",
+        cascade="save-update, merge",
+    )
 
 
 class PredicateClassRelationDAO(

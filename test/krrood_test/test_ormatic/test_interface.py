@@ -628,3 +628,10 @@ def test_list_of_enum(session, database):
         TestEnum.OPTION_B,
         TestEnum.OPTION_C,
     ]
+
+
+def test_persons(session, database):
+    p1 = Person(name="Alice")
+    p2 = Person(name="Bob")
+
+    dao = to_dao(p1)
