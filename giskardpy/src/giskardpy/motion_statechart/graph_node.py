@@ -578,21 +578,13 @@ class MotionStatechartNode(SubclassJSONSerializer):
         :param any_reset_condition_true: The combined reset condition for this node and its parents. Combined using trinary_logic_or.
         :return: The LifeCycleState transitions for the PAUSED state.
         """
-        unpause_condition = sm.trinary_logic_or(
-            sm.Scalar(self.pause_condition != sm.Scalar.const_true()),
-            sm.Scalar(self.pause_condition == sm.Scalar.const_trinary_unknown()),
-        )
+        unpause_condition = sm.Scalar(self.pause_condition != sm.Scalar.const_true())
         current = self
         while current.parent_node is not None:
             parent = current.parent_node
             unpause_condition = sm.trinary_logic_and(
                 unpause_condition,
-                sm.trinary_logic_or(
-                    sm.Scalar(
-                        parent.pause_condition == sm.Scalar.const_trinary_unknown()
-                    ),
-                    sm.Scalar(parent.pause_condition != sm.Scalar.const_true()),
-                ),
+                sm.Scalar(parent.pause_condition != sm.Scalar.const_true()),
             )
             current = parent
 
