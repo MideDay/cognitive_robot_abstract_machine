@@ -31,6 +31,7 @@ class NodeInitializationError(MotionStatechartError):
         super().__post_init__()
 
 
+@dataclass
 class EmptyMotionStatechartError(MotionStatechartError):
     reason: str = field(default="MotionStatechart is empty.", init=False)
 
