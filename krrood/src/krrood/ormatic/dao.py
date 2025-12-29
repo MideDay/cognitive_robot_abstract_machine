@@ -52,25 +52,22 @@ def is_data_column(column: Column):
     )
 
 
+_WorkItemT = TypeVar("_WorkItemT", bound="DataAccessObjectWorkItem")
+
+
 @dataclass
-class ToDataAccessObjectWorkItem:
+class DataAccessObjectWorkItem(abc.ABC):
     """
-    Work item for converting an object to a Data Access Object.
+    Abstract base class for conversion work items.
     """
 
-    source_object: Any
     dao_instance: DataAccessObject
-    alternative_base: Optional[Type[DataAccessObject]] = None
 
 
 @dataclass
-class ToDataAccessObjectState:
+class DataAccessObjectState(Generic[_WorkItemT], abc.ABC):
     """
-    Encapsulates the conversion state for to_dao conversions.
-
-    This bundles memoization and keep-alive dictionaries and exposes
-    convenience operations used during conversion so that only the state
-    needs to be passed around.
+    Abstract base class for conversion states.
     """
 
     memo: InstanceDict = field(default_factory=dict)
@@ -81,14 +78,66 @@ class ToDataAccessObjectState:
     and maintain object identity.
     """
 
+    queue: deque[_WorkItemT] = field(default_factory=deque)
+    """
+    Queue of work items to be processed.
+    """
+
+    @abc.abstractmethod
+    def add_to_queue(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Add a new work item to the processing queue.
+        """
+        pass
+
+    def has(self, source: Any) -> bool:
+        """
+        Check if the given source object has already been converted.
+        """
+        return id(source) in self.memo
+
+    def get(self, source: Any) -> Optional[Any]:
+        """
+        Get the converted object for the given source object.
+        """
+        return self.memo.get(id(source))
+
+    def register(self, source: Any, target: Any) -> None:
+        """
+        Register a conversion result in the memoization store.
+        """
+        self.memo[id(source)] = target
+
+    def pop(self, source: Any) -> Optional[Any]:
+        """
+        Remove and return the conversion result for the given source object.
+        """
+        return self.memo.pop(id(source), None)
+
+
+@dataclass
+class ToDataAccessObjectWorkItem(DataAccessObjectWorkItem):
+    """
+    Work item for converting an object to a Data Access Object.
+    """
+
+    source_object: Any
+    alternative_base: Optional[Type[DataAccessObject]] = None
+
+
+@dataclass
+class ToDataAccessObjectState(DataAccessObjectState[ToDataAccessObjectWorkItem]):
+    """
+    Encapsulates the conversion state for to_dao conversions.
+
+    This bundles memoization and keep-alive dictionaries and exposes
+    convenience operations used during conversion so that only the state
+    needs to be passed around.
+    """
+
     keep_alive: InstanceDict = field(default_factory=dict)
     """
     Dictionary that prevents objects from being garbage collected.
-    """
-
-    queue: deque[ToDataAccessObjectWorkItem] = field(default_factory=deque)
-    """
-    Queue of work items to be processed.
     """
 
     def add_to_queue(
@@ -101,14 +150,12 @@ class ToDataAccessObjectState:
         Add a new work item to the processing queue.
         """
         self.queue.append(
-            ToDataAccessObjectWorkItem(source_object, dao_instance, alternative_base)
+            ToDataAccessObjectWorkItem(
+                dao_instance=dao_instance,
+                source_object=source_object,
+                alternative_base=alternative_base,
+            )
         )
-
-    def get_existing(self, source_object: Any) -> Optional[DataAccessObject]:
-        """
-        Return an existing DAO for the given object if it was already created.
-        """
-        return self.memo.get(id(source_object))
 
     def apply_alternative_mapping_if_needed(
         self, dao_clazz: Type[DataAccessObject], source_object: Any
@@ -124,23 +171,21 @@ class ToDataAccessObjectState:
         """
         Register a partially built DAO in the memoization stores to break cycles.
         """
-        object_id = id(source_object)
-        self.memo[object_id] = dao_instance
-        self.keep_alive[object_id] = source_object
+        super().register(source_object, dao_instance)
+        self.keep_alive[id(source_object)] = source_object
 
 
 @dataclass
-class FromDataAccessObjectWorkItem:
+class FromDataAccessObjectWorkItem(DataAccessObjectWorkItem):
     """
     Work item for converting a Data Access Object back to a domain object.
     """
 
-    dao_instance: DataAccessObject
     domain_object: Any
 
 
 @dataclass
-class FromDataAccessObjectState:
+class FromDataAccessObjectState(DataAccessObjectState[FromDataAccessObjectWorkItem]):
     """
     Encapsulates the conversion state for from_dao conversions.
 
@@ -148,41 +193,20 @@ class FromDataAccessObjectState:
     allocation, circular detection, and fix-ups.
     """
 
-    memo: InstanceDict = field(default_factory=dict)
-    """
-    Dictionary that keeps track of already converted objects during DAO conversion.
-    Maps object IDs to their corresponding DAO instances to prevent duplicate conversion
-    and handle circular references. Acts as a memoization cache to improve performance
-    and maintain object identity.
-    """
-
     in_progress: InProgressDict = field(default_factory=dict)
     """
     Dictionary that marks objects as currently being processed by the `from_dao` method.
-    """
-
-    queue: deque[FromDataAccessObjectWorkItem] = field(default_factory=deque)
-    """
-    Queue of work items to be processed.
     """
 
     def add_to_queue(self, dao_instance: DataAccessObject, domain_object: Any):
         """
         Add a new work item to the processing queue.
         """
-        self.queue.append(FromDataAccessObjectWorkItem(dao_instance, domain_object))
-
-    def has(self, dao_instance: DataAccessObject) -> bool:
-        """
-        Check if the given DAO instance has already been converted.
-        """
-        return id(dao_instance) in self.memo
-
-    def get(self, dao_instance: DataAccessObject) -> Any:
-        """
-        Get the domain object corresponding to the given DAO instance.
-        """
-        return self.memo[id(dao_instance)]
+        self.queue.append(
+            FromDataAccessObjectWorkItem(
+                dao_instance=dao_instance, domain_object=domain_object
+            )
+        )
 
     def allocate_and_memoize(
         self, dao_instance: DataAccessObject, original_clazz: Type
@@ -192,7 +216,7 @@ class FromDataAccessObjectState:
         dictionary to avoid duplicating object construction for the same identifier.
         """
         result = original_clazz.__new__(original_clazz)
-        self.memo[id(dao_instance)] = result
+        self.register(dao_instance, result)
         self.in_progress[id(dao_instance)] = True
         return result
 
@@ -204,10 +228,10 @@ class FromDataAccessObjectState:
         """
         for key, value in circular_references.items():
             if isinstance(value, list):
-                fixed_list = [self.memo.get(id(v)) for v in value]
+                fixed_list = [self.get(v) for v in value]
                 setattr(domain_object, key, fixed_list)
             else:
-                setattr(domain_object, key, self.memo.get(id(value)))
+                setattr(domain_object, key, self.get(value))
 
 
 class HasGeneric(Generic[T]):
@@ -322,7 +346,7 @@ class DataAccessObject(HasGeneric[T]):
         state = state or ToDataAccessObjectState()
 
         # check if this object has been build already
-        existing = state.get_existing(source_object)
+        existing = state.get(source_object)
         if existing is not None:
             return existing
 
@@ -427,14 +451,14 @@ class DataAccessObject(HasGeneric[T]):
         Populate this DAO instance if it is a subclass of an alternatively mapped entity.
         """
         # Temporarily remove the object from the memo to allow the parent DAO to be created separately
-        temp_dao = state.memo.pop(id(source_object), None)
+        temp_dao = state.pop(source_object)
 
         # create dao of alternatively mapped superclass
         parent_dao = alternative_base.original_class().to_dao(source_object, state)
 
         # Restore the object in the memo dictionary
         if temp_dao is not None:
-            state.memo[id(source_object)] = temp_dao
+            state.register(source_object, temp_dao)
 
         mapper: sqlalchemy.orm.Mapper = sqlalchemy.inspection.inspect(type(self))
         parent_mapper: sqlalchemy.orm.Mapper = sqlalchemy.inspection.inspect(
@@ -550,7 +574,7 @@ class DataAccessObject(HasGeneric[T]):
         Ensure a DAO exists for the given object and queue it for processing if new.
         """
         # Check if already built
-        existing = state.get_existing(source_object)
+        existing = state.get(source_object)
         if existing is not None:
             return existing
 
@@ -648,7 +672,7 @@ class DataAccessObject(HasGeneric[T]):
         if isinstance(domain_object, AlternativeMapping):
             final_result = domain_object.create_from_dao()
             # Update memo if AlternativeMapping changed the instance
-            state.memo[id(self)] = final_result
+            state.register(self, final_result)
             return final_result
 
         return domain_object
@@ -916,8 +940,8 @@ class AlternativeMapping(HasGeneric[T], abc.ABC):
         Create a DAO from the source_object if it doesn't exist.
         """
         state = state or ToDataAccessObjectState()
-        if id(source_object) in state.memo:
-            return state.memo[id(source_object)]
+        if state.has(source_object):
+            return state.get(source_object)
         elif isinstance(source_object, cls):
             return source_object
         else:
