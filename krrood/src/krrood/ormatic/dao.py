@@ -41,6 +41,8 @@ _repr_thread_local = threading.local()
 
 T = TypeVar("T")
 _DAO = TypeVar("_DAO", bound="DataAccessObject")
+_WorkItemT = TypeVar("_WorkItemT", bound="DataAccessObjectWorkItem")
+
 InstanceDict = Dict[int, Any]  # Dictionary that maps object ids to objects
 InProgressDict = Dict[int, bool]
 
@@ -57,9 +59,6 @@ def is_data_column(column: Column):
         and len(column.foreign_keys) == 0
         and column.name != "polymorphic_type"
     )
-
-
-_WorkItemT = TypeVar("_WorkItemT", bound="DataAccessObjectWorkItem")
 
 
 @dataclass
