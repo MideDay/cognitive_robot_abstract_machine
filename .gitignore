@@ -2,7 +2,7 @@
 .pytest_cache
 build
 dist
-src/random_events.egg-info
+random_events/src/random_events.egg-info
 */__pycache__/
-docs/_build
-docs/_autosummary
+random_events/docs/_build
+random_events/docs/_autosummary
