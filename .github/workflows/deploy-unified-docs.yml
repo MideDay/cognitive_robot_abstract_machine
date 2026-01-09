@@ -195,7 +195,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         sparse-checkout: |
-          docs_index.html
+          docs_index.md
         sparse-checkout-cone-mode: false
 
     - name: Setup index page
@@ -203,8 +203,9 @@ jobs:
         # Create .nojekyll to disable Jekyll processing
         touch _combined_docs/.nojekyll
         
-        # Copy the HTML index file
-        cp docs_index.html _combined_docs/index.html
+        # Convert markdown to HTML using pandoc
+        sudo apt-get update && sudo apt-get install -y pandoc
+        pandoc docs_index.md -f markdown -t html -s -o _combined_docs/index.html --metadata title="CRAM Documentation"
 
     - name: Upload Pages artifact
       uses: actions/upload-pages-artifact@v3
