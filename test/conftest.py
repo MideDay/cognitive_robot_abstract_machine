@@ -115,22 +115,22 @@ def cleanup_ros():
 
 @pytest.fixture()
 def box_bot_world():
-    world = World()
-    with world.modify_world():
-        body = Body(
-            name=PrefixedName("map"),
-        )
-        body2 = Body(
+    robot_world = World()
+    with robot_world.modify_world():
+        robot = Body(
             name=PrefixedName("bot"),
             collision=ShapeCollection(shapes=[Cylinder(width=0.1, height=0.5)]),
             collision_config=CollisionCheckingConfig(
                 buffer_zone_distance=0.05, violated_distance=0.0, max_avoided_bodies=3
             ),
         )
-        connection = OmniDrive.create_with_dofs(world=world, parent=body, child=body2)
-        world.add_connection(connection)
-        connection.has_hardware_interface = True
-
+        robot_world.add_body(robot)
+        MinimalRobot.from_world(robot_world)
+    world = World()
+    with world.modify_world():
+        body = Body(
+            name=PrefixedName("map"),
+        )
         environment = Body(
             name=PrefixedName("environment"),
             collision=ShapeCollection(shapes=[Cylinder(width=0.5, height=0.5)]),
@@ -143,7 +143,12 @@ def box_bot_world():
             ),
         )
         world.add_connection(env_connection)
-        MinimalRobot.from_world(world)
+
+        connection = OmniDrive.create_with_dofs(
+            world=world, parent=body, child=robot_world.root
+        )
+        world.merge_world(robot_world, connection)
+        connection.has_hardware_interface = True
 
     return world
 
