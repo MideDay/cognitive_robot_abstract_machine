@@ -24,10 +24,6 @@ class VizMarkerPublisher(ModelChangeCallback):
         4. make sure that the fixed frame is the tf root.
     """
 
-    red: ClassVar[ColorRGBA] = ColorRGBA(r=1.0, g=0.0, b=0.0, a=1.0)
-    yellow: ClassVar[ColorRGBA] = ColorRGBA(r=1.0, g=1.0, b=0.0, a=1.0)
-    green: ClassVar[ColorRGBA] = ColorRGBA(r=0.0, g=1.0, b=0.0, a=1.0)
-
     node: Node
     """
     The ROS2 node that will be used to publish the visualization marker.

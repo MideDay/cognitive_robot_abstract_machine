@@ -31,7 +31,7 @@ TransformableMsg = TypeVar(
 @dataclass
 class TFWrapper:
     """
-    A wrapper for ROS2's beautiful tf library.
+    A wrapper for ROS2's very beautiful tf library.
     """
 
     node: rclpy.node.Node = None
