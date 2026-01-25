@@ -19,7 +19,7 @@ from trimesh.visual.texture import TextureVisuals, SimpleMaterial
 from typing_extensions import Optional, List, Dict, Any, Self, Tuple, TYPE_CHECKING
 
 from krrood.adapters.exceptions import JSON_TYPE_NAME
-from krrood.adapters.json_serializer import SubclassJSONSerializer
+from krrood.adapters.json_serializer import SubclassJSONSerializer, to_json, from_json
 from ..datastructures.variables import SpatialVariables
 from ..spatial_types import HomogeneousTransformationMatrix, Point3
 from ..utils import IDGenerator
@@ -31,7 +31,7 @@ id_generator = IDGenerator()
 
 
 @dataclass
-class Color(SubclassJSONSerializer):
+class Color:
     """
     Dataclass for storing rgba_color as an RGBA value.
     The values are stored as floats between 0 and 1.
@@ -67,19 +67,12 @@ class Color(SubclassJSONSerializer):
         self.B = float(self.B)
         self.A = float(self.A)
 
-    def to_json(self) -> Dict[str, Any]:
-        return {**super().to_json(), "R": self.R, "G": self.G, "B": self.B, "A": self.A}
-
-    @classmethod
-    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        return cls(R=data["R"], G=data["G"], B=data["B"], A=data["A"])
-
     def to_rgba(self) -> Tuple[float, float, float, float]:
         return (self.R, self.G, self.B, self.A)
 
 
 @dataclass
-class Scale(SubclassJSONSerializer):
+class Scale:
     """
     Dataclass for storing the scale of geometric objects.
     """
@@ -98,13 +91,6 @@ class Scale(SubclassJSONSerializer):
     """
     The scale in the z direction.
     """
-
-    def to_json(self) -> Dict[str, Any]:
-        return {**super().to_json(), "x": self.x, "y": self.y, "z": self.z}
-
-    @classmethod
-    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        return cls(x=data["x"], y=data["y"], z=data["z"])
 
     def __post_init__(self):
         """
@@ -155,8 +141,8 @@ class Shape(ABC, SubclassJSONSerializer):
     def to_json(self) -> Dict[str, Any]:
         return {
             **super().to_json(),
-            "origin": self.origin.to_json(),
-            "color": self.color.to_json(),
+            "origin": to_json(self.origin),
+            "color": to_json(self.color),
         }
 
     def __eq__(self, other: Shape) -> bool:
@@ -230,7 +216,7 @@ class Mesh(Shape, ABC):
         return {
             **super().to_json(),
             "mesh": self.mesh.to_dict(),
-            "scale": self.scale.to_json(),
+            "scale": to_json(self.scale),
         }
 
     @classmethod
@@ -287,7 +273,7 @@ class FileMesh(Mesh):
         json = {
             **super().to_json(),
             "mesh": self.mesh.to_dict(),
-            "scale": self.scale.to_json(),
+            "scale": to_json(self.scale),
         }
         json[JSON_TYPE_NAME] = json[JSON_TYPE_NAME].replace("FileMesh", "TriangleMesh")
         return json
@@ -388,8 +374,8 @@ class TriangleMesh(Mesh):
         mesh = trimesh.Trimesh(
             vertices=data["mesh"]["vertices"], faces=data["mesh"]["faces"]
         )
-        origin = HomogeneousTransformationMatrix.from_json(data["origin"], **kwargs)
-        scale = Scale.from_json(data["scale"], **kwargs)
+        origin = from_json(data["origin"], **kwargs)
+        scale = from_json(data["scale"], **kwargs)
         return cls(mesh=mesh, origin=origin, scale=scale)
 
 
@@ -435,8 +421,8 @@ class Sphere(Shape):
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         return cls(
             radius=data["radius"],
-            origin=HomogeneousTransformationMatrix.from_json(data["origin"], **kwargs),
-            color=Color.from_json(data["color"], **kwargs),
+            origin=from_json(data["origin"], **kwargs),
+            color=from_json(data["color"], **kwargs),
         )
 
 
@@ -486,8 +472,8 @@ class Cylinder(Shape):
         return cls(
             width=data["width"],
             height=data["height"],
-            origin=HomogeneousTransformationMatrix.from_json(data["origin"], **kwargs),
-            color=Color.from_json(data["color"], **kwargs),
+            origin=from_json(data["origin"], **kwargs),
+            color=from_json(data["color"], **kwargs),
         )
 
 
@@ -529,14 +515,14 @@ class Box(Shape):
         )
 
     def to_json(self) -> Dict[str, Any]:
-        return {**super().to_json(), "scale": self.scale.to_json()}
+        return {**super().to_json(), "scale": to_json(self.scale)}
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         return cls(
-            scale=Scale.from_json(data["scale"], **kwargs),
-            origin=HomogeneousTransformationMatrix.from_json(data["origin"], **kwargs),
-            color=Color.from_json(data["color"], **kwargs),
+            scale=from_json(data["scale"], **kwargs),
+            origin=from_json(data["origin"], **kwargs),
+            color=from_json(data["color"], **kwargs),
         )
 
 
