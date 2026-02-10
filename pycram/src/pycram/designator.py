@@ -11,7 +11,16 @@ from krrood.entity_query_language.entity_result_processors import an, the
 from semantic_digital_twin.robots.abstract_robot import AbstractRobot
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
-from typing_extensions import List, Dict, Any, Optional, Iterator, Iterable, Union
+from typing_extensions import (
+    List,
+    Dict,
+    Any,
+    Optional,
+    Iterator,
+    Iterable,
+    Union,
+    TypeVar,
+)
 
 from .datastructures.dataclasses import Context
 from .datastructures.partial_designator import PartialDesignator
@@ -166,7 +175,7 @@ class LocationDesignatorDescription(DesignatorDescription, PartialDesignator):
         self._last_result = None
 
     @property
-    def last_result(self) -> Iterable[PoseStamped]:
+    def last_result(self) -> Iterator[PoseStamped]:
         yield self._last_result
 
     def ground(self) -> PoseStamped:
@@ -269,3 +278,6 @@ class NamedObject(ObjectDesignatorDescription, PartialDesignator):
 
             for obj in query.evaluate():
                 yield obj
+
+
+DesignatorType = TypeVar("DesignatorType", bound=DesignatorDescription)

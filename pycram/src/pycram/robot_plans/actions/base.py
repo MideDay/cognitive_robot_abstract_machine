@@ -5,8 +5,7 @@ from abc import abstractmethod
 import logging
 from dataclasses import dataclass
 
-from ripple_down_rules import RDRDecorator
-from typing_extensions import Any, Optional, Callable, ClassVar
+from typing_extensions import Any, Optional, Callable, TypeVar
 
 from ...designator import DesignatorDescription
 from ...failures import PlanFailure
@@ -19,20 +18,6 @@ logger = logging.getLogger(__name__)
 class ActionDescription(DesignatorDescription, HasParameters):
     _pre_perform_callbacks = []
     _post_perform_callbacks = []
-
-    @staticmethod
-    def ask_now(self_: ActionDescription) -> ActionDescription:
-        return isinstance(self_, OpenAction)
-
-    rdr: ClassVar = RDRDecorator(
-        os.path.join(os.path.dirname(__file__), "rdrs"),
-        (bool,),
-        True,
-        fit=True,
-        update_existing_rules=True,
-        ask_now=ask_now,
-        ask_now_target=False,
-    )
 
     def __post_init__(self):
         pass
@@ -101,3 +86,6 @@ class ActionDescription(DesignatorDescription, HasParameters):
     def post_perform(cls, func) -> Callable:
         cls._post_perform_callbacks.append(func)
         return func
+
+
+ActionType = TypeVar("ActionType", bound=ActionDescription)

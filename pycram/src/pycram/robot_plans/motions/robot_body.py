@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from giskardpy.motion_statechart.tasks.pointing import Pointing
+from semantic_digital_twin.robots.abstract_robot import Camera
 
 from .base import BaseMotion
 from ...datastructures.pose import Vector3Stamped, PoseStamped
@@ -52,7 +53,9 @@ class MoveJointsMotion(BaseMotion):
     @property
     def _motion_chart(self):
         dofs = [self.world.get_connection_by_name(name) for name in self.names]
-        return JointPositionList(goal_state=JointState(dict(zip(dofs, self.positions))))
+        return JointPositionList(
+            goal_state=JointState.from_mapping(dict(zip(dofs, self.positions)))
+        )
 
 
 @dataclass
@@ -66,16 +69,20 @@ class LookingMotion(BaseMotion):
     Target pose to look at
     """
 
+    camera: Camera
+    """
+    Camera annotation that should look at the target
+    """
+
     def perform(self):
         return
 
     @property
     def _motion_chart(self):
-        camera = list(self.robot_view.sensors)[0]
-        camera.forward_facing_axis.reference_frame = camera.root
+        self.camera.forward_facing_axis.reference_frame = self.camera.root
         return Pointing(
             root_link=self.robot_view.torso.root,
-            tip_link=camera.root,
+            tip_link=self.camera.root,
             goal_point=self.target.to_spatial_type().to_position(),
-            pointing_axis=camera.forward_facing_axis,
+            pointing_axis=self.camera.forward_facing_axis,
         )
