@@ -545,6 +545,15 @@ def pr2_world_state_reset(pr2_world_setup):
     world.state.data = state
 
 
+@pytest.fixture
+def pr2_apartment_state_reset(pr2_apartment_world):
+    world = deepcopy(pr2_apartment_world)
+    state = deepcopy(world.state.data)
+    PR2.from_world(world)
+    yield world
+    world.state.data = state
+
+
 ###############################
 ######### Utils ###############
 ###############################
