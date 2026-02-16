@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import py_trees
 import pytest
 
@@ -10,6 +12,7 @@ import robokudo.io.file_reader_interface
 import robokudo.io.storage_reader_interface
 import robokudo.types.annotation
 import robokudo.types.scene
+import robokudo.utils.data_downloader
 import robokudo.utils.tree_execution
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
@@ -39,8 +42,7 @@ class TestFullAEExecution(object):
 
         cr_fr_camera_config = robokudo.descriptors.camera_configs.config_filereader_playback.CameraConfig()
         cr_fr_camera_config.loop = False
-        cr_fr_camera_config.target_ros_package = 'robokudo_test_data'
-        cr_fr_camera_config.target_dir = 'data'
+        cr_fr_camera_config.target_dir = robokudo.utils.data_downloader.test_data_path() / Path("data")
         cr_fr_camera_config.kinect_height_fix_mode = True
         cr_fr_camera_config.color2depth_ratio = (0.5, 0.5)
 

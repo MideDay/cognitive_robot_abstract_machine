@@ -10,3 +10,4 @@ transforms3d
 opencv-python>=4.11.0.86
 matplotlib
 setuptools
+pooch
