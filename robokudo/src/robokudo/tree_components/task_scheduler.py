@@ -44,7 +44,7 @@ class TaskSchedulerBase(py_trees.behaviour.Behaviour):
     :type fix_parent_relationships_after_plan: bool
     """
 
-    def __init__(self, name: str="TaskSchedulerBase"):
+    def __init__(self, name: str = "TaskSchedulerBase"):
         """Initialize the task scheduler.
 
         :param name: Name of the scheduler node
@@ -56,7 +56,7 @@ class TaskSchedulerBase(py_trees.behaviour.Behaviour):
         self.fix_parent_relationships_after_plan: bool = True
 
     def initialise(self) -> None:
-        """Initialize and validate tree structure.
+        """Initialize and validate the tree structure.
 
         Performs sanity checks to ensure the scheduler is in a correctly
         configured environment.
@@ -126,7 +126,7 @@ class IterativeTaskScheduler(TaskSchedulerBase):
     :type idx: int
     """
 
-    def __init__(self, name: str ="IterativeTaskScheduler", tree_list: list = []):
+    def __init__(self, name: str = "IterativeTaskScheduler", tree_list: list | None = None):
         """Initialize the iterative scheduler.
 
         :param name: Name of the scheduler node
@@ -135,16 +135,13 @@ class IterativeTaskScheduler(TaskSchedulerBase):
         :type tree_list: list
         """
         super().__init__(name)
-        self.tree_list: list = tree_list
+        self.tree_list = [] if tree_list is None else list(tree_list)
 
         # Save a reference to the initial job with all the possible sub-behaviours
         self.idx: int = 0
 
     def setup(self, timeout: float) -> bool:
         """Set up all trees in the list.
-
-        TODO Since we might have the same node in multiple trees, we might call setup multiple times
-            => Find a way to get around this
 
         .. note::
            Since nodes may appear in multiple trees, setup may be called
