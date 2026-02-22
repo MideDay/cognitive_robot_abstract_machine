@@ -16,7 +16,7 @@ The module provides:
 
 from __future__ import annotations
 import copy
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import time
 from dataclasses import dataclass, field
 from typing import TypeVar, Optional
@@ -81,6 +81,11 @@ class CASViews:
     """Camera to world. 
     Type: semantic_digital_twin.spatial_types.spatial_types.HomogeneousTransformationMatrix"""
 
+    DATA_TIMESTAMP: str = "data_timestamp"
+    """Nanoseconds since epoch at which the sensor data has been received.
+    type: Int
+    """
+
     OBJECT_IMAGE: str = "object_image"
     """Object image data. This view is used in imagistic reasoning pipelines where a 
     rendered scene can be fully segmented per object."""
@@ -102,8 +107,8 @@ class CAS:
     However, some views are prevalent in most pipelines and can be accessed directly via @property.
     """
 
-    timestamp: float = field(default_factory=time.time)
-    """Unix timestamp when this CAS was created."""
+    timestamp: float = field(default_factory=time.time_ns)
+    """Unix timestamp when this CAS was created. In Nanoseconds since Epoch."""
 
     timestamp_readable: str = field(init=False)
     """Human readable timestamp string."""
@@ -121,7 +126,10 @@ class CAS:
     """
 
     def __post_init__(self):
-        dt_timestamp = datetime.fromtimestamp(self.timestamp)
+        dt_timestamp = (
+                datetime(1970, 1, 1, tzinfo=timezone.utc)
+                + timedelta(microseconds=self.timestamp // 1000)
+        )
         self.timestamp_readable = dt_timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
     @property
@@ -187,14 +195,6 @@ class CAS:
     @viewpoint_cam_to_world.setter
     def viewpoint_cam_to_world(self, value: StampedTransform) -> None:
         self.views[CASViews.VIEWPOINT_CAM_TO_WORLD] = value
-
-    @property
-    def viewpoint_world_to_cam(self) -> Optional[StampedTransform]:
-        return self.views.get(CASViews.VIEWPOINT_WORLD_TO_CAM)
-
-    @viewpoint_world_to_cam.setter
-    def viewpoint_world_to_cam(self, value: StampedTransform) -> None:
-        self.views[CASViews.VIEWPOINT_WORLD_TO_CAM] = value
 
     @property
     def cam_to_world_transform(self) -> Optional[HomogeneousTransformationMatrix]:
