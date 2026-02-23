@@ -8,6 +8,8 @@ import numpy as np
 import open3d as o3d
 
 from py_trees.common import Status
+
+import robokudo.utils.annotator_helper
 from . import core
 from ..types.tf import StampedTransform
 from ..utils.transform import get_transform_matrix_from_q
@@ -40,24 +42,18 @@ class CameraViewpointVisualizer(core.BaseAnnotator):
         * A coordinate frame representing the world reference frame
         * The current point cloud data
 
-        :return: SUCCESS if visualization was created, FAILURE if viewpoint not found
+        :return: SUCCESS if visualization was created, FAILURE if cam to world transform not found
         :raises AssertionError: If viewpoint transform is of a wrong type
         """
         try:
-            cam_to_world_transform = self.get_cas().get(CASViews.VIEWPOINT_CAM_TO_WORLD)
-        except Exception as err:
+            world_to_cam_transform = robokudo.utils.annotator_helper.get_world_to_cam_transform_matrix(self.get_cas())
+        except KeyError as err:
             self.rk_logger.warning(f"Couldn't find viewpoint in the CAS: {err}")
             return Status.FAILURE
 
-        assert isinstance(cam_to_world_transform, StampedTransform)
-
         cloud = self.get_cas().get(CASViews.CLOUD)
         world_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.2)
-        t = get_transform_matrix_from_q(
-            cam_to_world_transform.rotation, cam_to_world_transform.translation
-        )
-        t = np.linalg.inv(t)
-        world_frame.transform(t)
+        world_frame.transform(world_to_cam_transform)
 
         geometries = [
             {"name": "World frame", "geometry": world_frame},

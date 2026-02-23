@@ -174,15 +174,16 @@ class ROSCameraInterface(CameraInterface):
         :return: None
         """
         if self.lookup_viewpoint:
-            # Set legacy transform
-            st = robokudo.types.tf.StampedTransform()
-            st.rotation = self.cam_quaternion
-            st.translation = self.cam_translation
-            st.frame = self.tf_from
-            st.child_frame = self.tf_to
-            st.timestamp = timestamp
-            cas.set(CASViews.VIEWPOINT_CAM_TO_WORLD, st)
+            # # Set legacy transform
+            # st = robokudo.types.tf.StampedTransform()
+            # st.rotation = self.cam_quaternion
+            # st.translation = self.cam_translation
+            # st.frame = self.tf_from
+            # st.child_frame = self.tf_to
+            # st.timestamp = timestamp
+            # cas.set(CASViews.VIEWPOINT_CAM_TO_WORLD, st)
 
+            # TODO Update *Connection* between the corresponding Body's in the world with proper transform?
             setup_world_for_camera_frame(world_frame=self.tf_to, camera_frame=self.tf_from)
             transformation_matrix = HomogeneousTransformationMatrix.from_xyz_quaternion(
                 pos_x=self.cam_translation[0],
@@ -197,6 +198,46 @@ class ROSCameraInterface(CameraInterface):
             )
             cas.cam_to_world_transform = transformation_matrix
             cas.data_timestamp = timestamp.sec * 1_000_000_000 + timestamp.nanosec
+
+            ROSCameraInterface.store_legacy_cam_to_world_transform_from_cas(cas)
+
+    @staticmethod
+    def store_legacy_cam_to_world_transform_from_cas(cas: robokudo.cas.CAS) -> None:
+        """
+        Create legacy StampedTransform from CAS cam_to_world_transform and data_timestamp.
+        """
+        cam_to_world_transform = cas.cam_to_world_transform
+        if cam_to_world_transform is None:
+            raise KeyError("cam_to_world_transform not set in CAS")
+
+        timestamp_ns = cas.data_timestamp
+        timestamp = builtin_interfaces.msg.Time(
+            sec=int(timestamp_ns // 1_000_000_000),
+            nanosec=int(timestamp_ns % 1_000_000_000),
+        )
+
+        translation = (
+            np.asarray(cam_to_world_transform.to_position().to_np())
+            .reshape(-1)[:3]
+            .astype(float)
+            .tolist()
+        )
+        rotation = (
+            np.asarray(cam_to_world_transform.to_quaternion().to_np())
+            .reshape(-1)[:4]
+            .astype(float)
+            .tolist()
+        )
+
+        st = robokudo.types.tf.StampedTransform()
+        st.rotation = rotation
+        st.translation = translation
+        if cam_to_world_transform.child_frame is not None:
+            st.frame = str(cam_to_world_transform.child_frame.name)
+        if cam_to_world_transform.reference_frame is not None:
+            st.child_frame = str(cam_to_world_transform.reference_frame.name)
+        st.timestamp = timestamp
+        cas.set(CASViews.VIEWPOINT_CAM_TO_WORLD, st)
 
     def set_o3d_cam_intrinsics_from_ros_cam_info(self):
         """

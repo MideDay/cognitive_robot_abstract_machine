@@ -22,20 +22,17 @@ from timeit import default_timer
 import numpy as np
 import open3d as o3d
 import py_trees
-from scipy.spatial.transform import Rotation as R
-from rclpy.time import Time
 from rclpy.duration import Duration
+from rclpy.time import Time
+from scipy.spatial.transform import Rotation as R
 
-import robokudo.annotators
 import robokudo.annotators
 import robokudo.annotators.core
 import robokudo.io.tf_listener_proxy
-import robokudo.io.tf_listener_proxy
 import robokudo.semantic_map
 import robokudo.types.annotation
-import robokudo.types.annotation
 import robokudo.types.scene
-import robokudo.types.scene
+import robokudo.utils.annotator_helper
 import robokudo.utils.error_handling
 import robokudo.utils.transform
 from robokudo.cas import CASViews
@@ -158,6 +155,12 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
 
         self.rk_logger.debug(f"Analyzing {len(active_regions.keys())}")
 
+        try:
+            world_to_cam_transform = robokudo.utils.annotator_helper.get_world_to_cam_transform_matrix(self.get_cas())
+        except KeyError as err:
+            self.rk_logger.warning(f"Couldn't find viewpoint in the CAS: {err}")
+            return py_trees.common.Status.FAILURE
+
         for key, region in active_regions.items():
             assert (isinstance(region, robokudo.semantic_map.SemanticMapEntry))
             # Will be used for saving the indices of the cloud for this specific region
@@ -167,15 +170,9 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
 
             # if region is defined in the world frame, the region can be transformed with the transformation matrix from world to cam
             if region.frame_id == self.world_frame_name:
-                cam_to_world_transform = self.get_cas().get(robokudo.cas.CASViews.VIEWPOINT_CAM_TO_WORLD)
-
-                cam_to_world_transform_matrix = robokudo.utils.transform.get_transform_matrix_from_q(
-                    cam_to_world_transform.rotation,
-                    cam_to_world_transform.translation)
-                transform_matrix = np.linalg.inv(cam_to_world_transform_matrix)
                 obb = get_obb_from_semantic_map_region_in_cam_coordinates(region,
                                                                           self.descriptor.parameters.world_frame_name,
-                                                                          transform_matrix)
+                                                                          world_to_cam_transform)
                 # creates a PoseAnnotation
                 pose = robokudo.types.annotation.PoseAnnotation()
                 pose.translation = [region.position_x, region.position_y, region.position_z]
@@ -225,18 +222,9 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
                     return py_trees.common.Status.FAILURE
 
                 # calculate the transformation matrix from region frame to cam
-                # get transformation of cam to world
-                st = self.get_cas().get(CASViews.VIEWPOINT_CAM_TO_WORLD)
-                camera_translation = st.translation
-                camera_rotation = st.rotation
-
                 translation_region_frame = np.array(translation_region_frame)
                 rotation_region_frame = np.array(
                     rotation_region_frame)
-
-                translation_camera = np.array(camera_translation)
-                rotation_camera = np.array(
-                    camera_rotation)
 
                 # calculate transformation matrix
                 matrix_region_frame_to_world_frame = R.from_quat(rotation_region_frame).as_matrix()
@@ -245,16 +233,8 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
                 matrix_region_frame_to_world_frame = np.vstack(
                     (matrix_region_frame_to_world_frame, np.array([0, 0, 0, 1])))
 
-                matrix_camera_to_world_frame = R.from_quat(rotation_camera).as_matrix()
-                matrix_camera_to_world_frame = np.hstack(
-                    (matrix_camera_to_world_frame, translation_camera.reshape(-1, 1)))
-                matrix_camera_to_world_frame = np.vstack((matrix_camera_to_world_frame, np.array([0, 0, 0, 1])))
-
-                # invert cam to world transformation
-                matrix_world_frame_to_camera = np.linalg.inv(matrix_camera_to_world_frame)
-
                 # calculate transformation from region to cam
-                matrix_region_frame_to_camera = matrix_world_frame_to_camera @ matrix_region_frame_to_world_frame
+                matrix_region_frame_to_camera = world_to_cam_transform @ matrix_region_frame_to_world_frame
 
                 transform_matrix = matrix_region_frame_to_camera
                 obb = get_obb_from_semantic_map_region_with_transform_matrix(region,
@@ -302,7 +282,7 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
 
         world_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.2)
         visualized_geometries.append(
-            {"name": "world_frame", "geometry": world_frame.transform(transform_matrix)})
+            {"name": "world_frame", "geometry": world_frame.transform(world_to_cam_transform)})
         self.get_annotator_output_struct().set_geometries(visualized_geometries)
 
         end_timer = default_timer()

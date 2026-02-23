@@ -20,6 +20,7 @@ import robokudo.annotators
 import robokudo.annotators.core
 import robokudo.annotators.outputs
 import robokudo.utils.annotator_helper
+import robokudo.utils.error_handling
 from robokudo.cas import CASViews
 from robokudo.utils.o3d_helper import get_mask_from_pointcloud
 
@@ -104,12 +105,8 @@ class PointcloudCropAnnotator(robokudo.annotators.core.BaseAnnotator):
         """
         start_timer = default_timer()
         self.rk_logger.warning(f"{self.__class__.__name__} called for update()")
-        # q = self.get_cas().get(CASViews.QUERY)
-        # if q.type == 'failc':
-        #     raise Exception("Some Foobar happened")
 
         cloud = self.get_cas().get(CASViews.CLOUD)
-        # cloud_organized = self.get_cas().get(CASViews.CLOUD_ORGANIZED)
         self.color = self.get_cas().get(CASViews.COLOR_IMAGE)
         pc_cam_intrinsics = self.get_cas().get(CASViews.PC_CAM_INTRINSIC)
         color2depth_ratio = self.get_cas().get(CASViews.COLOR2DEPTH_RATIO)
@@ -158,10 +155,6 @@ class PointcloudCropAnnotator(robokudo.annotators.core.BaseAnnotator):
                                         crop_to_ref=True)
         combined_mask_color = cv2.addWeighted(self.color, 0.5, mask, 0.5, 0)
         self.get_annotator_output_struct().set_image(combined_mask_color)
-
-        # plt.cla()
-        # plt.imshow(mask)
-        # plt.pause(0.1)
 
         end_timer = default_timer()
         self.feedback_message = f'Processing took {(end_timer - start_timer):.4f}s'

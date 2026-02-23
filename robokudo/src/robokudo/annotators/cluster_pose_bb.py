@@ -190,15 +190,9 @@ class ClusterPoseBBAnnotator(robokudo.annotators.core.BaseAnnotator):
             cluster_transform_in_world = robokudo.utils.transform.get_transform_matrix(rotation_matrix_in_world,
                                                                                        translation_in_world)
 
-            cam_to_world_stamped_transform = self.get_cas().get(CASViews.VIEWPOINT_CAM_TO_WORLD)
-            assert (isinstance(cam_to_world_stamped_transform, robokudo.types.tf.StampedTransform))
+            world_to_cam_transform = robokudo.utils.annotator_helper.get_world_to_cam_transform_matrix(self.get_cas())
 
-            cam_to_world_transform = robokudo.utils.transform.get_transform_matrix_from_q(
-                cam_to_world_stamped_transform.rotation,
-                cam_to_world_stamped_transform.translation)
-            cam_to_world_transform_inv = numpy.linalg.inv(cam_to_world_transform)
-
-            cluster_transform_in_cam = numpy.matmul(cam_to_world_transform_inv, cluster_transform_in_world)
+            cluster_transform_in_cam = numpy.matmul(world_to_cam_transform, cluster_transform_in_world)
             cluster_translation_in_cam = cluster_transform_in_cam[:3, 3]
             cluster_rotation_in_cam = cluster_transform_in_cam[:3, :3]
             bounding_box_extents = [bb_size[0], bb_size[1], max_z - min_z]

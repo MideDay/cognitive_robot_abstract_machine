@@ -29,6 +29,10 @@ def world_instance() -> semantic_digital_twin.world.World:
     return this.world
 
 
+def set_world(world: semantic_digital_twin.world.World):
+    this.world = world
+
+
 def world_has_body_by_name(world: semantic_digital_twin.world.World, body_name: str):
     bodies = world.get_bodies_by_name(name=body_name)
     return len(bodies) > 0

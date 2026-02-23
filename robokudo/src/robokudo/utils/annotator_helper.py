@@ -137,14 +137,11 @@ def get_cam_to_world_transform_matrix(cas: CAS) -> npt.NDArray:
     :return: 4x4 camera-to-world transform matrix
     :raises KeyError: If camera-to-world transform not in CAS
     """
-    cam_to_world = cas.get(CASViews.VIEWPOINT_CAM_TO_WORLD)
-    assert isinstance(cam_to_world, StampedTransform)
-
-    cam_to_world_transform = transform.get_transform_matrix_from_q(
-        cam_to_world.rotation, cam_to_world.translation
-    )
-
-    return cam_to_world_transform
+    if cas.cam_to_world_transform is None:
+        raise KeyError("Camera-to-world transform not found in CAS. "
+                       "Is lookup_viewpoint in camera config set to True? "
+                       "Or if reading from a database: Has the data been recorded with lookup_viewpoint set to true?")
+    return cas.cam_to_world_transform.to_np()
 
 
 def get_world_to_cam_transform_matrix(cas: CAS) -> npt.NDArray:

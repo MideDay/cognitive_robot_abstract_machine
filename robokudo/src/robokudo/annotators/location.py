@@ -27,9 +27,9 @@ import robokudo.semantic_map
 import robokudo.types
 import robokudo.types.annotation
 import robokudo.types.scene
+import robokudo.utils.annotator_helper
 import robokudo.utils.error_handling
 import robokudo.utils.transform
-from robokudo.cas import CASViews
 from robokudo.utils.module_loader import ModuleLoader
 from robokudo.utils.semantic_map import get_obb_from_semantic_map_region_in_cam_coordinates
 
@@ -74,6 +74,7 @@ class LocationAnnotator(robokudo.annotators.core.ThreadedAnnotator):
             :ivar desired_regions: List of regions to consider
             :type desired_regions: list[str]
             """
+
             def __init__(self):
                 self.percentage = 50  # Threshold percentage for an object to be considered in a region
                 self.world_frame_name = "map"
@@ -171,12 +172,8 @@ class LocationAnnotator(robokudo.annotators.core.ThreadedAnnotator):
         active_regions = self.semantic_map.entries
         # TODO Filter active regions by FRUSTUM CULLING
 
-        cam_to_world_transform = self.get_cas().get(robokudo.cas.CASViews.VIEWPOINT_CAM_TO_WORLD)
-
-        cam_to_world_transform_matrix = robokudo.utils.transform.get_transform_matrix_from_q(
-            cam_to_world_transform.rotation,
-            cam_to_world_transform.translation)
-        world_to_cam_transform_matrix = numpy.linalg.inv(cam_to_world_transform_matrix)
+        world_to_cam_transform_matrix = robokudo.utils.annotator_helper.get_world_to_cam_transform_matrix(
+            self.get_cas())
         object_hypotheses = self.get_cas().filter_annotations_by_type(robokudo.types.scene.ObjectHypothesis)
 
         for region_name, region in active_regions.items():

@@ -238,7 +238,7 @@ class Pose2ODConverter(StampedPose2ODConverter):
         :param cas: The CAS to use for conversion.
         :param object_designator: The object designator to fill with the data of `annotation`
         """
-        use_cam_coords = cas.get(CASViews.VIEWPOINT_CAM_TO_WORLD) is None
+        use_cam_coords = cas.cam_to_world_transform is None
         if use_cam_coords:
             pose_annotation = annotation
         else:

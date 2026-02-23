@@ -86,7 +86,6 @@ class SizeBBAnnotator(robokudo.annotators.core.BaseAnnotator):
                 return py_trees.common.Status.FAILURE
 
             # Project cluster points to 2d (onto the world plane with z as the normal)
-
             min_x, min_y, min_z = np.asarray(cluster_cloud_in_world.points).min(axis=0)
             max_x, max_y, max_z = np.asarray(cluster_cloud_in_world.points).max(axis=0)
 
@@ -116,15 +115,9 @@ class SizeBBAnnotator(robokudo.annotators.core.BaseAnnotator):
             cluster_transform_in_world = robokudo.utils.transform.get_transform_matrix(rotation_matrix_in_world,
                                                                                        translation_in_world)
 
-            cam_to_world_stamped_transform = self.get_cas().get(CASViews.VIEWPOINT_CAM_TO_WORLD)
-            assert (isinstance(cam_to_world_stamped_transform, robokudo.types.tf.StampedTransform))
+            world_to_cam_transform = robokudo.utils.annotator_helper.get_world_to_cam_transform_matrix(self.get_cas())
 
-            cam_to_world_transform = robokudo.utils.transform.get_transform_matrix_from_q(
-                cam_to_world_stamped_transform.rotation,
-                cam_to_world_stamped_transform.translation)
-            cam_to_world_transform_inv = np.linalg.inv(cam_to_world_transform)
-
-            cluster_transform_in_cam = np.matmul(cam_to_world_transform_inv, cluster_transform_in_world)
+            cluster_transform_in_cam = np.matmul(world_to_cam_transform, cluster_transform_in_world)
 
             # Annotate the pose information
 
@@ -151,7 +144,10 @@ class SizeBBAnnotator(robokudo.annotators.core.BaseAnnotator):
             oh.annotations.append(size_annotation)
             vis_geometries.extend([cluster_obb, pcd])
 
-            x1, y1, x2, y2 = oh.bbox[0], oh.bbox[1], oh.bbox[2], oh.bbox[3]
+            x1 = oh.roi.roi.pos.x
+            y1 = oh.roi.roi.pos.y
+            x2 = oh.roi.roi.pos.x + oh.roi.roi.width
+            y2 = oh.roi.roi.pos.y + oh.roi.roi.height
             text = f"x: {x:0,.2f}, y: {y:0,.2f}, z: {z:0,.2f}"
             font = cv2.FONT_HERSHEY_COMPLEX
             visualization_img = cv2.putText(
