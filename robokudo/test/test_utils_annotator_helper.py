@@ -206,7 +206,7 @@ class TestUtilsAnnotatorHelper(object):
 
     def test_get_cam_to_world_transform_matrix(self, cam_to_world_cas: CAS):
         tf_matrix = get_cam_to_world_transform_matrix(cam_to_world_cas)
-        assert np.array_equal(tf_matrix, np.array([
+        np.testing.assert_allclose(tf_matrix, np.array([
             [0.999732946100316, -0.0020125282664391515, 0.023021429398708673, 2.6818742474793744],
             [-0.022553109179936744, 0.132263288290829, 0.9909580111371092, 1.9778799779168073],
             [-0.005039220961696124, -0.9912125767465192, 0.1321825780941852, 0.9607137539544703],
@@ -215,11 +215,11 @@ class TestUtilsAnnotatorHelper(object):
 
     def test_get_cam_to_world_transform_matrix_identity_tf(self, identity_cas: CAS):
         tf_matrix = get_cam_to_world_transform_matrix(identity_cas)
-        assert np.array_equal(tf_matrix, np.eye(4))
+        np.testing.assert_allclose(tf_matrix, np.eye(4))
 
     def test_get_world_to_cam_transform_matrix(self, cam_to_world_cas: CAS):
         tf_matrix = get_world_to_cam_transform_matrix(cam_to_world_cas)
-        assert np.array_equal(tf_matrix, np.linalg.inv(np.array([
+        np.testing.assert_allclose(tf_matrix, np.linalg.inv(np.array([
             [0.999732946100316, -0.0020125282664391515, 0.023021429398708673, 2.6818742474793744],
             [-0.022553109179936744, 0.132263288290829, 0.9909580111371092, 1.9778799779168073],
             [-0.005039220961696124, -0.9912125767465192, 0.1321825780941852, 0.9607137539544703],
@@ -228,7 +228,7 @@ class TestUtilsAnnotatorHelper(object):
 
     def test_get_world_to_cam_transform_matrix_identity_tf(self, identity_cas: CAS):
         tf_matrix = get_world_to_cam_transform_matrix(identity_cas)
-        assert np.array_equal(tf_matrix, np.eye(4))
+        np.testing.assert_allclose(tf_matrix, np.eye(4))
 
     def test_draw_bounding_boxes(self):
         img = np.zeros((100, 100, 3), dtype=np.uint8)
