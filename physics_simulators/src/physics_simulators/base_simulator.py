@@ -3,7 +3,7 @@
 import atexit
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
 from threading import Thread
@@ -126,7 +126,7 @@ class SimulatorCallback:
             simulator.renderer.sync()
         return result
 
-
+@dataclass
 class BaseSimulator:
     """Base class for Base Simulator"""
 
@@ -145,10 +145,10 @@ class BaseSimulator:
     logger: logging.Logger = logging.getLogger(__name__)
     """Logger for the simulator"""
 
-    class_level_callbacks: List[SimulatorCallback] = []
+    class_level_callbacks: List[SimulatorCallback] = field(default_factory=lambda: [])
     """Class level callback functions"""
 
-    instance_level_callbacks: List[SimulatorCallback] = None
+    instance_level_callbacks: List[SimulatorCallback] = field(default_factory=lambda: None)
     """Instance level callback functions"""
 
     def __init__(
@@ -368,32 +368,33 @@ class BaseSimulator:
 
         :return: bool, True if the simulator should stop, False otherwise
         """
-        if constraints is not None:
-            if (
-                constraints.max_real_time is not None
-                and self.current_real_time - self.start_real_time
-                >= constraints.max_real_time
-            ):
-                self.log_info(
-                    f"Stopping simulation because max_real_time [{constraints.max_real_time}] reached"
-                )
-                return SimulatorStopReason.MAX_REAL_TIME
-            if (
-                constraints.max_simulation_time is not None
-                and self.current_simulation_time >= constraints.max_simulation_time
-            ):
-                self.log_info(
-                    f"Stopping simulation because max_simulation_time [{constraints.max_simulation_time}] reached"
-                )
-                return SimulatorStopReason.MAX_SIMULATION_TIME
-            if (
-                constraints.max_number_of_steps is not None
-                and self.current_number_of_steps >= constraints.max_number_of_steps
-            ):
-                self.log_info(
-                    f"Stopping simulation because max_number_of_steps [{constraints.max_number_of_steps}] reached"
-                )
-                return SimulatorStopReason.MAX_NUMBER_OF_STEPS
+        if constraints is None:
+            return None
+        if (
+            constraints.max_real_time is not None
+            and self.current_real_time - self.start_real_time
+            >= constraints.max_real_time
+        ):
+            self.log_info(
+                f"Stopping simulation because max_real_time [{constraints.max_real_time}] reached"
+            )
+            return SimulatorStopReason.MAX_REAL_TIME
+        if (
+            constraints.max_simulation_time is not None
+            and self.current_simulation_time >= constraints.max_simulation_time
+        ):
+            self.log_info(
+                f"Stopping simulation because max_simulation_time [{constraints.max_simulation_time}] reached"
+            )
+            return SimulatorStopReason.MAX_SIMULATION_TIME
+        if (
+            constraints.max_number_of_steps is not None
+            and self.current_number_of_steps >= constraints.max_number_of_steps
+        ):
+            self.log_info(
+                f"Stopping simulation because max_number_of_steps [{constraints.max_number_of_steps}] reached"
+            )
+            return SimulatorStopReason.MAX_NUMBER_OF_STEPS
         return self.should_stop_callback()
 
     def start_callback(self):
