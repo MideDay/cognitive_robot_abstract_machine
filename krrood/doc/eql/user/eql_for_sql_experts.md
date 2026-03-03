@@ -94,7 +94,7 @@ LIMIT 5
 EQL query:
 
 ```python 
-r = variable(Robot, domain=all_robots)
+r = variable(ExampleRobot, domain=all_robots)
 
 query = set_of(r.type, count(r), average(r.battery)) \
     .where(r.online) \

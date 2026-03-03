@@ -77,24 +77,24 @@ from krrood.entity_query_language.factories import (
 )
 
 @dataclass
-class Connection(Symbol):
+class ExampleConnection(Symbol):
     type_code: int
     name: str
 
 @dataclass
-class View(Symbol):
-    connection: Connection
+class ExampleView(Symbol):
+    connection: ExampleConnection
 
 @dataclass
-class FixedView(View): pass
+class ExampleFixedView(ExampleView): pass
 
 @dataclass
-class RevoluteView(View): pass
+class ExampleRevoluteView(ExampleView): pass
 
 # Data
-conns = [Connection(1, 'c1'), Connection(2, 'c2'), Connection(3, 'c3'), Connection(4, 'm4')]
-c = variable(Connection, domain=conns)
-view = deduced_variable(View)
+conns = [ExampleConnection(1, 'c1'), ExampleConnection(2, 'c2'), ExampleConnection(3, 'c3'), ExampleConnection(4, 'm4')]
+c = variable(ExampleConnection, domain=conns)
+view = deduced_variable(ExampleView)
 
 # 1. Base query
 query = entity(view).where(c.name.startswith('c'))
@@ -102,15 +102,15 @@ query = entity(view).where(c.name.startswith('c'))
 # 2. Rule Tree definition
 with query:
     # Default case:
-    add(view, inference(View)(connection=c))
+    add(view, inference(ExampleView)(connection=c))
     
-    # If type_code is 1, it's a FixedView
+    # If type_code is 1, it's a ExampleFixedView
     with refinement(c.type_code == 1):
-        add(view, inference(FixedView)(connection=c))
+        add(view, inference(ExampleFixedView)(connection=c))
     
-    # Otherwise, if type_code is 2, it's a RevoluteView
+    # Otherwise, if type_code is 2, it's a ExampleRevoluteView
     with alternative(c.type_code == 2):
-        add(view, inference(RevoluteView)(connection=c))
+        add(view, inference(ExampleRevoluteView)(connection=c))
 
 # 3. Execution
 results = query.tolist()

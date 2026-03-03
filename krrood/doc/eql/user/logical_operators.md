@@ -72,19 +72,19 @@ from dataclasses import dataclass
 from krrood.entity_query_language.factories import variable, entity, an, Symbol, not_
 
 @dataclass
-class Robot(Symbol):
+class ExampleRobot(Symbol):
     name: str
     battery: int
     online: bool
 
 robots = [
-    Robot("R2D2", 100, True),
-    Robot("C3PO", 20, False),
-    Robot("BB8", 80, True),
-    Robot("Gonk", 5, True)
+    ExampleRobot("R2D2", 100, True),
+    ExampleRobot("C3PO", 20, False),
+    ExampleRobot("BB8", 80, True),
+    ExampleRobot("Gonk", 5, True)
 ]
 
-r = variable(Robot, domain=robots)
+r = variable(ExampleRobot, domain=robots)
 
 # We want robots that are (ONLINE and (battery > 50)) OR (NOT ONLINE and battery < 30)
 query = an(entity(r).where(

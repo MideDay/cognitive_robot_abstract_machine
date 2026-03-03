@@ -63,7 +63,7 @@ import krrood.entity_query_language.factories as eql
 query = eql.max(r.battery)
 
 # Find the robot object with the highest battery level
-# This returns the Robot instance itself, not just the battery number
+# This returns the ExampleRobot instance itself, not just the battery number
 query = eql.max(r, key=lambda robot: robot.battery)
 ```
 
@@ -81,27 +81,27 @@ Always use `.where()` for conditions that can be evaluated on individual objects
 for conditions that depend on group-level aggregates.
 ```
 
-## Full Example: World Statistics
+## Full Example: ExampleWorld Statistics
 
 ```{code-cell} ipython3
 from dataclasses import dataclass
 from krrood.entity_query_language.factories import variable, set_of, Symbol, count, sum, average
 
 @dataclass
-class Robot(Symbol):
+class ExampleRobot(Symbol):
     name: str
     type: str
     battery: int
 
 robots = [
-    Robot("R1", "Astromech", 100),
-    Robot("R2", "Astromech", 80),
-    Robot("C1", "Protocol", 20),
-    Robot("C2", "Protocol", 40),
-    Robot("K1", "Security", 90)
+    ExampleRobot("R1", "Astromech", 100),
+    ExampleRobot("R2", "Astromech", 80),
+    ExampleRobot("C1", "Protocol", 20),
+    ExampleRobot("C2", "Protocol", 40),
+    ExampleRobot("K1", "Security", 90)
 ]
 
-r = variable(Robot, domain=robots)
+r = variable(ExampleRobot, domain=robots)
 
 # We want to see:
 # 1. The type of robot

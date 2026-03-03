@@ -63,7 +63,7 @@ query = an(entity(r), quantification=Exactly(3))
 query = an(entity(r), quantification=AtMost(5))
 ```
 
-## Full Example: Finding a Unique Item
+## Full Example: Finding a Unique ExampleItem
 
 This example shows how `the()` ensures that you only get a single, unambiguous result.
 
@@ -72,17 +72,17 @@ from dataclasses import dataclass
 from krrood.entity_query_language.factories import variable, entity, the, Symbol
 
 @dataclass
-class Item(Symbol):
+class ExampleItem(Symbol):
     serial_number: str
     name: str
 
 items = [
-    Item("SN001", "Sensor"),
-    Item("SN002", "Actuator"),
-    Item("SN001", "Broken Sensor") # Duplicated serial number!
+    ExampleItem("SN001", "Sensor"),
+    ExampleItem("SN002", "Actuator"),
+    ExampleItem("SN001", "Broken Sensor") # Duplicated serial number!
 ]
 
-v = variable(Item, domain=items)
+v = variable(ExampleItem, domain=items)
 
 # This query will FAIL because SN001 is not unique
 try:

@@ -104,17 +104,17 @@ from dataclasses import dataclass
 from typing import List
 
 @dataclass
-class PhysicalBody:
+class ExamplePhysicalBody:
     name: str
 
 @dataclass
-class PhysicalWorld:
-    bodies: List[PhysicalBody]
+class ExamplePhysicalWorld:
+    bodies: List[ExamplePhysicalBody]
 ```
 
 ### 2. Prepare some data
 ```python
-world = PhysicalWorld(bodies=[PhysicalBody("Robot"), PhysicalBody("Human")])
+world = ExamplePhysicalWorld(bodies=[ExamplePhysicalBody("Robot"), ExamplePhysicalBody("Human")])
 ```
 
 ### 3. Build and run the query
@@ -123,8 +123,8 @@ We want to find a body named "Robot".
 ```python
 from krrood.entity_query_language.factories import entity, variable, an
 
-# 1. Define a symbolic variable representing any Body from world.bodies
-body = variable(PhysicalBody, domain=world.bodies)
+# 1. Define a symbolic variable representing any ExampleBody from world.bodies
+body = variable(ExamplePhysicalBody, domain=world.bodies)
 
 # 2. Create a query: we want "an" entity "body" WHERE "body.name" is "Robot"
 query = an(entity(body).where(body.name == "Robot"))
@@ -136,8 +136,8 @@ print(results)
 
 ## Bit-by-Bit Explanation
 
-*   **`variable(Body, domain=world.bodies)`**: This creates a symbolic placeholder. It tells EQL that we are interested
-in objects of type `Body` that are found in the `world.bodies` collection. See {py:func}`~krrood.entity_query_language.factories.variable`.
+*   **`variable(ExampleBody, domain=world.bodies)`**: This creates a symbolic placeholder. It tells EQL that we are interested
+in objects of type `ExampleBody` that are found in the `world.bodies` collection. See {py:func}`~krrood.entity_query_language.factories.variable`.
 *   **`entity(body)`**: This starts the selection. We are saying "I want to select the objects represented by the `body`
 variable". See {py:func}`~krrood.entity_query_language.factories.entity`.
 *   **`.where(body.name == "Robot")`**: This adds a filter. Notice how we use standard Python comparison operators. EQL
@@ -159,17 +159,17 @@ from typing import List
 from krrood.entity_query_language.factories import entity, variable, an
 
 @dataclass
-class Body:
+class ExampleBody:
     name: str
 
 @dataclass
-class World:
-    bodies: List[Body]
+class ExampleWorld:
+    bodies: List[ExampleBody]
 
-world = World(bodies=[Body("Robot"), Body("Human")])
+world = ExampleWorld(bodies=[ExampleBody("Robot"), ExampleBody("Human")])
 
 # Define the variable and build the query
-body = variable(Body, domain=world.bodies)
+body = variable(ExampleBody, domain=world.bodies)
 query = an(entity(body).where(body.name == "Robot"))
 
 # Execute and print results
@@ -191,15 +191,15 @@ from dataclasses import dataclass
 from krrood.entity_query_language.factories import entity, variable, Symbol, an
 
 @dataclass
-class Body(Symbol):
+class ExampleBody(Symbol):
     name: str
 
 # Instances are automatically cached in SymbolGraph upon creation
-robot = Body("Robot")
-human = Body("Human")
+robot = ExampleBody("Robot")
+human = ExampleBody("Human")
 
 # No explicit domain provided to variable(); it's inferred from SymbolGraph
-body = variable(Body, domain=None)
+body = variable(ExampleBody, domain=None)
 query = an(entity(body).where(body.name == "Robot"))
 
 for result in query.evaluate():

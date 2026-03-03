@@ -22,7 +22,7 @@ The most common mapping is accessing an attribute of an object. EQL captures the
 ```python
 from krrood.entity_query_language.factories import variable
 
-robot = variable(Robot, domain=my_robots)
+robot = variable(ExampleRobot, domain=my_robots)
 # Accessing the 'name' attribute symbolically
 name_attr = robot.name
 ```
@@ -50,7 +50,7 @@ When an attribute returns a collection (like a list), you might want to treat ea
 ```python
 from krrood.entity_query_language.factories import flat_variable
 
-# robot.parts is a List[Part]. We want to iterate over each part.
+# robot.parts is a List[ExamplePart]. We want to iterate over each part.
 part = flat_variable(robot.parts)
 ```
 
@@ -73,7 +73,7 @@ The method must exist on the underlying objects in the domain. If the method tak
 
 ## Full Example: Mapping and Flattening
 
-This example shows how to navigate from a `World` to individual `Part` objects using attribute access and flattening.
+This example shows how to navigate from a `ExampleWorld` to individual `ExamplePart` objects using attribute access and flattening.
 
 ```{code-cell} ipython3
 from dataclasses import dataclass
@@ -81,21 +81,21 @@ from typing import List
 from krrood.entity_query_language.factories import variable, entity, an, flat_variable, Symbol
 
 @dataclass
-class Part(Symbol):
+class ExamplePart(Symbol):
     name: str
 
 @dataclass
-class Robot(Symbol):
+class ExampleRobot(Symbol):
     name: str
-    parts: List[Part]
+    parts: List[ExamplePart]
 
 # Data setup
-p1, p2 = Part("Arm"), Part("Leg")
-robot = Robot("R2D2", [p1, p2])
+p1, p2 = ExamplePart("Arm"), ExamplePart("Leg")
+robot = ExampleRobot("R2D2", [p1, p2])
 my_robots = [robot]
 
 # 1. Define the base variable
-r = variable(Robot, domain=my_robots)
+r = variable(ExampleRobot, domain=my_robots)
 
 # 2. Use attribute access and flat_variable to reach the parts
 p = flat_variable(r.parts)

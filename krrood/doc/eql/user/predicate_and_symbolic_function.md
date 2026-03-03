@@ -29,7 +29,7 @@ One of the most useful built-in predicates is `HasType`, which checks if a varia
 from krrood.entity_query_language.predicate import HasType
 
 # Filter 'v' to only include objects that are instances of 'Handle'
-query = entity(v).where(HasType(v, Handle))
+query = entity(v).where(HasType(v, ExampleHandle))
 ```
 
 ```{hint}
@@ -68,7 +68,7 @@ from krrood.entity_query_language.factories import variable, entity, an, Symbol
 from krrood.entity_query_language.predicate import symbolic_function, Predicate
 
 @dataclass
-class Robot(Symbol):
+class ExampleRobot(Symbol):
     name: str
     load: float
 
@@ -77,8 +77,8 @@ def calculate_stress(load: float) -> float:
     return load * 1.5
 
 @dataclass(eq=False)
-class IsOverloaded(Predicate):
-    robot: Robot
+class ExampleIsOverloaded(Predicate):
+    robot: ExampleRobot
     limit: float = 10.0
 
     def __call__(self) -> bool:
@@ -86,11 +86,11 @@ class IsOverloaded(Predicate):
         return calculate_stress(self.robot.load) > self.limit
 
 # Data
-robots = [Robot("Heavy", 8.0), Robot("Light", 2.0)]
-r = variable(Robot, domain=robots)
+robots = [ExampleRobot("Heavy", 8.0), ExampleRobot("Light", 2.0)]
+r = variable(ExampleRobot, domain=robots)
 
 # Query using custom logic
-query = an(entity(r).where(IsOverloaded(r)))
+query = an(entity(r).where(ExampleIsOverloaded(r)))
 
 for robot in query.evaluate():
     print(f"Overloaded Robot: {robot.name} (Load: {robot.load})")

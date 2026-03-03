@@ -67,11 +67,11 @@ from dataclasses import dataclass
 from krrood.entity_query_language.factories import variable, entity, an, Symbol
 
 @dataclass
-class Robot(Symbol):
+class ExampleRobot(Symbol):
     name: str
 
-robots = [Robot("R1"), Robot("R2"), Robot("R3")]
-r = variable(Robot, domain=robots)
+robots = [ExampleRobot("R1"), ExampleRobot("R2"), ExampleRobot("R3")]
+r = variable(ExampleRobot, domain=robots)
 query = an(entity(r))
 
 # 1. Using evaluate()

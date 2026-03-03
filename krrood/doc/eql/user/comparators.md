@@ -69,18 +69,18 @@ from typing import List
 from krrood.entity_query_language.factories import variable, entity, an, Symbol, in_, contains
 
 @dataclass
-class Robot(Symbol):
+class ExampleRobot(Symbol):
     name: str
     battery: int
     tags: List[str]
 
 robots = [
-    Robot("R2D2", 100, ["astromech", "repair"]),
-    Robot("C3PO", 20, ["protocol", "translator"]),
-    Robot("K2SO", 80, ["security", "combat"])
+    ExampleRobot("R2D2", 100, ["astromech", "repair"]),
+    ExampleRobot("C3PO", 20, ["protocol", "translator"]),
+    ExampleRobot("K2SO", 80, ["security", "combat"])
 ]
 
-r = variable(Robot, domain=robots)
+r = variable(ExampleRobot, domain=robots)
 
 # We want robots that:
 # 1. Have at least 50% battery

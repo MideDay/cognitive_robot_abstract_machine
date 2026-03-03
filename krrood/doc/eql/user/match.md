@@ -23,7 +23,7 @@ The `match()` function describes a pattern for an object's attributes. You can s
 from krrood.entity_query_language.factories import match
 
 # Describe a robot named 'R2D2'
-robot_pattern = match(Robot)(name="R2D2")
+robot_pattern = match(ExampleRobot)(name="R2D2")
 ```
 
 ## The `match_variable()` Function
@@ -34,7 +34,7 @@ While `match()` describes a pattern, `match_variable()` in addition binds to a s
 from krrood.entity_query_language.factories import match_variable
 
 # Create a variable for any 'Robot' in the 'world.robots' domain that matches the pattern
-r = match_variable(Robot, domain=world.robots)(name="R2D2")
+r = match_variable(ExampleRobot, domain=world.robots)(name="R2D2")
 ```
 
 ```{hint}
@@ -47,10 +47,10 @@ use `match` for nested child attributes.
 The real power of the match API comes from nesting. You can describe deeply nested object graphs in a single expression.
 
 ```python
-# Match a connection whose parent is a Container named 'C1' and child is a Handle named 'H1'
+# Match a connection whose parent is a ExampleContainer named 'C1' and child is a ExampleHandle named 'H1'
 fixed_connection = match_variable(FixedConnection, domain=world.connections)(
-    parent=match(Container)(name="C1"),
-    child=match(Handle)(name="H1")
+    parent=match(ExampleContainer)(name="C1"),
+    child=match(ExampleHandle)(name="H1")
 )
 ```
 
@@ -72,31 +72,31 @@ from dataclasses import dataclass
 from krrood.entity_query_language.factories import match_variable, match, entity, the, Symbol
 
 @dataclass
-class Body(Symbol):
+class ExampleBody(Symbol):
     name: str
 
 @dataclass
-class Container(Body):
+class ExampleContainer(ExampleBody):
     pass
 
 @dataclass
-class Handle(Body):
+class ExampleHandle(ExampleBody):
     pass
 
 @dataclass
-class Connection(Symbol):
-    parent: Body
-    child: Body
+class ExampleConnection(Symbol):
+    parent: ExampleBody
+    child: ExampleBody
 
 # Data
-c1, h1 = Container("Bin"), Handle("Grip")
-world_connections = [Connection(c1, h1)]
+c1, h1 = ExampleContainer("Bin"), ExampleHandle("Grip")
+world_connections = [ExampleConnection(c1, h1)]
 
 # 1. Define the structural match
 # We are looking for a connection between 'Bin' and 'Grip'
-conn = match_variable(Connection, domain=world_connections)(
-    parent=match(Container)(name="Bin"),
-    child=match(Handle)(name="Grip")
+conn = match_variable(ExampleConnection, domain=world_connections)(
+    parent=match(ExampleContainer)(name="Bin"),
+    child=match(ExampleHandle)(name="Grip")
 )
 
 # 2. Build and execute the query

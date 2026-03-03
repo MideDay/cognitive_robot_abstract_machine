@@ -28,8 +28,8 @@ The most common way to define a variable is to provide a type and a collection o
 from krrood.entity_query_language.factories import variable
 
 # Define a variable 'r' of type 'Robot' from a list
-robots_list = [Robot("R1"), Robot("R2")]
-r = variable(Robot, domain=robots_list)
+robots_list = [ExampleRobot("R1"), ExampleRobot("R2")]
+r = variable(ExampleRobot, domain=robots_list)
 ```
 
 ### 2. Variables with Implicit Domains
@@ -37,7 +37,7 @@ If no domain is provided, EQL will attempt to use a default domain. For `Symbol`
 
 ```python
 # 'r' will use all Robots in the SymbolGraph
-r = variable(Robot, domain=None)
+r = variable(ExampleRobot, domain=None)
 ```
 
 ```{hint}
@@ -81,15 +81,15 @@ from krrood.entity_query_language.factories import variable, entity, an, Symbol
 
 # Define our model
 @dataclass
-class Robot:
+class ExampleRobot:
     name: str
     battery: int
 
 # Prepare data
-robots = [Robot("R2D2", 100), Robot("C3PO", 20), Robot("BB8", 80)]
+robots = [ExampleRobot("R2D2", 100), ExampleRobot("C3PO", 20), ExampleRobot("BB8", 80)]
 
 # 1. Define the variable
-r = variable(Robot, domain=robots)
+r = variable(ExampleRobot, domain=robots)
 
 # 2. Build the query with filters
 # We want robots with battery levels greater than 50

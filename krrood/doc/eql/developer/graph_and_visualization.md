@@ -62,14 +62,14 @@ from dataclasses import dataclass
 
 
 @dataclass(unsafe_hash=True)
-class Robot:
+class ExampleRobot:
     name: str
     battery: int
     
-robots = [Robot("R2D2", 100), Robot("C3PO", 0)]
+robots = [ExampleRobot("R2D2", 100), ExampleRobot("C3PO", 0)]
 
 # Define a complex nested query
-query = match_variable(Robot, domain=robots)(name="R2D2", battery=100)
+query = match_variable(ExampleRobot, domain=robots)(name="R2D2", battery=100)
 
 # Visualize
 query_graph = QueryGraph(query)
