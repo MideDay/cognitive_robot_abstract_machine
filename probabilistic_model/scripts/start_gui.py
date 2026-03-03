@@ -32,7 +32,7 @@ def main(model_path: str = None):
         model = ProbabilisticCircuit.from_json(json.load(f))
 
     app = QApplication(sys.argv)
-    apply_stylesheet(app, theme="dark_amber.xml")
+    apply_stylesheet(app, theme="light_amber.xml")
     window = MainWindow(model=model)
     window.show()
     sys.exit(app.exec())

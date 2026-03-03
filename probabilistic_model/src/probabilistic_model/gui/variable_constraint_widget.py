@@ -15,6 +15,11 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QIcon
+from .utils import (
+    get_primary_color,
+    get_secondary_dark_color,
+    get_secondary_light_color,
+)
 from superqt import QRangeSlider, QDoubleRangeSlider
 
 from random_events.variable import Variable, Continuous, Symbolic, Integer
@@ -68,25 +73,28 @@ class NumericIntervalWidget(QWidget):
         self.minimum_spin_box.setValue(initial_values[0])
         self.maximum_spin_box.setValue(initial_values[1])
 
+        primary = get_primary_color()
+        secondary_light = get_secondary_light_color()
+
         # Enhanced stylesheet for slider visibility
         self.slider.setStyleSheet(
-            "QRangeSlider, QDoubleRangeSlider { "
-            "   qproperty-barColor: #1de9b6; "
-            "   min-height: 24px; "
-            "} "
-            "QRangeSlider::handle, QDoubleRangeSlider::handle { "
-            "   background-color: #1de9b6; "
-            "   border: 2px solid white; "
-            "   width: 14px; "
-            "   height: 14px; "
-            "   margin: -4px 0; "
-            "   border-radius: 8px; "
-            "} "
-            "QRangeSlider::groove, QDoubleRangeSlider::groove { "
-            "   background-color: #31363b; "
-            "   height: 6px; "
-            "   border-radius: 3px; "
-            "} "
+            f"QRangeSlider, QDoubleRangeSlider {{ "
+            f"   qproperty-barColor: {primary}; "
+            f"   min-height: 24px; "
+            f"}} "
+            f"QRangeSlider::handle, QDoubleRangeSlider::handle {{ "
+            f"   background-color: {primary}; "
+            f"   border: 2px solid white; "
+            f"   width: 14px; "
+            f"   height: 14px; "
+            f"   margin: -4px 0; "
+            f"   border-radius: 8px; "
+            f"}} "
+            f"QRangeSlider::groove, QDoubleRangeSlider::groove {{ "
+            f"   background-color: {secondary_light}; "
+            f"   height: 6px; "
+            f"   border-radius: 3px; "
+            f"}} "
         )
 
         # Connections
@@ -156,15 +164,18 @@ class VariableConstraintWidget(QFrame):
         self.init_ui()
 
     def init_ui(self):
+        primary = get_primary_color()
+        secondary_dark = get_secondary_dark_color()
+
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
         self.setStyleSheet(
-            "VariableConstraintWidget { "
-            "   border: 1px solid #1de9b6; "
-            "   border-radius: 8px; "
-            "   background-color: #2b2b2b; "
-            "   margin-bottom: 10px; "
-            "} "
+            f"VariableConstraintWidget {{ "
+            f"   border: 1px solid {primary}; "
+            f"   border-radius: 8px; "
+            f"   background-color: {secondary_dark}; "
+            f"   margin-bottom: 10px; "
+            f"}} "
         )
 
         self.main_layout = QVBoxLayout(self)

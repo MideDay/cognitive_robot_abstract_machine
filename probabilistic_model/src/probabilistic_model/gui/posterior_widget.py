@@ -10,12 +10,9 @@ from PySide6.QtWidgets import (
     QListWidget,
     QAbstractItemView,
 )
-from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QPixmap, QIcon
-import plotly.graph_objects as go
-import tempfile
-import os
+from .plotting import ProbabilisticModelPlotWidget
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 
 from .controller import ModelController
 from .variable_constraint_widget import VariableConstraintWidget
@@ -82,9 +79,9 @@ class PosteriorWidget(QWidget):
         self.plot_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.plot_container.addWidget(self.plot_title)
 
-        self.web_view = QWebEngineView()
-        self.web_view.setMinimumHeight(400)
-        self.plot_container.addWidget(self.web_view)
+        self.plot_widget = ProbabilisticModelPlotWidget()
+        self.plot_widget.setMinimumHeight(400)
+        self.plot_container.addWidget(self.plot_widget)
 
         result_area.addLayout(self.plot_container, 4)
 
@@ -220,13 +217,7 @@ class PosteriorWidget(QWidget):
     def update_plot(self):
         if not self.current_posterior_model or not self.query_vars:
             self.plot_title.setText("")
-            self.web_view.setHtml(
-                "<html><body style='display:flex; justify-content:center; "
-                "align-items:center; height:100vh; font-family:sans-serif; color:white; "
-                "background-color: #3498db;'>"
-                "<h2>Select variables and click Calculate to view distributions</h2>"
-                "</body></html>"
-            )
+            # Maybe show a placeholder or clear the chart
             self.prev_button.setEnabled(False)
             self.next_button.setEnabled(False)
             return
@@ -239,34 +230,13 @@ class PosteriorWidget(QWidget):
         try:
             # Calculate marginal for the specific variable
             marginal = self.current_posterior_model.marginal([variable])
+            self.plot_widget.set_model(marginal)
 
-            # Generate Plotly traces
-            traces = marginal.plot()
-
-            # Wrap in Figure with layout
-            fig = go.Figure(data=traces, layout=marginal.plotly_layout())
-
-            # Render to HTML
-            if hasattr(fig, "to_html") and type(fig).__name__ != "MagicMock":
-                html_content = fig.to_html(include_plotlyjs=True, full_html=True)
-
-                # Use a temporary file to load large HTML content
-                # This is more robust than setHtml for many megabytes
-                with tempfile.NamedTemporaryFile(
-                    suffix=".html", delete=False, mode="w", encoding="utf-8"
-                ) as f:
-                    f.write(html_content)
-                    tmp_path = f.name
-
-                self.web_view.load(QUrl.fromLocalFile(tmp_path))
-                # Note: we are not deleting the temp file immediately because load is async.
-                # In a real app we'd want to manage these files.
-            else:
-                self.web_view.setHtml(f"<html><body>{str(fig)}</body></html>")
         except Exception as e:
-            self.web_view.setHtml(
-                f"<html><body style='color:red;'><h2>Error generating plot:</h2><p>{str(e)}</p></body></html>"
-            )
+            print(f"Error generating plot: {e}")
+            import traceback
+
+            traceback.print_exc()
 
         self.prev_button.setEnabled(self.current_var_index > 0)
         self.next_button.setEnabled(self.current_var_index < len(self.query_vars) - 1)
