@@ -29,7 +29,7 @@ from random_events.interval import closed, Interval, SimpleInterval, Bound
 from random_events.set import Set, SetElement
 
 
-@dataclass
+@dataclass(init=False, eq=False, repr=False)
 class NumericIntervalWidget(QWidget):
     """
     A widget representing a single interval for a numeric variable.
@@ -56,27 +56,22 @@ class NumericIntervalWidget(QWidget):
     The initial values for the lower and upper bounds of the interval.
     """
 
-    parent: InitVar[Optional[QWidget]] = None
-    """
-    The parent widget.
-    """
-
-    minimum_spin_box: Union[QDoubleSpinBox, QSpinBox] = field(init=False)
+    minimum_spin_box: Union[QDoubleSpinBox, QSpinBox]
     """
     The spin box for the minimum interval value.
     """
 
-    maximum_spin_box: Union[QDoubleSpinBox, QSpinBox] = field(init=False)
+    maximum_spin_box: Union[QDoubleSpinBox, QSpinBox]
     """
     The spin box for the maximum interval value.
     """
 
-    slider: Union[QDoubleRangeSlider, QRangeSlider] = field(init=False)
+    slider: Union[QDoubleRangeSlider, QRangeSlider]
     """
     The range slider for visual adjustment of the interval.
     """
 
-    remove_button: QPushButton = field(init=False)
+    remove_button: QPushButton
     """
     The button to remove this interval row.
     """
@@ -84,9 +79,22 @@ class NumericIntervalWidget(QWidget):
     changed = Signal()
     removed = Signal()
 
-    def __post_init__(self, parent: Optional[QWidget]):
+    def __init__(
+        self,
+        variable: Variable,
+        minimum_bound: float,
+        maximum_bound: float,
+        initial_values: Tuple[float, float],
+        parent: Optional[QWidget] = None,
+    ):
         super().__init__(parent)
+        self.variable = variable
+        self.minimum_bound = float(minimum_bound)
+        self.maximum_bound = float(maximum_bound)
+        self.initial_values = initial_values
+        self.init_ui()
 
+    def init_ui(self):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
@@ -182,7 +190,7 @@ class NumericIntervalWidget(QWidget):
         return (self.minimum_spin_box.value(), self.maximum_spin_box.value())
 
 
-@dataclass
+@dataclass(init=False, eq=False, repr=False)
 class VariableConstraintWidget(QFrame):
     """
     A widget that allows selecting a variable and defining its constraints.
@@ -193,79 +201,85 @@ class VariableConstraintWidget(QFrame):
     The list of variables to select from.
     """
 
-    priors: Optional[VariableMap] = None
+    priors: Optional[VariableMap]
     """
     The prior distributions for the variables (optional).
     """
 
-    parent: InitVar[Optional[QWidget]] = None
-    """
-    The parent widget.
-    """
-
-    main_layout: QVBoxLayout = field(init=False)
+    main_layout: QVBoxLayout
     """
     The main layout of the widget.
     """
 
-    variable_combo: QComboBox = field(init=False)
+    variable_combo: QComboBox
     """
     The combo box to select a variable.
     """
 
-    remove_button: QPushButton = field(init=False)
+    remove_button: QPushButton
     """
     The button to remove this variable constraint widget.
     """
 
-    constraint_container: QWidget = field(init=False)
+    constraint_container: QWidget
     """
     The container widget for constraints.
     """
 
-    constraint_layout: QVBoxLayout = field(init=False)
+    constraint_layout: QVBoxLayout
     """
     The layout for the constraint container.
     """
 
-    constraint_widget: Optional[Union[QScrollArea, QListWidget]] = field(init=False)
+    constraint_widget: Optional[Union[QScrollArea, QListWidget]]
     """
     The widget used for defining constraints (QScrollArea or QListWidget).
     """
 
-    intervals_container: QWidget = field(init=False)
+    intervals_container: QWidget
     """
     The container for numeric interval rows.
     """
 
-    intervals_layout: QVBoxLayout = field(init=False)
+    intervals_layout: QVBoxLayout
     """
     The layout for the numeric intervals container.
     """
 
-    add_range_button: QPushButton = field(init=False)
+    add_range_button: QPushButton
     """
     The button to add a new numeric interval.
     """
 
-    scroll_area: QScrollArea = field(init=False)
+    scroll_area: QScrollArea
     """
     The scroll area for numeric intervals.
     """
 
-    interval_widgets: List[NumericIntervalWidget] = field(init=False)
+    interval_widgets: List[NumericIntervalWidget]
     """
     The list of numeric interval widgets.
+    """
+
+    value_label: QLabel
+    """
+    The label displaying the range of the variable.
     """
 
     changed = Signal()
     removed = Signal()
 
-    _read_only: bool = field(default=False, init=False)
+    _read_only: bool = False
 
-    def __post_init__(self, parent: Optional[QWidget]):
+    def __init__(
+        self,
+        variables: List[Variable],
+        priors: Optional[VariableMap] = None,
+        parent: Optional[QWidget] = None,
+    ):
         super().__init__(parent)
-        self.variables = sorted(self.variables, key=lambda v: v.name)
+        self.variables = sorted(variables, key=lambda v: v.name)
+        self.priors = priors
         self.init_ui()
 
     def init_ui(self):
@@ -298,6 +312,10 @@ class VariableConstraintWidget(QFrame):
 
         self.variable_combo.currentIndexChanged.connect(self.on_variable_changed)
         header_layout.addWidget(self.variable_combo, 1)
+
+        self.value_label = QLabel("")
+        self.value_label.setStyleSheet("color: #888888; margin-left: 10px;")
+        header_layout.addWidget(self.value_label)
 
         header_layout.addStretch()
 
@@ -406,10 +424,27 @@ class VariableConstraintWidget(QFrame):
             minimum, maximum = self._get_variable_bounds(variable)
             self.slider_min, self.slider_max = minimum, maximum
 
+            if self.value_label:
+                self.value_label.setText(f"Range: [{minimum:.2f}, {maximum:.2f}]")
+
+            # Add marks (for testing purposes and clarity)
+            marks_layout = QHBoxLayout()
+            marks_layout.setContentsMargins(50, 0, 50, 0)  # Align with slider roughly
+            for i in range(5):
+                val = minimum + (maximum - minimum) * (i / 4.0)
+                mark = QLabel(f"{val:.2f}")
+                mark.setStyleSheet("font-size: 8pt; color: #666666;")
+                marks_layout.addWidget(mark)
+                if i < 4:
+                    marks_layout.addStretch()
+            self.constraint_layout.addLayout(marks_layout)
+
             # Add initial interval
             self.add_numeric_interval(variable, (minimum, maximum))
         else:
             # List Widget for Symbolic (multi-selection)
+            if self.value_label:
+                self.value_label.setText("")
             list_widget = QListWidget()
             list_widget.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
 

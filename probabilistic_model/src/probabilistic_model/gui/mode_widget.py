@@ -35,68 +35,70 @@ class ModeWidget(QWidget):
     """
 
     evidence_widgets: List[VariableConstraintWidget] = field(
-        default_factory=list, init=False
+        default_factory=list, init=False, repr=False, compare=False
     )
     """
     The list of variable constraint widgets for the evidence.
     """
 
-    modes: List[SimpleEvent] = field(default_factory=list, init=False)
+    modes: List[SimpleEvent] = field(
+        default_factory=list, init=False, repr=False, compare=False
+    )
     """
     The list of simple events representing the calculated modes.
     """
 
-    likelihood: float = field(default=0.0, init=False)
+    likelihood: float = field(default=0.0, init=False, repr=False, compare=False)
     """
     The maximum likelihood value of the modes.
     """
 
-    current_mode_index: int = field(default=0, init=False)
+    current_mode_index: int = field(default=0, init=False, repr=False, compare=False)
     """
     The index of the currently displayed mode.
     """
 
-    calculate_button: QPushButton = field(init=False)
+    calculate_button: QPushButton = field(init=False, repr=False, compare=False)
     """
     The button to calculate the mode.
     """
 
-    result_container: QWidget = field(init=False)
+    result_container: QWidget = field(init=False, repr=False, compare=False)
     """
     The widget containing the results and navigation.
     """
 
-    result_layout: QVBoxLayout = field(init=False)
+    result_layout: QVBoxLayout = field(init=False, repr=False, compare=False)
     """
     The layout for the results.
     """
 
-    prev_button: QPushButton = field(init=False)
+    prev_button: QPushButton = field(init=False, repr=False, compare=False)
     """
     The button to navigate to the previous mode.
     """
 
-    next_button: QPushButton = field(init=False)
+    next_button: QPushButton = field(init=False, repr=False, compare=False)
     """
     The button to navigate to the next mode.
     """
 
-    mode_info_label: QLabel = field(init=False)
+    mode_info_label: QLabel = field(init=False, repr=False, compare=False)
     """
     The label displaying mode information and likelihood.
     """
 
-    mode_details_scroll: QScrollArea = field(init=False)
+    mode_details_scroll: QScrollArea = field(init=False, repr=False, compare=False)
     """
     The scroll area for mode details.
     """
 
-    mode_details_container: QWidget = field(init=False)
+    mode_details_container: QWidget = field(init=False, repr=False, compare=False)
     """
     The widget container for mode rows.
     """
 
-    mode_details_layout: QVBoxLayout = field(init=False)
+    mode_details_layout: QVBoxLayout = field(init=False, repr=False, compare=False)
     """
     The layout for the mode rows.
     """
@@ -198,7 +200,9 @@ class ModeWidget(QWidget):
         )
         var_widget.changed.connect(self.update_variable_options)
         var_widget.removed.connect(
-            lambda: self.remove_evidence_row(var_widget, var_widget)
+            lambda variable_widget=var_widget: self.remove_evidence_row(
+                variable_widget, variable_widget
+            )
         )
         self.evidence_widgets.append(var_widget)
         self.evidence_rows_layout.addWidget(var_widget)

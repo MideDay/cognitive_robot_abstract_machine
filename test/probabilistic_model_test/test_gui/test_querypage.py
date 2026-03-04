@@ -32,6 +32,20 @@ class TestQueryGUI(unittest.TestCase):
         self.model.variables = [self.v1, self.v2]
         self.model.probability.return_value = 0.5
 
+        # Configure marginal to return real numbers for bounds
+        mock_marginal_v1 = MagicMock()
+        mock_marginal_v1.support.simple_sets = [SimpleEvent({self.v1: closed(0, 1)})]
+        
+        mock_marginal_v2 = MagicMock()
+        mock_marginal_v2.support.simple_sets = [SimpleEvent({self.v2: Set.from_iterable(["a", "b"])})]
+
+        def side_effect(vars):
+            if vars == [self.v1]:
+                return mock_marginal_v1
+            return mock_marginal_v2
+        
+        self.model.marginal.side_effect = side_effect
+
         self.controller.set_model(self.model)
 
     def test_variable_constraint_widget_continuous(self):
@@ -42,6 +56,7 @@ class TestQueryGUI(unittest.TestCase):
         # Select v1
         index = widget.variable_combo.findText("v1")
         widget.variable_combo.setCurrentIndex(index)
+        app.processEvents()
 
         self.assertEqual(widget.variable_combo.currentData(), self.v1)
         self.assertIsNotNone(widget.constraint_widget)
@@ -49,14 +64,18 @@ class TestQueryGUI(unittest.TestCase):
         changed_mock.reset_mock()
 
         # Check slider value change triggers changed signal
-        slider = widget.constraint_widget
-        slider.setValue((100, 900))
+        # For numeric variables, the slider is in the first interval widget
+        slider = widget.interval_widgets[0].slider
+        slider.setValue((0.1, 0.9))
+        app.processEvents()
         self.assertTrue(changed_mock.called)
 
         # Check constraint retrieval
         var, constraint = widget.get_constraint()
         self.assertEqual(var, self.v1)
-        self.assertTrue(isinstance(constraint, type(closed(0, 1))))
+        # Check values with small delta
+        self.assertAlmostEqual(constraint.simple_sets[0].lower, 0.1, places=3)
+        self.assertAlmostEqual(constraint.simple_sets[0].upper, 0.9, places=3)
 
     def test_variable_constraint_widget_symbolic(self):
         widget = VariableConstraintWidget(self.model.variables)
@@ -86,7 +105,7 @@ class TestQueryGUI(unittest.TestCase):
         # Since add_variable_row is connected to button, we can call it directly
         # or simulate button click if we find the button.
         # For simplicity, call the method.
-        layout_container = widget.query_widgets[0].parentWidget().parentWidget()
+        layout_container = widget.query_widgets[0].parentWidget()
         widget.add_variable_row(widget.query_widgets, layout_container)
 
         self.assertEqual(len(widget.query_widgets), initial_count + 1)

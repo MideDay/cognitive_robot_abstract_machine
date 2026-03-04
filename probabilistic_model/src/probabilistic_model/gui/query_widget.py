@@ -35,25 +35,25 @@ class QueryWidget(QWidget):
     """
 
     query_widgets: List[VariableConstraintWidget] = field(
-        default_factory=list, init=False
+        default_factory=list, init=False, repr=False, compare=False
     )
     """
     The list of variable constraint widgets for the query.
     """
 
     evidence_widgets: List[VariableConstraintWidget] = field(
-        default_factory=list, init=False
+        default_factory=list, init=False, repr=False, compare=False
     )
     """
     The list of variable constraint widgets for the evidence.
     """
 
-    calculate_button: QPushButton = field(init=False)
+    calculate_button: QPushButton = field(init=False, repr=False, compare=False)
     """
     The button to calculate the probability.
     """
 
-    result_label: QLabel = field(init=False)
+    result_label: QLabel = field(init=False, repr=False, compare=False)
     """
     The label to display the calculation result.
     """
@@ -145,7 +145,9 @@ class QueryWidget(QWidget):
             self.on_calculate
         )  # Auto-calculate or at least clear result
         var_widget.removed.connect(
-            lambda: self.remove_variable_row(var_widget, var_widget, widgets_list)
+            lambda variable_widget=var_widget: self.remove_variable_row(
+                variable_widget, variable_widget, widgets_list
+            )
         )
         widgets_list.append(var_widget)
         container.layout().addWidget(var_widget)

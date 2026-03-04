@@ -29,6 +29,20 @@ class TestModeGUI(unittest.TestCase):
         self.model = MagicMock()
         self.model.variables = [self.v1, self.v2]
 
+        # Configure marginal to return real numbers for bounds
+        mock_marginal_v1 = MagicMock()
+        mock_marginal_v1.support.simple_sets = [SimpleEvent({self.v1: closed(0, 1)})]
+        
+        mock_marginal_v2 = MagicMock()
+        mock_marginal_v2.support.simple_sets = [SimpleEvent({self.v2: Set.from_iterable(["a", "b"])})]
+
+        def side_effect(vars):
+            if vars == [self.v1]:
+                return mock_marginal_v1
+            return mock_marginal_v2
+        
+        self.model.marginal.side_effect = side_effect
+
         # Mock mode result: (Event, Likelihood)
         self.mode_event = Event(
             SimpleEvent({self.v1: closed(0.5, 0.5), self.v2: Set.from_iterable(["a"])})

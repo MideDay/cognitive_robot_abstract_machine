@@ -39,70 +39,74 @@ class PosteriorWidget(QWidget):
     """
 
     evidence_widgets: List[VariableConstraintWidget] = field(
-        default_factory=list, init=False
+        default_factory=list, init=False, repr=False, compare=False
     )
     """
     The list of variable constraint widgets for the evidence.
     """
 
     current_posterior_model: Optional[ProbabilisticModel] = field(
-        default=None, init=False
+        default=None, init=False, repr=False, compare=False
     )
     """
     The current posterior model after calculation.
     """
 
-    query_vars: List[str] = field(default_factory=list, init=False)
+    query_vars: List[str] = field(
+        default_factory=list, init=False, repr=False, compare=False
+    )
     """
     The list of selected variables to plot.
     """
 
-    current_var_index: int = field(default=0, init=False)
+    current_var_index: int = field(default=0, init=False, repr=False, compare=False)
     """
     The index of the currently plotted variable.
     """
 
-    calculate_button: QPushButton = field(init=False)
+    calculate_button: QPushButton = field(init=False, repr=False, compare=False)
     """
     The button to calculate the posterior.
     """
 
-    query_vars_list: QListWidget = field(init=False)
+    query_vars_list: QListWidget = field(init=False, repr=False, compare=False)
     """
     The list widget to select query variables.
     """
 
-    evidence_container: QWidget = field(init=False)
+    evidence_container: QWidget = field(init=False, repr=False, compare=False)
     """
     The container for evidence variable rows.
     """
 
-    evidence_layout: QVBoxLayout = field(init=False)
+    evidence_layout: QVBoxLayout = field(init=False, repr=False, compare=False)
     """
     The layout for evidence variable rows.
     """
 
-    prev_button: QPushButton = field(init=False)
+    prev_button: QPushButton = field(init=False, repr=False, compare=False)
     """
     The button to show the previous plot.
     """
 
-    next_button: QPushButton = field(init=False)
+    next_button: QPushButton = field(init=False, repr=False, compare=False)
     """
     The button to show the next plot.
     """
 
-    plot_container: QVBoxLayout = field(init=False)
+    plot_container: QVBoxLayout = field(init=False, repr=False, compare=False)
     """
     The layout container for the plot and title.
     """
 
-    plot_title: QLabel = field(init=False)
+    plot_title: QLabel = field(init=False, repr=False, compare=False)
     """
     The label displaying the plot title.
     """
 
-    plot_widget: ProbabilisticModelPlotWidget = field(init=False)
+    plot_widget: ProbabilisticModelPlotWidget = field(
+        init=False, repr=False, compare=False
+    )
     """
     The widget that renders the distribution plots.
     """
@@ -230,7 +234,9 @@ class PosteriorWidget(QWidget):
         )
         var_widget.changed.connect(self.update_variable_options)
         var_widget.removed.connect(
-            lambda: self.remove_evidence_row(var_widget, var_widget)
+            lambda variable_widget=var_widget: self.remove_evidence_row(
+                variable_widget, variable_widget
+            )
         )
         self.evidence_widgets.append(var_widget)
         self.evidence_layout.addWidget(var_widget)
