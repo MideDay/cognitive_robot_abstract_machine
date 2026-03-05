@@ -18,7 +18,13 @@ from giskardpy.qp.exceptions import (
     HardConstraintsViolatedException,
     InfeasibleException,
 )
-from giskardpy.qp.qp_data import QPDataExplicit, QPData, QPDataFactory, MyConditioning
+from giskardpy.qp.qp_data import (
+    QPDataExplicit,
+    QPData,
+    QPDataFactory,
+    MyConditioning,
+    Conditioning,
+)
 from giskardpy.qp.solvers.qp_solver import QPSolver
 from giskardpy.utils.utils import create_path
 from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
@@ -470,7 +476,8 @@ class QPController:
         # 2. apply filter
         qp_data_filtered = qp_data_raw.apply_filters()
         # 3. apply conditioning
-        conditioning = MyConditioning()
+        conditioning = Conditioning()
+        conditioning.update(qp_data_filtered)
         qp_data_filtered = qp_data_filtered.apply_conditioning(conditioning)
         # 4. solve qp
         xdot_full = self.qp_solver.solver_call(qp_data_filtered)
