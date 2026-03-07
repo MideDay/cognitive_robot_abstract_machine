@@ -182,7 +182,7 @@ class Match(AbstractMatchExpression[T], HasFactoryAndKwargs[T]):
         Match can take a factory as a mean to construct `T`. If the keyword argument names of the match are not
         available in the class itself, the variables reffered to in the `where` conditions will not align with the
         variables from the factory. It is strongly recommended to have the names of the factory available in the class,
-        either as field, or as property.
+        either as field or as property.
         Dataclass-generated `__init__` never have this problem unless `InitVar` is used.
     """
 
