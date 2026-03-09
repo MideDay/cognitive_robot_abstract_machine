@@ -456,7 +456,10 @@ def mode(
     distinct: bool = False,
 ) -> Union[T, Mode[T]]:
     """
-    Maps the variable values to their mode value.
+    Maps the variable values to their mode value. The mode is the most common value in the iterable. It is found by
+    counting the occurrences of each value and returning the one with the highest count. If there are multiple values
+    with the same highest count, the first one encountered is returned. This is an aggregation function, thus the query
+    will be fully evaluated before the result is returned.
 
     :param variable: The variable for which the mode value is to be found.
     :param default: The value returned when the iterable is empty.
@@ -472,7 +475,8 @@ def multimode(
     distinct: bool = False,
 ) -> Union[T, MultiMode[T]]:
     """
-    Maps the variable values to all equivalent mode value.
+    Maps the variable values to all equivalent mode value. Similar to :py:func:`krrood.entity_query_language.factories.mode`
+    but returns all values that have the same mode value (i.e., all values that have the same highest count).
 
     :param variable: The variable for which the mode value is to be found.
     :param default: The value returned when the iterable is empty.

@@ -326,19 +326,7 @@ class Query(
         elif self._where_builder_ is not None:
             children.append(self._where_builder_.expression)
 
-        if self._grouped_by_builder_ is not None:
-            next(
-                (
-                    aggregator._replace_child_(
-                        aggregator._child_, self._grouped_by_builder_.expression
-                    )
-                    for aggregator in self._grouped_by_builder_.aggregators_and_non_aggregators[
-                        0
-                    ]
-                    if isinstance(aggregator, CountAll)
-                ),
-                None,
-            )
+        self._if_count_all_is_used_update_its_child_to_be_the_grouped_by_expression_()
 
         children.extend(self._selected_variables_)
 
@@ -349,6 +337,30 @@ class Query(
         self._update_quantifier_expression_()
 
         return self
+
+    def _if_count_all_is_used_update_its_child_to_be_the_grouped_by_expression_(
+        self,
+    ) -> None:
+        """
+        Update the child of the `CountAll` aggregator to be the `GroupedBy` expression if it exists.
+        """
+        if self._grouped_by_builder_ is None:
+            return
+        count_all = next(
+            (
+                aggregator
+                for aggregator in self._grouped_by_builder_.aggregators_and_non_aggregators[
+                    0
+                ]
+                if isinstance(aggregator, CountAll)
+            ),
+            None,
+        )
+        if count_all is None:
+            return
+        count_all._replace_child_(
+            count_all._child_, self._grouped_by_builder_.expression
+        )
 
     # TODO: This is a temporary fix, a coming PR will clean it up.
     def _update_ordered_by_expression_(self):
