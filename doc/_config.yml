@@ -4,4 +4,4 @@ execute:
   execute_notebooks: off
 sphinx:
   extra_extensions:
-    - sphinxcontrib.plantuml
+    - sphinxcontrib.mermaid

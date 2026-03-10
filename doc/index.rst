@@ -57,7 +57,7 @@ CRAM consists of the following sub-packages:
    is a Python library for modeling and simulating random
    events.
 
-.. uml:: img/architecture_diagram.puml
+.. mermaid:: img/architecture_diagram.mmd
     :caption: Architecture Diagram
 
 .. _ref-to-installation:
