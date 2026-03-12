@@ -12,6 +12,7 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPosition,
 )
 from giskardpy.qp.qp_controller_config import QPControllerConfig
+from giskardpy.qp.solvers.qp_solver_qpSWIFT import QPSolverQPSwift
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
     VizMarkerPublisher,
 )
@@ -164,11 +165,10 @@ def robot_factory(fucking_huge_link_length: float, vel_limit: float) -> World:
     return world
 
 
-def execute(link_length: float, vel_limit: float, rclpy_node):
+def execute(link_length: float, vel_limit: float):
     fucking_huge_robot = robot_factory(
         fucking_huge_link_length=link_length, vel_limit=vel_limit
     )
-    VizMarkerPublisher(_world=fucking_huge_robot, node=rclpy_node).with_tf_publisher()
     msc = MotionStatechart()
     goal = 1
     eef = fucking_huge_robot.get_kinematic_structure_entity_by_name("eef")
@@ -206,23 +206,21 @@ def execute(link_length: float, vel_limit: float, rclpy_node):
             qp_controller_config=QPControllerConfig(
                 target_frequency=100,
                 prediction_horizon=50,
-                # qp_solver_id=SupportedQPSolver.gurobi,
             ),
         ),
-        pacer=SimulationPacer(real_time_factor=2),
     )
     kin_sim.compile(motion_statechart=msc)
 
     kin_sim.tick_until_end(10_000)
 
 
-def test_cart_goal01(rclpy_node):
-    execute(0.1, 0.1, rclpy_node)
+def test_cart_goal01():
+    execute(0.1, 0.1)
 
 
-def test_cart_goal1(rclpy_node):
-    execute(1.0, 0.1, rclpy_node)
+def test_cart_goal1():
+    execute(1.0, 0.1)
 
 
 def test_cart_goal1000(rclpy_node):
-    execute(1000.0, 0.1, rclpy_node)
+    execute(1000.0, 0.1)

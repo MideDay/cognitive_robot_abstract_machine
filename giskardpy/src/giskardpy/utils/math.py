@@ -294,11 +294,11 @@ def mpc(
         linear_weights=g,
         box_lower_constraints=lb,
         box_upper_constraints=ub,
-        eq_matrix=sp.csc_matrix(model),
-        eq_bounds=bE,
-        neq_matrix=sp.csc_matrix(np.zeros((0, model.shape[0]))),
-        neq_lower_bounds=np.array([]),
-        neq_upper_bounds=np.array([]),
+        equality_matrix=sp.csc_matrix(model),
+        equality_bounds=bE,
+        inequality_matrix=sp.csc_matrix(np.zeros((0, model.shape[0]))),
+        inequality_lower_bounds=np.array([]),
+        inequality_upper_bounds=np.array([]),
         num_equality_slack_variables=0,
         num_inequality_slack_variables=0,
     )
@@ -511,3 +511,11 @@ def quaternion_slerp(q1, q2, t):
     if 0.001 > abs(sin_half_theta):
         return 0.5 * q1 + 0.5 * q2
     return ratio_a * q1 + ratio_b * q2
+
+
+def fast_sparse_diagonal(diagonal) -> sp.csc_matrix:
+    """
+    faster than scipy.sparse.diags
+    """
+    n = len(diagonal)
+    return sp.csc_matrix((diagonal, np.arange(n), np.arange(n + 1)), shape=(n, n))

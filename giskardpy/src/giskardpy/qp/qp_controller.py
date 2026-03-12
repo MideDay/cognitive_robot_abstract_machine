@@ -151,9 +151,9 @@ class QPControllerDebugger:
         )
 
     def _update_eq_constraints(self, qp_data: QPDataExplicit):
-        if len(qp_data.eq_bounds) > 0:
+        if len(qp_data.equality_bounds) > 0:
             self.p_bE_raw = pd.DataFrame(
-                qp_data.eq_bounds,
+                qp_data.equality_bounds,
                 self.equality_constr_names,
                 ["data"],
                 dtype=float,
@@ -168,9 +168,9 @@ class QPControllerDebugger:
             self.p_bE = pd.DataFrame()
 
     def _update_inequality_constraints(self, qp_data: QPDataExplicit):
-        if len(qp_data.neq_lower_bounds) > 0:
+        if len(qp_data.inequality_lower_bounds) > 0:
             self.p_lbA_raw = pd.DataFrame(
-                qp_data.neq_lower_bounds,
+                qp_data.inequality_lower_bounds,
                 self.inequality_constr_names,
                 ["data"],
                 dtype=float,
@@ -179,7 +179,7 @@ class QPControllerDebugger:
             self.p_lbA /= self.qp_controller.config.mpc_dt
 
             self.p_ubA_raw = pd.DataFrame(
-                qp_data.neq_upper_bounds,
+                qp_data.inequality_upper_bounds,
                 self.inequality_constr_names,
                 ["data"],
                 dtype=float,
@@ -189,8 +189,8 @@ class QPControllerDebugger:
 
             self.p_bA_raw = pd.DataFrame(
                 {
-                    "lbA": qp_data.neq_lower_bounds,
-                    "ubA": qp_data.neq_upper_bounds,
+                    "lbA": qp_data.inequality_lower_bounds,
+                    "ubA": qp_data.inequality_upper_bounds,
                 },
                 self.inequality_constr_names,
                 dtype=float,
@@ -295,7 +295,6 @@ class QPControllerDebugger:
     def inequality_constr_names(self):
         return self.qp_controller.qp_data_factory.qp_data._inequality_bounds.names
 
-    @profile
     def update(
         self,
         qp_data: QPDataExplicit,
@@ -369,7 +368,6 @@ class QPController:
     qp_solver: QPSolver = field(default=None, init=False)
     debugger: QPControllerDebugger = field(default=None, init=False)
 
-    @profile
     def __post_init__(self, degrees_of_freedom: List[DegreeOfFreedom]):
         self.qp_solver = self.config.qp_solver_class()
         if self.config.verbose:

@@ -2,21 +2,19 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import Tuple, Dict, TYPE_CHECKING
+from typing import Tuple, Dict
 
 import gurobipy
 import numpy as np
 from gurobipy import GRB, GurobiError
-from line_profiler.explicit_profiler import profile
 
 from giskardpy.qp.exceptions import QPSolverException, InfeasibleException
 from giskardpy.qp.qp_data import QPDataExplicit
 from giskardpy.qp.solvers.qp_solver import QPSolver
+from giskardpy.utils.math import fast_sparse_diagonal
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    import scipy.sparse as sp
 
 gurobipy.setParam(gurobipy.GRB.Param.LogToConsole, False)
 gurobipy.setParam(gurobipy.GRB.Param.FeasibilityTol, 2.5e-5)
@@ -65,12 +63,6 @@ error_info = {
 
 
 class QPSolverGurobi(QPSolver[QPDataExplicit]):
-    """
-    min_x 0.5 x^T P x + q^T x
-    s.t.  Ax = b
-          Gx <= h
-          lb <= x <= ub
-    """
 
     STATUS_VALUE_DICT = {
         getattr(gurobipy.GRB.status, name): name
@@ -79,17 +71,14 @@ class QPSolverGurobi(QPSolver[QPDataExplicit]):
     }
     _times: Dict[Tuple[int, int, int], list] = defaultdict(list)
 
-    @profile
     def init(self, qp_data: QPDataExplicit):
-        import scipy.sparse as sp
-
         self.qpProblem = gurobipy.Model("qp")
         self.x = self.qpProblem.addMVar(
             qp_data.quadratic_weights.shape[0],
             lb=qp_data.box_lower_constraints,
             ub=qp_data.box_upper_constraints,
         )
-        H = sp.diags(qp_data.quadratic_weights, 0)
+        H = fast_sparse_diagonal(qp_data.quadratic_weights)
         self.qpProblem.setMObjective(
             Q=H,
             c=qp_data.linear_weights,
@@ -100,26 +89,28 @@ class QPSolverGurobi(QPSolver[QPDataExplicit]):
         )
         try:
             self.qpProblem.addMConstr(
-                qp_data.eq_matrix, self.x, gurobipy.GRB.EQUAL, qp_data.eq_bounds
+                qp_data.equality_matrix,
+                self.x,
+                gurobipy.GRB.EQUAL,
+                qp_data.equality_bounds,
             )
         except (GurobiError, ValueError) as e:
             pass  # no eq constraints
         try:
             self.qpProblem.addMConstr(
-                qp_data.neq_matrix,
+                qp_data.inequality_matrix,
                 self.x,
                 gurobipy.GRB.GREATER_EQUAL,
-                qp_data.neq_lower_bounds,
+                qp_data.inequality_lower_bounds,
             )
             self.qpProblem.addMConstr(
-                qp_data.neq_matrix,
+                qp_data.inequality_matrix,
                 self.x,
                 gurobipy.GRB.LESS_EQUAL,
-                qp_data.neq_upper_bounds,
+                qp_data.inequality_upper_bounds,
             )
         except (GurobiError, ValueError) as e:
             pass  # no neq constraints
-        self.started = False
 
     def print_debug(self):
         gurobipy.setParam(gurobipy.GRB.Param.LogToConsole, True)
@@ -148,7 +139,6 @@ class QPSolverGurobi(QPSolver[QPDataExplicit]):
             ubA_constraint_ids,
         )
 
-    @profile
     def solver_call_explicit_interface(self, qp_data: QPDataExplicit) -> np.ndarray:
         self.init(qp_data)
         self.qpProblem.optimize()

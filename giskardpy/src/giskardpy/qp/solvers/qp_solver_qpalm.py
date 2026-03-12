@@ -38,13 +38,15 @@ class QPSolverQPalm(QPSolver[QPDataTwoSidedInequality]):
     settings.nonconvex = False
 
     def solver_call(self, qp_data: QPDataTwoSidedInequality) -> np.ndarray:
-        data = qpalm.Data(qp_data.neq_matrix.shape[1], qp_data.neq_matrix.shape[0])
+        data = qpalm.Data(
+            qp_data.inequality_matrix.shape[1], qp_data.inequality_matrix.shape[0]
+        )
 
         data.Q = sp.diags(qp_data.quadratic_weights, format="csc")
         data.q = qp_data.linear_weights
-        data.A = qp_data.neq_matrix
-        data.bmin = qp_data.neq_lower_bounds
-        data.bmax = qp_data.neq_upper_bounds
+        data.A = qp_data.inequality_matrix
+        data.bmin = qp_data.inequality_lower_bounds
+        data.bmax = qp_data.inequality_upper_bounds
         solver = qpalm.Solver(data, self.settings)
         solver.solve()
         if solver.info.status_val != QPALMInfo.SOLVED:

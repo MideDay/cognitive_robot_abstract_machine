@@ -9,9 +9,6 @@ from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from giskardpy.qp.qp_controller_config import QPControllerConfig
-from giskardpy.qp.qp_data import (
-    JerkOneConditioningStrategy,
-)
 from giskardpy.qp.solvers.qp_solver import QPSolver
 from semantic_digital_twin.datastructures.joint_state import JointState
 

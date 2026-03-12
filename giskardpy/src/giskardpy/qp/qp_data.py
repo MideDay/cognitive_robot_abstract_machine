@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from copy import deepcopy
 from dataclasses import dataclass, field
 
 import numpy as np
 import scipy.sparse as sp
 from scipy.sparse import issparse
-from typing_extensions import Self, TYPE_CHECKING
+from typing_extensions import Self, TYPE_CHECKING, Generic, TypeVar, get_args
 
 from krrood.symbolic_math.symbolic_math import (
     CompiledFunctionWithViews,
@@ -24,7 +23,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class QPData:
+class QPData(ABC):
     """
     Parent class for a container of input for a QP solver.
     Subclasses implement specific formats for the QP problem.
@@ -37,69 +36,94 @@ class QPData:
     def num_slack_variables(self) -> int:
         return self.num_inequality_slack_variables + self.num_equality_slack_variables
 
-    def apply_filters(self) -> Self: ...
+    @abstractmethod
+    def apply_filters(self) -> Self:
+        """
+        Applies filters to the QP data to remove constraints that have slack-variables with 0 weight.
+        """
 
 
 @dataclass
 class QPDataExplicit(QPData):
     """
-    Takes free variables and constraints and converts them to a QP problem in the following format, depending on the
-    class attributes:
+    Represents a QP problem for solvers that require the following format:
 
-    min_x 0.5 x^T H x + g^T x
-    s.t.  lb <= x <= ub     (box constraints)
-          Ex <= bE          (equality constraints)
-          lbA <= Ax <= ubA  (lower/upper inequality constraints)
+    min_x 0.5 x^T diagonal(quadratic_weights) x + linear_weights^T x
+    s.t.  box_lower_constraints   <=            x          <= box_upper_constraints
+                                      equality_matrix @ x  == equality_bounds
+          inequality_lower_bounds <= inequality_matrix @ x <= inequality_upper_bounds
     """
 
     quadratic_weights: np.ndarray
+    """
+    The diagonal of the QP's Hessian matrix.
+    """
     linear_weights: np.ndarray
+    """
+    The linear part of the QP's objective function.
+    """
 
     box_lower_constraints: np.ndarray
+    """
+    Lower bounds for x.
+    """
     box_upper_constraints: np.ndarray
+    """
+    Upper bounds for x.
+    """
 
-    eq_matrix: sp.csc_matrix
-    eq_bounds: np.ndarray
+    equality_matrix: sp.csc_matrix
+    """
+    Equality constraints matrix.
+    """
+    equality_bounds: np.ndarray
+    """
+    Constraints for the equality matrix multiplied with x.
+    """
 
-    neq_matrix: sp.csc_matrix
-    neq_lower_bounds: np.ndarray
-    neq_upper_bounds: np.ndarray
-
-    @classmethod
-    @property
-    def factory(cls):
-        return QPDataExplicitFactory
+    inequality_matrix: sp.csc_matrix
+    """
+    Inequality constraints matrix.
+    """
+    inequality_lower_bounds: np.ndarray
+    """
+    Lower bounds for the inequality matrix multiplied with x.
+    """
+    inequality_upper_bounds: np.ndarray
+    """
+    Upper bounds for the inequality matrix multiplied with x.
+    """
 
     @property
     def dense_eq_matrix(self) -> np.ndarray:
-        return self.eq_matrix.toarray()
+        return self.equality_matrix.toarray()
 
     @property
     def dense_neq_matrix(self) -> np.ndarray:
-        return self.neq_matrix.toarray()
+        return self.inequality_matrix.toarray()
 
     def to_two_sided_inequality(self) -> QPDataTwoSidedInequality:
         A2 = sp.eye(len(self.box_upper_constraints), format="csc")
-        if self.eq_matrix.shape[0] * self.eq_matrix.shape[1] != 0:
-            A2 = sp.vstack((A2, self.eq_matrix))
-        if self.neq_matrix.shape[0] * self.neq_matrix.shape[1] != 0:
-            A2 = sp.vstack((A2, self.neq_matrix))
+        if self.equality_matrix.shape[0] * self.equality_matrix.shape[1] != 0:
+            A2 = sp.vstack((A2, self.equality_matrix))
+        if self.inequality_matrix.shape[0] * self.inequality_matrix.shape[1] != 0:
+            A2 = sp.vstack((A2, self.inequality_matrix))
         return QPDataTwoSidedInequality(
             quadratic_weights=self.quadratic_weights,
             linear_weights=self.linear_weights,
-            neq_matrix=A2,
-            neq_lower_bounds=np.concatenate(
+            inequality_matrix=A2,
+            inequality_lower_bounds=np.concatenate(
                 (
                     self.box_lower_constraints,
-                    self.eq_bounds,
-                    self.neq_lower_bounds,
+                    self.equality_bounds,
+                    self.inequality_lower_bounds,
                 )
             ),
-            neq_upper_bounds=np.concatenate(
+            inequality_upper_bounds=np.concatenate(
                 (
                     self.box_upper_constraints,
-                    self.eq_bounds,
-                    self.neq_upper_bounds,
+                    self.equality_bounds,
+                    self.inequality_upper_bounds,
                 )
             ),
             num_equality_slack_variables=self.num_equality_slack_variables,
@@ -116,12 +140,12 @@ class QPDataExplicit(QPData):
         bE_part = slack_part[: self.num_equality_slack_variables]
         bA_part = slack_part[self.num_equality_slack_variables :]
 
-        bE_filter = np.ones(self.eq_matrix.shape[0], dtype=bool)
+        bE_filter = np.ones(self.equality_matrix.shape[0], dtype=bool)
         bE_filter.fill(True)
         if len(bE_part) > 0:
             bE_filter[-len(bE_part) :] = bE_part
 
-        bA_filter = np.ones(self.neq_matrix.shape[0], dtype=bool)
+        bA_filter = np.ones(self.inequality_matrix.shape[0], dtype=bool)
         bA_filter.fill(True)
         if len(bA_part) > 0:
             bA_filter[-len(bA_part) :] = bA_part
@@ -135,15 +159,15 @@ class QPDataExplicit(QPData):
             box_upper_constraints=self.box_upper_constraints[
                 zero_quadratic_weight_filter
             ],
-            eq_matrix=self._filter_eq_matrix(
-                self.eq_matrix, bE_filter, zero_quadratic_weight_filter
+            equality_matrix=self._filter_eq_matrix(
+                self.equality_matrix, bE_filter, zero_quadratic_weight_filter
             ),
-            eq_bounds=self.eq_bounds[bE_filter],
-            neq_matrix=self._filter_neq_matrix(
-                self.neq_matrix, bA_filter, zero_quadratic_weight_filter
+            equality_bounds=self.equality_bounds[bE_filter],
+            inequality_matrix=self._filter_neq_matrix(
+                self.inequality_matrix, bA_filter, zero_quadratic_weight_filter
             ),
-            neq_lower_bounds=self.neq_lower_bounds[bA_filter],
-            neq_upper_bounds=self.neq_upper_bounds[bA_filter],
+            inequality_lower_bounds=self.inequality_lower_bounds[bA_filter],
+            inequality_upper_bounds=self.inequality_upper_bounds[bA_filter],
             num_equality_slack_variables=self.num_equality_slack_variables,
             num_inequality_slack_variables=self.num_inequality_slack_variables,
         )
@@ -175,11 +199,11 @@ class QPDataExplicit(QPData):
             f"    linear_weights={self._np_array_to_str(self.linear_weights)},\n"
             f"    box_lower_constraints={self._np_array_to_str(self.box_lower_constraints)},\n"
             f"    box_upper_constraints={self._np_array_to_str(self.box_upper_constraints)},\n"
-            f"    eq_matrix={self._sparse_matrix_to_str(self.eq_matrix)},\n"
-            f"    eq_bounds={self._np_array_to_str(self.eq_bounds)},\n"
-            f"    neq_matrix={self._sparse_matrix_to_str(self.neq_matrix)},\n"
-            f"    neq_lower_bounds={self._np_array_to_str(self.neq_lower_bounds)},\n"
-            f"    neq_upper_bounds={self._np_array_to_str(self.neq_upper_bounds)},\n"
+            f"    eq_matrix={self._sparse_matrix_to_str(self.equality_matrix)},\n"
+            f"    eq_bounds={self._np_array_to_str(self.equality_bounds)},\n"
+            f"    neq_matrix={self._sparse_matrix_to_str(self.inequality_matrix)},\n"
+            f"    neq_lower_bounds={self._np_array_to_str(self.inequality_lower_bounds)},\n"
+            f"    neq_upper_bounds={self._np_array_to_str(self.inequality_upper_bounds)},\n"
             f"    num_eq_slack_variables={self.num_equality_slack_variables},\n"
             f"    num_neq_slack_variables={self.num_inequality_slack_variables},\n"
             ")"
@@ -230,9 +254,11 @@ class QPDataExplicit(QPData):
         """
         Checks for scale imbalances and potential rank issues in constraints.
         """
-        self._check_matrix_condition(self.eq_matrix, "Equality Constraint Matrix (E)")
         self._check_matrix_condition(
-            self.neq_matrix, "Inequality Constraint Matrix (A)"
+            self.equality_matrix, "Equality Constraint Matrix (E)"
+        )
+        self._check_matrix_condition(
+            self.inequality_matrix, "Inequality Constraint Matrix (A)"
         )
 
         # Simple infeasibility check for box constraints
@@ -264,192 +290,25 @@ class QPDataExplicit(QPData):
 
 
 @dataclass
-class QPDataFactory(ABC):
-    qp_data: QPDataSymbolic
-
-    @abstractmethod
-    def compile(
-        self,
-        world_state_symbols: list[FloatVariable],
-        life_cycle_symbols: list[FloatVariable],
-        float_variables: list[FloatVariable],
-    ): ...
-
-    @abstractmethod
-    def evaluate(
-        self,
-        world_state: np.ndarray,
-        life_cycle_state: np.ndarray,
-        float_variables: np.ndarray,
-    ) -> QPData: ...
-
-    def __hash__(self):
-        return hash(id(self))
-
-    @property
-    def num_eq_constraints(self) -> int:
-        return len(self.constraint_collection.eq_constraints)
-
-    @property
-    def num_neq_constraints(self) -> int:
-        return len(self.constraint_collection.neq_constraints)
-
-    @property
-    def num_free_variable_constraints(self) -> int:
-        return len(self.degrees_of_freedom)
-
-    @property
-    def num_eq_slack_variables(self) -> int:
-        return self.eq_matrix_slack.shape[1]
-
-    @property
-    def num_neq_slack_variables(self) -> int:
-        return self.neq_matrix_slack.shape[1]
-
-    @property
-    def num_slack_variables(self) -> int:
-        return self.num_eq_slack_variables + self.num_neq_slack_variables
-
-    @property
-    def num_non_slack_variables(self) -> int:
-        return self.num_free_variable_constraints - self.num_slack_variables
-
-
-@dataclass
-class QPDataExplicitFactory(QPDataFactory):
-    """
-    Takes free variables and constraints and converts them to a QP problem in the following format, depending on the
-    class attributes:
-
-    min_x 0.5 x^T H x + g^T x
-    s.t.  lb <= x <= ub     (box constraints)
-          Ex <= bE          (equality constraints)
-          lbA <= Ax <= ubA  (lower/upper inequality constraints)
-    """
-
-    qp_data: QPDataSymbolic
-    eq_matrix_compiled: CompiledFunction = field(init=False)
-    neq_matrix_compiled: CompiledFunction = field(init=False)
-    combined_vector_f: CompiledFunctionWithViews = field(init=False)
-
-    def compile(
-        self,
-        world_state_symbols: list[FloatVariable],
-        life_cycle_symbols: list[FloatVariable],
-        float_variables: list[FloatVariable],
-    ):
-        eq_matrix = hstack(
-            [
-                self.qp_data.eq_matrix_dofs,
-                self.qp_data.eq_matrix_slack,
-                Matrix.zeros(
-                    self.qp_data.eq_matrix_slack.shape[0],
-                    self.qp_data.num_neq_slack_variables,
-                ),
-            ]
-        )
-        neq_matrix = hstack(
-            [
-                self.qp_data.neq_matrix_dofs,
-                Matrix.zeros(
-                    self.qp_data.neq_matrix_slack.shape[0],
-                    self.qp_data.num_eq_slack_variables,
-                ),
-                self.qp_data.neq_matrix_slack,
-            ]
-        )
-        free_symbols = [
-            world_state_symbols,
-            life_cycle_symbols,
-            float_variables,
-        ]
-
-        self.eq_matrix_compiled = eq_matrix.compile(
-            parameters=VariableParameters.from_lists(*free_symbols),
-            sparse=True,
-        )
-        self.neq_matrix_compiled = neq_matrix.compile(
-            parameters=VariableParameters.from_lists(*free_symbols),
-            sparse=True,
-        )
-
-        self.combined_vector_f = CompiledFunctionWithViews(
-            expressions=[
-                self.qp_data.quadratic_weights,
-                self.qp_data.linear_weights,
-                self.qp_data.box_lower_constraints,
-                self.qp_data.box_upper_constraints,
-                self.qp_data.eq_bounds,
-                self.qp_data.neq_lower_bounds,
-                self.qp_data.neq_upper_bounds,
-            ],
-            parameters=VariableParameters.from_lists(*free_symbols),
-        )
-
-    def evaluate(
-        self,
-        world_state: np.ndarray,
-        life_cycle_state: np.ndarray,
-        float_variables: np.ndarray,
-    ) -> QPDataExplicit:
-        args = [
-            world_state,
-            life_cycle_state,
-            float_variables,
-        ]
-        eq_matrix_np_raw = self.eq_matrix_compiled(*args)
-        neq_matrix_np_raw = self.neq_matrix_compiled(*args)
-        (
-            quadratic_weights_np_raw,
-            linear_weights_np_raw,
-            box_lower_constraints_np_raw,
-            box_upper_constraints_np_raw,
-            eq_bounds_np_raw,
-            neq_lower_bounds_np_raw,
-            neq_upper_bounds_np_raw,
-        ) = self.combined_vector_f(*args)
-
-        return QPDataExplicit(
-            quadratic_weights=quadratic_weights_np_raw,
-            linear_weights=linear_weights_np_raw,
-            box_lower_constraints=box_lower_constraints_np_raw,
-            box_upper_constraints=box_upper_constraints_np_raw,
-            eq_matrix=eq_matrix_np_raw,
-            eq_bounds=eq_bounds_np_raw,
-            neq_matrix=neq_matrix_np_raw,
-            neq_lower_bounds=neq_lower_bounds_np_raw,
-            neq_upper_bounds=neq_upper_bounds_np_raw,
-            num_equality_slack_variables=self.qp_data.num_eq_slack_variables,
-            num_inequality_slack_variables=self.qp_data.num_neq_slack_variables,
-        )
-
-
-@dataclass
 class QPDataTwoSidedInequality(QPData):
     """
-    Takes free variables and constraints and converts them to a QP problem in the following format, depending on the
-    class attributes:
+    Represents a QP problem for solvers that require the following format:
 
-    min_x 0.5 x^T H x + g^T x
-    s.t.  lb <= x <= ub     (box constraints)
-          Ex <= bE          (equality constraints)
-          lbA <= Ax <= ubA  (lower/upper inequality constraints)
+    min_x 0.5 x^T diagonal(quadratic_weights) x + linear_weights^T x
+    s.t.  inequality_lower_bounds <= inequality_matrix @ x <= inequality_upper_bounds
+
+    Box constraints and equality constraints must be integrated into the inequality constraints.
     """
 
     quadratic_weights: np.ndarray
     linear_weights: np.ndarray
 
-    neq_matrix: sp.csc_matrix
-    neq_lower_bounds: np.ndarray
-    neq_upper_bounds: np.ndarray
+    inequality_matrix: sp.csc_matrix
+    inequality_lower_bounds: np.ndarray
+    inequality_upper_bounds: np.ndarray
 
     num_equality_slack_variables: int
     num_inequality_slack_variables: int
-
-    @classmethod
-    @property
-    def factory(cls):
-        return QPDataTwoSidedInequalityFactory
 
     @property
     def num_box_constraints(self) -> int:
@@ -457,15 +316,15 @@ class QPDataTwoSidedInequality(QPData):
 
     @property
     def box_lower_constraints(self) -> np.ndarray:
-        return self.neq_lower_bounds[: self.num_box_constraints]
+        return self.inequality_lower_bounds[: self.num_box_constraints]
 
     @property
     def box_upper_constraints(self) -> np.ndarray:
-        return self.neq_upper_bounds[: self.num_box_constraints]
+        return self.inequality_upper_bounds[: self.num_box_constraints]
 
     @property
     def eq_matrix(self) -> sp.csc_matrix:
-        return self.neq_matrix[self.bE_start : self.bA_start, :]
+        return self.inequality_matrix[self.bE_start : self.bA_start, :]
 
     @property
     def bE_start(self) -> int:
@@ -473,11 +332,11 @@ class QPDataTwoSidedInequality(QPData):
 
     @property
     def bA_start(self) -> int:
-        return self.neq_lower_bounds.shape[0] - self.num_neq_slack_variables
+        return self.inequality_lower_bounds.shape[0] - self.num_neq_slack_variables
 
     def apply_filters(self) -> Self:
         b_bE_bA_filter = np.ones(
-            self.neq_lower_bounds.shape[0],
+            self.inequality_lower_bounds.shape[0],
             dtype=bool,
         )
         b_zero_inf_filter_view = b_bE_bA_filter[: self.num_box_constraints]
@@ -503,7 +362,9 @@ class QPDataTwoSidedInequality(QPData):
         b_zero_inf_filter_view[::] = zero_quadratic_weight_filter & b_finite_filter
         Ai_inf_filter = b_finite_filter  # [zero_quadratic_weight_filter]
 
-        neq_matrix = self.neq_matrix[:, zero_quadratic_weight_filter][bE_bA_filter, :]
+        neq_matrix = self.inequality_matrix[:, zero_quadratic_weight_filter][
+            bE_bA_filter, :
+        ]
 
         self._nAi_Ai_cache = {}
         box_matrix = self._direct_limit_model(
@@ -513,9 +374,9 @@ class QPDataTwoSidedInequality(QPData):
         return QPDataTwoSidedInequality(
             quadratic_weights=self.quadratic_weights[zero_quadratic_weight_filter],
             linear_weights=self.linear_weights[zero_quadratic_weight_filter],
-            neq_matrix=sp.vstack((box_matrix, neq_matrix)),
-            neq_lower_bounds=self.neq_lower_bounds[b_bE_bA_filter],
-            neq_upper_bounds=self.neq_upper_bounds[b_bE_bA_filter],
+            inequality_matrix=sp.vstack((box_matrix, neq_matrix)),
+            inequality_lower_bounds=self.inequality_lower_bounds[b_bE_bA_filter],
+            inequality_upper_bounds=self.inequality_upper_bounds[b_bE_bA_filter],
             num_equality_slack_variables=self.num_equality_slack_variables,
             num_inequality_slack_variables=self.num_inequality_slack_variables,
         )
@@ -558,138 +419,3 @@ class QPDataTwoSidedInequality(QPData):
             row_indices[1::2] = r2
             col_indices = np.arange(0, d2 + 1, 2)
             return sp.csc_matrix((data, row_indices, col_indices))
-
-
-@dataclass
-class QPDataTwoSidedInequalityFactory(QPDataFactory):
-    """
-    Takes free variables and constraints and converts them to a QP problem in the following format, depending on the
-    class attributes:
-
-    min_x 0.5 x^T H x + g^T x
-    s.t.  lbA <= Ax <= ubA
-    """
-
-    qp_data: QPDataSymbolic
-    eq_matrix_compiled: CompiledFunction = field(init=False)
-    neq_matrix_compiled: CompiledFunction = field(init=False)
-    combined_vector_f: CompiledFunctionWithViews = field(init=False)
-
-    b_bE_bA_filter: np.ndarray = field(init=False)
-    b_zero_inf_filter_view: np.ndarray = field(init=False)
-    bE_filter_view: np.ndarray = field(init=False)
-    bA_filter_view: np.ndarray = field(init=False)
-    bE_bA_filter: np.ndarray = field(init=False)
-
-    def compile(
-        self,
-        world_state_symbols: list[FloatVariable],
-        life_cycle_symbols: list[FloatVariable],
-        float_variables: list[FloatVariable],
-    ):
-        if len(self.qp_data.neq_matrix_dofs) == 0:
-            constraint_matrix = hstack(
-                [self.qp_data.eq_matrix_dofs, self.qp_data.eq_matrix_slack]
-            )
-        else:
-            eq_matrix = hstack(
-                [
-                    self.qp_data.eq_matrix_dofs,
-                    self.qp_data.eq_matrix_slack,
-                    Matrix.zeros(
-                        self.qp_data.eq_matrix_dofs.shape[0],
-                        self.qp_data.neq_matrix_slack.shape[1],
-                    ),
-                ]
-            )
-            neq_matrix = hstack(
-                [
-                    self.qp_data.neq_matrix_dofs,
-                    Matrix.zeros(
-                        self.qp_data.neq_matrix_dofs.shape[0],
-                        self.qp_data.eq_matrix_slack.shape[1],
-                    ),
-                    self.qp_data.neq_matrix_slack,
-                ]
-            )
-            constraint_matrix = vstack([eq_matrix, neq_matrix])
-
-        free_symbols = [
-            world_state_symbols,
-            life_cycle_symbols,
-            float_variables,
-        ]
-
-        len_lb_be_lba_end = (
-            self.qp_data.quadratic_weights.shape[0]
-            + self.qp_data.box_lower_constraints.shape[0]
-            + self.qp_data.eq_bounds.shape[0]
-            + self.qp_data.neq_lower_bounds.shape[0]
-        )
-        len_ub_be_uba_end = (
-            len_lb_be_lba_end
-            + self.qp_data.box_upper_constraints.shape[0]
-            + self.qp_data.eq_bounds.shape[0]
-            + self.qp_data.neq_upper_bounds.shape[0]
-        )
-
-        self.combined_vector_f = CompiledFunctionWithViews(
-            expressions=[
-                self.qp_data.quadratic_weights,
-                self.qp_data.box_lower_constraints,
-                self.qp_data.eq_bounds,
-                self.qp_data.neq_lower_bounds,
-                self.qp_data.box_upper_constraints,
-                self.qp_data.eq_bounds,
-                self.qp_data.neq_upper_bounds,
-                self.qp_data.linear_weights,
-            ],
-            parameters=VariableParameters.from_lists(*free_symbols),
-            additional_views=[
-                slice(self.qp_data.quadratic_weights.shape[0], len_lb_be_lba_end),
-                slice(len_lb_be_lba_end, len_ub_be_uba_end),
-            ],
-        )
-
-        self.neq_matrix_compiled = constraint_matrix.compile(
-            parameters=VariableParameters.from_lists(*free_symbols),
-            sparse=True,
-        )
-
-        self._nAi_Ai_cache = {}
-
-    def evaluate(
-        self,
-        world_state: np.ndarray,
-        life_cycle_state: np.ndarray,
-        float_variables: np.ndarray,
-    ) -> QPData:
-        args = [
-            world_state,
-            life_cycle_state,
-            float_variables,
-        ]
-        neq_matrix = self.neq_matrix_compiled(*args)
-        (
-            quadratic_weights_np_raw,
-            box_lower_constraints_np_raw,
-            _,
-            _,
-            box_upper_constraints_np_raw,
-            _,
-            _,
-            linear_weights_np_raw,
-            box_eq_neq_lower_bounds_np_raw,
-            box_eq_neq_upper_bounds_np_raw,
-        ) = self.combined_vector_f(*args)
-        self.qp_data_raw = QPDataTwoSidedInequality(
-            quadratic_weights=quadratic_weights_np_raw,
-            linear_weights=linear_weights_np_raw,
-            neq_matrix=neq_matrix,
-            neq_lower_bounds=box_eq_neq_lower_bounds_np_raw,
-            neq_upper_bounds=box_eq_neq_upper_bounds_np_raw,
-            num_equality_slack_variables=self.qp_data.num_eq_slack_variables,
-            num_inequality_slack_variables=self.qp_data.num_neq_slack_variables,
-        )
-
-        return self.qp_data_raw

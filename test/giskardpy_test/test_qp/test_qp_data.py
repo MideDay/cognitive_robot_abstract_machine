@@ -26,11 +26,11 @@ def simple_inequality_qp() -> tuple[QPData, np.ndarray]:
         linear_weights=np.array([0.0, 0.0]),
         box_lower_constraints=np.array([-np.inf, -np.inf]),
         box_upper_constraints=np.array([np.inf, np.inf]),
-        eq_matrix=sp.csc_matrix(np.zeros((0, 2))),
-        eq_bounds=np.array([]),
-        neq_matrix=sp.csc_matrix(np.array([[1.0, 1.0]])),
-        neq_lower_bounds=np.array([-np.inf]),
-        neq_upper_bounds=np.array([-0.5]),
+        equality_matrix=sp.csc_matrix(np.zeros((0, 2))),
+        equality_bounds=np.array([]),
+        inequality_matrix=sp.csc_matrix(np.array([[1.0, 1.0]])),
+        inequality_lower_bounds=np.array([-np.inf]),
+        inequality_upper_bounds=np.array([-0.5]),
         num_equality_slack_variables=0,
         num_inequality_slack_variables=0,
     ), np.array([-0.25, -0.25])
@@ -53,11 +53,11 @@ def simple_eq_as_inequality_qp() -> tuple[QPData, np.ndarray]:
         linear_weights=np.array([0.0, 0.0]),
         box_lower_constraints=np.array([-np.inf, -np.inf]),
         box_upper_constraints=np.array([np.inf, np.inf]),
-        eq_matrix=sp.csc_matrix(np.zeros((0, 2))),
-        eq_bounds=np.array([]),
-        neq_matrix=sp.csc_matrix(np.array([[1.0, 1.0]])),
-        neq_lower_bounds=np.array([-0.5]),
-        neq_upper_bounds=np.array([-0.5]),
+        equality_matrix=sp.csc_matrix(np.zeros((0, 2))),
+        equality_bounds=np.array([]),
+        inequality_matrix=sp.csc_matrix(np.array([[1.0, 1.0]])),
+        inequality_lower_bounds=np.array([-0.5]),
+        inequality_upper_bounds=np.array([-0.5]),
         num_equality_slack_variables=0,
         num_inequality_slack_variables=0,
     ), np.array([-0.25, -0.25])
@@ -80,11 +80,11 @@ def simple_equality_qp() -> tuple[QPData, np.ndarray]:
         linear_weights=np.array([0.0, 0.0]),
         box_lower_constraints=np.array([-np.inf, -np.inf]),
         box_upper_constraints=np.array([np.inf, np.inf]),
-        eq_matrix=sp.csc_matrix(np.array([[1.0, 1.0]])),
-        eq_bounds=np.array([-0.5]),
-        neq_matrix=sp.csc_matrix(np.zeros((0, 2))),
-        neq_lower_bounds=np.array([]),
-        neq_upper_bounds=np.array([]),
+        equality_matrix=sp.csc_matrix(np.array([[1.0, 1.0]])),
+        equality_bounds=np.array([-0.5]),
+        inequality_matrix=sp.csc_matrix(np.zeros((0, 2))),
+        inequality_lower_bounds=np.array([]),
+        inequality_upper_bounds=np.array([]),
         num_equality_slack_variables=0,
         num_inequality_slack_variables=0,
     ), np.array([-0.25, -0.25])
@@ -106,11 +106,11 @@ def box_constraints_qp() -> tuple[QPData, np.ndarray]:
         linear_weights=np.array([0.0, 0.0]),
         box_lower_constraints=np.array([-1.0, 0.5]),
         box_upper_constraints=np.array([1.0, 2.0]),
-        eq_matrix=sp.csc_matrix(np.zeros((0, 2))),
-        eq_bounds=np.array([]),
-        neq_matrix=sp.csc_matrix(np.zeros((0, 2))),
-        neq_lower_bounds=np.array([]),
-        neq_upper_bounds=np.array([]),
+        equality_matrix=sp.csc_matrix(np.zeros((0, 2))),
+        equality_bounds=np.array([]),
+        inequality_matrix=sp.csc_matrix(np.zeros((0, 2))),
+        inequality_lower_bounds=np.array([]),
+        inequality_upper_bounds=np.array([]),
         num_equality_slack_variables=0,
         num_inequality_slack_variables=0,
     ), np.array([0.0, 0.5])
@@ -132,11 +132,11 @@ def linear_weights_qp() -> tuple[QPData, np.ndarray]:
         linear_weights=np.array([2.0, -4.0]),
         box_lower_constraints=np.array([-np.inf, -np.inf]),
         box_upper_constraints=np.array([np.inf, np.inf]),
-        eq_matrix=sp.csc_matrix(np.zeros((0, 2))),
-        eq_bounds=np.array([]),
-        neq_matrix=sp.csc_matrix(np.zeros((0, 2))),
-        neq_lower_bounds=np.array([]),
-        neq_upper_bounds=np.array([]),
+        equality_matrix=sp.csc_matrix(np.zeros((0, 2))),
+        equality_bounds=np.array([]),
+        inequality_matrix=sp.csc_matrix(np.zeros((0, 2))),
+        inequality_lower_bounds=np.array([]),
+        inequality_upper_bounds=np.array([]),
         num_equality_slack_variables=0,
         num_inequality_slack_variables=0,
     ), np.array([-1.0, 2.0])
@@ -155,11 +155,11 @@ def infeasible_qp() -> QPData:
         linear_weights=np.array([0.0]),
         box_lower_constraints=np.array([-np.inf]),
         box_upper_constraints=np.array([np.inf]),
-        eq_matrix=sp.csc_matrix(np.array([[1.0], [1.0]])),
-        eq_bounds=np.array([1.0, 2.0]),
-        neq_matrix=sp.csc_matrix(np.zeros((0, 1))),
-        neq_lower_bounds=np.array([]),
-        neq_upper_bounds=np.array([]),
+        equality_matrix=sp.csc_matrix(np.array([[1.0], [1.0]])),
+        equality_bounds=np.array([1.0, 2.0]),
+        inequality_matrix=sp.csc_matrix(np.zeros((0, 1))),
+        inequality_lower_bounds=np.array([]),
+        inequality_upper_bounds=np.array([]),
         num_equality_slack_variables=0,
         num_inequality_slack_variables=0,
     )
@@ -180,11 +180,11 @@ def larger_qp() -> tuple[QPData, np.ndarray]:
         linear_weights=np.array([0.0, 0.0, 0.0]),
         box_lower_constraints=np.array([-np.inf, -np.inf, -np.inf]),
         box_upper_constraints=np.array([np.inf, np.inf, np.inf]),
-        eq_matrix=sp.csc_matrix(np.array([[1.0, 1.0, 1.0]])),
-        eq_bounds=np.array([1.0]),
-        neq_matrix=sp.csc_matrix(np.zeros((0, 3))),
-        neq_lower_bounds=np.array([]),
-        neq_upper_bounds=np.array([]),
+        equality_matrix=sp.csc_matrix(np.array([[1.0, 1.0, 1.0]])),
+        equality_bounds=np.array([1.0]),
+        inequality_matrix=sp.csc_matrix(np.zeros((0, 3))),
+        inequality_lower_bounds=np.array([]),
+        inequality_upper_bounds=np.array([]),
         num_equality_slack_variables=0,
         num_inequality_slack_variables=0,
     ), np.array([1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0])
@@ -1041,7 +1041,7 @@ def sadness_qp_raw():
             ],
             dtype=float,
         ),
-        eq_matrix=sp.csc_matrix(
+        equality_matrix=sp.csc_matrix(
             (
                 np.array(
                     [
@@ -2607,7 +2607,7 @@ def sadness_qp_raw():
             ),
             shape=(108, 207),
         ),
-        eq_bounds=np.array(
+        equality_bounds=np.array(
             [
                 0.030531101680162244,
                 0.029275506579532696,
@@ -2720,7 +2720,7 @@ def sadness_qp_raw():
             ],
             dtype=float,
         ),
-        neq_matrix=sp.csc_matrix(
+        inequality_matrix=sp.csc_matrix(
             (
                 np.array([], dtype=float),
                 np.array([], dtype=int),
@@ -2728,8 +2728,8 @@ def sadness_qp_raw():
             ),
             shape=(0, 3),
         ),
-        neq_lower_bounds=np.array([], dtype=float),
-        neq_upper_bounds=np.array([], dtype=float),
+        inequality_lower_bounds=np.array([], dtype=float),
+        inequality_upper_bounds=np.array([], dtype=float),
         num_equality_slack_variables=0,
         num_inequality_slack_variables=0,
     )
@@ -3586,7 +3586,7 @@ def sadness_qp17():
             ],
             dtype=float,
         ),
-        eq_matrix=sp.csc_matrix(
+        equality_matrix=sp.csc_matrix(
             (
                 np.array(
                     [
@@ -5152,7 +5152,7 @@ def sadness_qp17():
             ),
             shape=(108, 207),
         ),
-        eq_bounds=np.array(
+        equality_bounds=np.array(
             [
                 0.043554798296614544,
                 0.03784324463768191,
@@ -5265,7 +5265,7 @@ def sadness_qp17():
             ],
             dtype=float,
         ),
-        neq_matrix=sp.csc_matrix(
+        inequality_matrix=sp.csc_matrix(
             (
                 np.array([], dtype=float),
                 np.array([], dtype=int),
@@ -5273,8 +5273,8 @@ def sadness_qp17():
             ),
             shape=(0, 3),
         ),
-        neq_lower_bounds=np.array([], dtype=float),
-        neq_upper_bounds=np.array([], dtype=float),
+        inequality_lower_bounds=np.array([], dtype=float),
+        inequality_upper_bounds=np.array([], dtype=float),
         num_equality_slack_variables=0,
         num_inequality_slack_variables=0,
     )
@@ -6131,7 +6131,7 @@ def sadness_qp21():
             ],
             dtype=float,
         ),
-        eq_matrix=sp.csc_matrix(
+        equality_matrix=sp.csc_matrix(
             (
                 np.array(
                     [
@@ -7697,7 +7697,7 @@ def sadness_qp21():
             ),
             shape=(108, 207),
         ),
-        eq_bounds=np.array(
+        equality_bounds=np.array(
             [
                 0.054380668355601416,
                 0.04082109169225943,
@@ -7810,7 +7810,7 @@ def sadness_qp21():
             ],
             dtype=float,
         ),
-        neq_matrix=sp.csc_matrix(
+        inequality_matrix=sp.csc_matrix(
             (
                 np.array([], dtype=float),
                 np.array([], dtype=int),
@@ -7818,8 +7818,8 @@ def sadness_qp21():
             ),
             shape=(0, 3),
         ),
-        neq_lower_bounds=np.array([], dtype=float),
-        neq_upper_bounds=np.array([], dtype=float),
+        inequality_lower_bounds=np.array([], dtype=float),
+        inequality_upper_bounds=np.array([], dtype=float),
         num_equality_slack_variables=0,
         num_inequality_slack_variables=0,
     )
