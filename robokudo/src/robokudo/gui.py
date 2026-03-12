@@ -6,11 +6,14 @@ in RoboKudo pipelines. The behaviors can be used to trigger redrawing of
 annotator outputs and manage pipeline visualization state.
 """
 
+import logging
+
 from py_trees.common import Status
 from py_trees.behaviour import Behaviour
 from py_trees.blackboard import Blackboard
 
 from . import pipeline
+import robokudo.defs
 
 
 class SetPipelineRedraw(Behaviour):
@@ -33,6 +36,8 @@ class SetPipelineRedraw(Behaviour):
         """
         super().__init__(name)
 
+        self.rk_logger = logging.getLogger(robokudo.defs.PACKAGE_NAME)
+
     def update(self) -> Status:
         """Execute the behavior's update step.
 
@@ -49,7 +54,7 @@ class SetPipelineRedraw(Behaviour):
             self.rk_logger.warning(
                 "You've put a PipelineGUI behavior in your tree but your parent is not a Pipeline. Exiting..."
             )
-            return
+            return Status.INVALID
 
         blackboard = Blackboard()
         annotator_output_pipeline_map_buffer = blackboard.get(

@@ -30,10 +30,10 @@ from ..types.annotation import (
     StampedPositionAnnotation,
 )
 from ..types.cv import BoundingBox3D
+from ..types.core import Annotation
 
 if TYPE_CHECKING:
     from robokudo_msgs.msg import ObjectDesignator
-    from ..types.core import Annotation
     from ..cas import CAS
 
 T = TypeVar("T", bound=Annotation)

@@ -13,7 +13,7 @@ class CameraConfig:
 
     # camera
     interface_type: str = "Kinect"
-    depthOffset: str = 0
+    depthOffset: int = 0
     filterBlurredImages: bool = True
     # If the resolution of the depth image differs from the color image,
     # we need to define the factor for (x, y).
