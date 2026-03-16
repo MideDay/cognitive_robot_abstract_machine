@@ -544,12 +544,12 @@ class CartesianPose(CartesianTask):
             self.root_link = context.world.root
 
         # Extract position and orientation from goal pose
-        goal_orientation = self.goal_pose.to_rotation_matrix()
-        goal_point = self.goal_pose.to_position()
+        goal_reference_frame_R_goal_orientation = self.goal_pose.to_rotation_matrix()
+        goal_reference_frame_P_goal_position = self.goal_pose.to_position()
 
         # Transform goal into root frame
-        root_P_goal = self.root_T_goal_reference_frame @ goal_point
-        root_R_goal = self.root_T_goal_reference_frame @ goal_orientation
+        root_P_goal = self.root_T_goal_reference_frame @ goal_reference_frame_P_goal_position
+        root_R_goal = self.root_T_goal_reference_frame @ goal_reference_frame_R_goal_orientation
 
         # Get current tip pose in root frame
         root_T_current = context.world.compose_forward_kinematics_expression(
