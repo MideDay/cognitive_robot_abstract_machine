@@ -460,60 +460,32 @@ class FreeVariableBounds(ProblemDataPart):
     def free_variable_bounds(
         self,
     ) -> Tuple[List[Dict[str, sm.ScalarData]], List[Dict[str, sm.ScalarData]]]:
-        # if self.config.qp_formulation in [ControllerMode.explicit, ControllerMode.explicit_no_acc]:
         max_derivative = self.config.max_derivative
         lb: DefaultDict[Derivatives, Dict[str, sm.ScalarData]] = defaultdict(dict)
         ub: DefaultDict[Derivatives, Dict[str, sm.ScalarData]] = defaultdict(dict)
         for v in self.degrees_of_freedom:
-            if self.config.qp_formulation.has_explicit_pos_limits:
-                for t in range(self.config.prediction_horizon):
-                    for derivative in Derivatives.range(
-                        Derivatives.velocity, max_derivative
+            lb_, ub_ = self.velocity_limit(v=v, max_derivative=max_derivative)
+            for t in range(self.config.prediction_horizon):
+                for derivative in Derivatives.range(
+                    Derivatives.velocity, max_derivative
+                ):
+                    if t >= self.config.prediction_horizon - (
+                        max_derivative - derivative
                     ):
-                        if t >= self.config.prediction_horizon - (
-                            max_derivative - derivative
-                        ):
-                            continue
-                        if (
-                            derivative == Derivatives.acceleration
-                            and not self.config.qp_formulation.has_explicit_acc_variables
-                        ):
-                            continue
-                        if (
-                            derivative == Derivatives.jerk
-                            and not self.config.qp_formulation.has_explicit_jerk_variables
-                        ):
-                            continue
-                        index = t + self.config.prediction_horizon * (derivative - 1)
-                        lb[derivative][f"t{t:03}/{v.name}/{derivative}"] = (
-                            v.lower_limits.data[derivative]
-                        )
-                        ub[derivative][f"t{t:03}/{v.name}/{derivative}"] = (
-                            v.upper_limits.data[derivative]
-                        )
-            else:
-                lb_, ub_ = self.velocity_limit(v=v, max_derivative=max_derivative)
-                for t in range(self.config.prediction_horizon):
-                    for derivative in Derivatives.range(
-                        Derivatives.velocity, max_derivative
+                        continue
+                    if (
+                        derivative == Derivatives.acceleration
+                        and not self.config.qp_formulation.has_explicit_acc_variables
                     ):
-                        if t >= self.config.prediction_horizon - (
-                            max_derivative - derivative
-                        ):
-                            continue
-                        if (
-                            derivative == Derivatives.acceleration
-                            and not self.config.qp_formulation.has_explicit_acc_variables
-                        ):
-                            continue
-                        if (
-                            derivative == Derivatives.jerk
-                            and not self.config.qp_formulation.has_explicit_jerk_variables
-                        ):
-                            continue
-                        index = t + self.config.prediction_horizon * (derivative - 1)
-                        lb[derivative][f"t{t:03}/{v.name}/{derivative}"] = lb_[index]
-                        ub[derivative][f"t{t:03}/{v.name}/{derivative}"] = ub_[index]
+                        continue
+                    if (
+                        derivative == Derivatives.jerk
+                        and not self.config.qp_formulation.has_explicit_jerk_variables
+                    ):
+                        continue
+                    index = t + self.config.prediction_horizon * (derivative - 1)
+                    lb[derivative][f"t{t:03}/{v.name}/{derivative}"] = lb_[index]
+                    ub[derivative][f"t{t:03}/{v.name}/{derivative}"] = ub_[index]
         lb_params = []
         ub_params = []
         for derivative, name_to_bound_map in sorted(lb.items()):
@@ -819,10 +791,7 @@ class InequalityBounds(ProblemDataPart):
         lb_acc, ub_acc = {}, {}
         lb_jerk, ub_jerk = {}, {}
         for v in self.degrees_of_freedom:
-            if self.config.qp_formulation.has_explicit_pos_limits:
-                lb_, ub_ = v.lower_limits.jerk, v.upper_limits.jerk
-            else:
-                lb_, ub_ = self.velocity_limit(v=v, max_derivative=Derivatives.jerk)
+            lb_, ub_ = self.velocity_limit(v=v, max_derivative=Derivatives.jerk)
             for t in range(self.config.prediction_horizon):
                 # if self.config.max_derivative >= Derivatives.acceleration:
                 #     a_min = v.get_lower_limit(Derivatives.acceleration)
@@ -837,12 +806,8 @@ class InequalityBounds(ProblemDataPart):
                 #             lb_acc[f't{t:03}/{v.name}/{Derivatives.acceleration}'] = a_min
                 #             ub_acc[f't{t:03}/{v.name}/{Derivatives.acceleration}'] = a_max
                 if self.config.max_derivative >= Derivatives.jerk:
-                    if self.config.qp_formulation.has_explicit_pos_limits:
-                        j_min = lb_
-                        j_max = ub_
-                    else:
-                        j_min = lb_[self.config.prediction_horizon * 2 + t]
-                        j_max = ub_[self.config.prediction_horizon * 2 + t]
+                    j_min = lb_[self.config.prediction_horizon * 2 + t]
+                    j_max = ub_[self.config.prediction_horizon * 2 + t]
                     vtc = v.variables.velocity
                     atc = v.variables.acceleration
                     if t == 0:
@@ -877,11 +842,6 @@ class InequalityBounds(ProblemDataPart):
         ub_params: List[Dict[str, sm.Vector]] = []
 
         # derivative model
-        if self.config.qp_formulation.has_explicit_pos_limits:
-            lb, ub = self.implicit_pos_model_limits()
-            lb_params.extend(lb)
-            ub_params.extend(ub)
-
         if self.config.qp_formulation.is_implicit:
             lb, ub = self.implicit_model_limits()
             lb_params.extend(lb)
@@ -1690,11 +1650,6 @@ class InequalityModel(ProblemDataPart):
         model_parts = []
         slack_model_parts = []
 
-        if self.config.qp_formulation.has_explicit_pos_limits:
-            pos_model, pos_slack_model = self.implicit_pos_limits()
-            if len(pos_model) > 0:
-                model_parts.append(pos_model)
-                slack_model_parts.append(pos_slack_model)
         if self.config.qp_formulation.is_implicit:
             max_derivative = Derivatives.velocity
             derivative_model, derivative_model_slack = self.implicit_model(

@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 @dataclass
 class QPFormulation:
     is_mpc: bool = field(default=True)
-    has_explicit_pos_limits: bool = field(default=False)
     has_explicit_acc_variables: bool = field(default=False)
     has_explicit_jerk_variables: bool = field(default=True)
 
@@ -28,7 +27,6 @@ class QPFormulation:
     def Implicit(cls):
         return cls(
             is_mpc=True,
-            has_explicit_pos_limits=False,
             has_explicit_acc_variables=False,
             has_explicit_jerk_variables=False,
         )
