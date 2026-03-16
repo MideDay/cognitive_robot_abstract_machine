@@ -16,6 +16,7 @@ from pycram.pose_validator import (
 )
 from pycram.querying.predicates import GripperIsFree
 from semantic_digital_twin.datastructures.definitions import GripperState
+from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.reasoning.robot_predicates import is_body_in_gripper
 from semantic_digital_twin.world_description.world_entity import Body
 from pycram.robot_plans.motions.gripper import MoveGripperMotion, MoveTCPMotion
@@ -108,14 +109,15 @@ class ReachAction(ActionDescription):
         variables, context: Context, kwargs: Dict[str, Any]
     ) -> SymbolicExpression | bool:
         manipulator = ViewManager.get_end_effector_view(kwargs["arm"], context.robot)
-        return is_body_in_gripper(
-            kwargs["object_designator"], manipulator
-        ) > 0.9 or np.allclose(
-            kwargs["object_designator"].global_pose.to_position(),
-            ViewManager.get_end_effector_view(
-                kwargs["arm"], context.robot
-            ).tool_frame.global_pose.to_position(),
-            atol=3e-2,
+        return or_(
+            is_body_in_gripper(kwargs["object_designator"], manipulator) > 0.9,
+            allclose(
+                kwargs["object_designator"].global_pose.to_position(),
+                ViewManager.get_end_effector_view(
+                    kwargs["arm"], context.robot
+                ).tool_frame.global_pose.to_position(),
+                atol=3e-2,
+            ),
         )
 
     @classmethod

@@ -8,6 +8,7 @@ from typing_extensions import Union, Optional, Type, Any, Iterable, Dict
 
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.factories import and_
+from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.reasoning.robot_predicates import is_pose_free_for_robot
 from semantic_digital_twin.robots.abstract_robot import Camera
 from pycram.robot_plans.actions.base import ActionDescription, DescriptionType
@@ -59,12 +60,10 @@ class NavigateAction(ActionDescription):
     def post_condition(
         variables, context: Context, kwargs: Dict[str, Any]
     ) -> SymbolicExpression:
-        return and_(
-            np.allclose(
-                context.robot.root.global_pose,
-                kwargs["target_location"].to_spatial_type(),
-                atol=0.03,
-            )
+        return allclose(
+            context.robot.root.global_pose,
+            kwargs["target_location"].to_spatial_type(),
+            atol=0.03,
         )
 
     @classmethod

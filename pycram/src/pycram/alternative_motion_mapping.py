@@ -13,12 +13,12 @@ if TYPE_CHECKING:
 else:
     BaseMotion = TypeVar("BaseMotion")
 
-T = TypeVar("T", bound=AbstractRobot)
-U = TypeVar("U", bound=BaseMotion)
+AbstractRobotType = TypeVar("AbstractRobotType", bound=AbstractRobot)
+BaseMotionType = TypeVar("BaseMotionType", bound=BaseMotion)
 
 
 @dataclass
-class AlternativeMotion(HasGeneric[T], ABC):
+class AlternativeMotion(HasGeneric[AbstractRobotType], ABC):
     execution_type: ClassVar[ExecutionType]
 
     def perform(self):
@@ -26,8 +26,8 @@ class AlternativeMotion(HasGeneric[T], ABC):
 
     @staticmethod
     def check_for_alternative(
-        robot_view: AbstractRobot, motion: Type[U]
-    ) -> Optional[Type[U]]:
+        robot_view: AbstractRobot, motion: Type[BaseMotionType]
+    ) -> Optional[Type[BaseMotionType]]:
         """
         Checks if there is an alternative motion for the given robot view, motion and execution type.
 

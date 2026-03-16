@@ -539,3 +539,8 @@ def is_region_occupied(
             return True
 
     return False
+
+
+@symbolic_function
+def allclose(array1: np.ndarray, array2: np.ndarray, atol=1e-3) -> bool:
+    return np.allclose(array1, array2, atol=atol)

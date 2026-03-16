@@ -18,8 +18,12 @@ from typing_extensions import (
 
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.variable import Variable
-from krrood.entity_query_language.entity import evaluate_condition
-from krrood.entity_query_language.factories import variable, a, set_of
+from krrood.entity_query_language.factories import (
+    variable,
+    a,
+    set_of,
+    evaluate_condition,
+)
 from ...datastructures.dataclasses import Context
 from pycram.designator import DesignatorDescription
 from pycram.failures import PlanFailure, ConditionNotSatisfied
@@ -53,8 +57,6 @@ class ActionDescription(DesignatorDescription, ABC):
             raise e
         finally:
             pass
-            # for post_cb in self._post_perform_callbacks:
-            #     post_cb(self)
 
         return result
 
@@ -91,10 +93,6 @@ class ActionDescription(DesignatorDescription, ABC):
     def bound_variables(self) -> Dict[T, Variable[T] | T]:
         return self._create_variables()
 
-    # @cached_property
-    # def unbound_variables(self) -> Dict[T, Variable[T] | T]:
-    #     return self._create_variables(False)
-
     def _create_variables(self) -> Dict[str, Variable[T] | T]:
         """
         Creates krrood variables for all parameter of this action
@@ -130,20 +128,6 @@ class ActionDescription(DesignatorDescription, ABC):
         if evaluation:
             return True
         raise ConditionNotSatisfied(False, self.__class__, condition)
-
-    def find_possible_parameter(self) -> Generator[Dict[str, Any]]:
-        """
-        Queries the world using the pre_condition and yields possible parameters for this action which satisfy the
-        precondition.
-
-        :return: A dict that maps the name of the parameter to a possible value
-        """
-        unbound_condition = self.pre_condition(False)
-        query = a(set_of(*self.unbound_variables.values()).where(unbound_condition))
-        var_to_field = dict(zip(self.unbound_variables.values(), self.fields))
-        for result in query.evaluate():
-            bindings = result.data
-            yield {var_to_field[k].name: v for k, v in bindings.items()}
 
 
 ActionType = TypeVar("ActionType", bound=ActionDescription)

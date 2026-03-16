@@ -12,7 +12,7 @@ from pycram.datastructures.dataclasses import Context
 from pycram.querying.predicates import GripperIsFree
 from pycram.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import TorsoState
-from semantic_digital_twin.reasoning.predicates import InsideOf
+from semantic_digital_twin.reasoning.predicates import InsideOf, allclose
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Drawer
 from semantic_digital_twin.world_description.world_entity import Body
 from typing_extensions import Union, Optional, Type, Any, Iterable, Dict
@@ -165,13 +165,13 @@ class TransportAction(ActionDescription):
         variables: Dict, context: Context, kwargs: Dict[str, Any]
     ) -> SymbolicExpression:
         manipulator = ViewManager.get_end_effector_view(variables["arm"], context.robot)
-        return and_(GripperIsFree(manipulator))
+        return GripperIsFree(manipulator)
 
     @staticmethod
     def post_condition(
         variables, context: Context, kwargs: Dict[str, Any]
     ) -> SymbolicExpression | bool:
-        return np.allclose(
+        return allclose(
             kwargs["object_designator"].global_pose,
             kwargs["target_location"].to_spatial_type(),
             atol=1e-2,

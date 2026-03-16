@@ -5,7 +5,7 @@ from pathlib import Path
 
 from typing_extensions import TYPE_CHECKING, List, Optional, Type
 
-from krrood.entity_query_language.entity import get_false_statements
+from krrood.entity_query_language.factories import ConditionType, get_false_statements
 
 if TYPE_CHECKING:
     from pycram.datastructures.pose import PoseStamped

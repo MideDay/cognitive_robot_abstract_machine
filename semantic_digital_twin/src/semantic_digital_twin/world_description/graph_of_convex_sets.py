@@ -187,7 +187,7 @@ class GraphOfConvexSets:
         free_space = Event(*[node.simple_event for node in self.graph.nodes()])
         return free_space.plot(color="blue")
 
-    def actual_plot_free_space(self) -> None:
+    def plot_and_show_free_space(self) -> None:
         import plotly.graph_objects as go
 
         go.Figure(self.plot_free_space()).show()
@@ -201,7 +201,7 @@ class GraphOfConvexSets:
         occupied_space = ~free_space & self.search_space.event
         return occupied_space.plot(color="red")
 
-    def actual_plot_occupied_space(self) -> None:
+    def plot_and_show_occupied_space(self) -> None:
         import plotly.graph_objects as go
 
         go.Figure(self.plot_occupied_space()).show()

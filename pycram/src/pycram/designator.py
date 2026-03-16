@@ -129,8 +129,9 @@ class DesignatorDescription:
             self_fields.remove(parent_field)
             for parent_field in fields(DesignatorDescription)
         ]
+        type_hints = cls.get_type_hints()
         for field in self_fields:
-            field.type = cls.get_type_hints()[field.name]
+            field.type = type_hints[field.name]
         return self_fields
 
     @property

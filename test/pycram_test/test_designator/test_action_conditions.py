@@ -1,6 +1,6 @@
 import pytest
 
-from krrood.entity_query_language.entity import (
+from krrood.entity_query_language.factories import (
     get_false_statements,
     evaluate_condition,
 )
