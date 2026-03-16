@@ -126,7 +126,11 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
         # Overwrite the parameters explicitly to enable auto-completion
         parameters = Parameters()
 
-    def __init__(self, name: str="StaticObjectDetector", descriptor: 'StaticObjectDetectorAnnotator.Descriptor'=Descriptor()):
+    def __init__(
+        self,
+        name: str = "StaticObjectDetector",
+        descriptor: "StaticObjectDetectorAnnotator.Descriptor" = Descriptor(),
+    ):
         """Default construction. Minimal one-time init!
 
         :param name: Name of the annotator instance, defaults to "StaticObjectDetector"
@@ -157,12 +161,21 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
         object_hypothesis.roi.roi.pos.x = self.descriptor.parameters.bounding_box_x
         object_hypothesis.roi.roi.pos.y = self.descriptor.parameters.bounding_box_y
         object_hypothesis.roi.roi.width = self.descriptor.parameters.bounding_box_width
-        object_hypothesis.roi.roi.height = self.descriptor.parameters.bounding_box_height
+        object_hypothesis.roi.roi.height = (
+            self.descriptor.parameters.bounding_box_height
+        )
         if self.descriptor.parameters.create_mask:
-            object_hypothesis.roi.mask = np.ones((object_hypothesis.roi.roi.height,
-                                                  object_hypothesis.roi.roi.width), dtype=np.uint8) * 255
-        StaticObjectDetectorAnnotator.add_classification_annotation(object_hypothesis=object_hypothesis,
-                                                                    class_name=self.descriptor.parameters.class_name)
+            object_hypothesis.roi.mask = (
+                np.ones(
+                    (object_hypothesis.roi.roi.height, object_hypothesis.roi.roi.width),
+                    dtype=np.uint8,
+                )
+                * 255
+            )
+        StaticObjectDetectorAnnotator.add_classification_annotation(
+            object_hypothesis=object_hypothesis,
+            class_name=self.descriptor.parameters.class_name,
+        )
         return object_hypothesis
 
     @staticmethod
@@ -182,21 +195,37 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
             return body.visual
         return None
 
-    def _get_body_bb_size_and_center(self, body: Body) -> tuple[np.ndarray, np.ndarray] | None:
+    def _get_body_bb_size_and_center(
+        self, body: Body
+    ) -> tuple[np.ndarray, np.ndarray] | None:
         shape_collection = self._select_body_shape_collection(body)
         if shape_collection is None or len(shape_collection) == 0:
-            self.rk_logger.warning("Body %s has no collision or visual shapes; skipping.", self._body_raw_name(body))
+            self.rk_logger.warning(
+                "Body %s has no collision or visual shapes; skipping.",
+                self._body_raw_name(body),
+            )
             return None
 
         bb = shape_collection.as_bounding_box_collection_in_frame(body).bounding_box()
-        size = np.array([bb.max_x - bb.min_x, bb.max_y - bb.min_y, bb.max_z - bb.min_z], dtype=float)
-        center = np.array([(bb.min_x + bb.max_x) / 2.0,
-                           (bb.min_y + bb.max_y) / 2.0,
-                           (bb.min_z + bb.max_z) / 2.0], dtype=float)
+        size = np.array(
+            [bb.max_x - bb.min_x, bb.max_y - bb.min_y, bb.max_z - bb.min_z], dtype=float
+        )
+        center = np.array(
+            [
+                (bb.min_x + bb.max_x) / 2.0,
+                (bb.min_y + bb.max_y) / 2.0,
+                (bb.min_z + bb.max_z) / 2.0,
+            ],
+            dtype=float,
+        )
         return size, center
 
-    def detect_from_body(self, body: Body, object_id: int = 0,
-                         world_to_cam_transform_matrix: np.ndarray | None = None) -> ObjectHypothesis | None:
+    def detect_from_body(
+        self,
+        body: Body,
+        object_id: int = 0,
+        world_to_cam_transform_matrix: np.ndarray | None = None,
+    ) -> ObjectHypothesis | None:
         """
         Detect from singular, passed SDT Body instance
 
@@ -208,8 +237,11 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
         object_hypothesis.object_knowledge = body
 
         if world_to_cam_transform_matrix is None:
-            world_to_cam_transform_matrix = robokudo.utils.annotator_helper.get_world_to_cam_transform_matrix(
-                self.get_cas())
+            world_to_cam_transform_matrix = (
+                robokudo.utils.annotator_helper.get_world_to_cam_transform_matrix(
+                    self.get_cas()
+                )
+            )
 
         body_bb = self._get_body_bb_size_and_center(body)
         if body_bb is None:
@@ -217,24 +249,37 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
         bb_size, bb_center_body = body_bb
 
         world_T_body = body.global_pose.to_np()
-        body_T_bb_center = robokudo.utils.transform.get_transform_matrix_from_translation(bb_center_body)
+        body_T_bb_center = (
+            robokudo.utils.transform.get_transform_matrix_from_translation(
+                bb_center_body
+            )
+        )
         world_T_bb = world_T_body @ body_T_bb_center
         bb_transform_in_cam = world_to_cam_transform_matrix @ world_T_bb
 
         # Calculate Bounding Box and resulting 2D Image Corner points based on pose in cam coordinates
 
-        obb = robokudo.utils.o3d_helper.get_obb_from_size_and_transform(bb_size, bb_transform_in_cam)
-        corner_points = robokudo.utils.o3d_helper.get_2d_bounding_rect_from_3d_bb(self.get_cas(), obb)
+        obb = robokudo.utils.o3d_helper.get_obb_from_size_and_transform(
+            bb_size, bb_transform_in_cam
+        )
+        corner_points = robokudo.utils.o3d_helper.get_2d_bounding_rect_from_3d_bb(
+            self.get_cas(), obb
+        )
 
         image_height = self.get_cas().get(CASViews.COLOR_IMAGE).shape[0]
         image_width = self.get_cas().get(CASViews.COLOR_IMAGE).shape[1]
 
-        if robokudo.utils.cv_helper.rect_outside_image(corner_points, image_width, image_height):
-            self.rk_logger.info("ROI of object would be completely out of camera frame. Skipping ...")
+        if robokudo.utils.cv_helper.rect_outside_image(
+            corner_points, image_width, image_height
+        ):
+            self.rk_logger.info(
+                "ROI of object would be completely out of camera frame. Skipping ..."
+            )
             return None
 
-        corner_points = robokudo.utils.cv_helper.clamp_bounding_rect(corner_points, image_width=image_width,
-                                                                     image_height=image_height)
+        corner_points = robokudo.utils.cv_helper.clamp_bounding_rect(
+            corner_points, image_width=image_width, image_height=image_height
+        )
 
         roi = robokudo.types.cv.ImageROI()
         roi.roi.pos.x = corner_points[0]
@@ -245,13 +290,19 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
         object_hypothesis.points = self.cloud.crop(obb)
 
         object_translation_in_cam = list(
-            robokudo.utils.transform.get_translation_from_transform_matrix(bb_transform_in_cam))
+            robokudo.utils.transform.get_translation_from_transform_matrix(
+                bb_transform_in_cam
+            )
+        )
         object_rotation_in_cam = list(
-            robokudo.utils.transform.get_quaternion_from_transform_matrix(bb_transform_in_cam))
+            robokudo.utils.transform.get_quaternion_from_transform_matrix(
+                bb_transform_in_cam
+            )
+        )
 
         if self.descriptor.parameters.create_pose_annotation:
             pose_annotation = robokudo.types.annotation.PoseAnnotation()
-            pose_annotation.source = 'StaticObjectDetectorAnnotator'
+            pose_annotation.source = "StaticObjectDetectorAnnotator"
             pose_annotation.translation = object_translation_in_cam
             pose_annotation.rotation = object_rotation_in_cam
 
@@ -259,7 +310,7 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
 
         if self.descriptor.parameters.create_bounding_box_annotation:
             bb_annotation = robokudo.types.annotation.BoundingBox3DAnnotation()
-            bb_annotation.source = 'StaticObjectDetectorAnnotator'
+            bb_annotation.source = "StaticObjectDetectorAnnotator"
             bb_annotation.pose = robokudo.types.tf.Pose()
             bb_annotation.pose.translation = object_translation_in_cam
             bb_annotation.pose.rotation = object_rotation_in_cam
@@ -270,12 +321,15 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
 
             object_hypothesis.annotations.append(bb_annotation)
 
-        StaticObjectDetectorAnnotator.add_classification_annotation(object_hypothesis=object_hypothesis,
-                                                                    class_name=self._body_raw_name(body))
+        StaticObjectDetectorAnnotator.add_classification_annotation(
+            object_hypothesis=object_hypothesis, class_name=self._body_raw_name(body)
+        )
 
         return object_hypothesis
 
-    def detect_from_body_base(self, world_to_cam_transform_matrix: Optional[npt.NDArray] = None) -> List[ObjectHypothesis]:
+    def detect_from_body_base(
+        self, world_to_cam_transform_matrix: Optional[npt.NDArray] = None
+    ) -> List[ObjectHypothesis]:
         """
         Detect from a completed object knowledge base
 
@@ -286,7 +340,9 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
             body = self.object_bodies_by_name.get(class_name)
             if body is None:
                 continue
-            object_hypothesis = self.detect_from_body(body, world_to_cam_transform_matrix=world_to_cam_transform_matrix)
+            object_hypothesis = self.detect_from_body(
+                body, world_to_cam_transform_matrix=world_to_cam_transform_matrix
+            )
             if object_hypothesis is not None:
                 object_hypotheses.append(object_hypothesis)
 
@@ -323,19 +379,28 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
         if self.descriptor.parameters.mode == StaticObjectMode.OBJECT_KNOWLEDGE_BASE:
             self.object_kb = robokudo.utils.knowledge.load_object_knowledge_base(self)
             object_bodies = self.object_kb.get_predefined_object_bodies()
-            self.object_bodies_by_name = {self._body_raw_name(body): body for body in object_bodies}
-            self.rk_logger.info(f"Loaded KB bodies: {list(self.object_bodies_by_name.keys())}")
+            self.object_bodies_by_name = {
+                self._body_raw_name(body): body for body in object_bodies
+            }
+            self.rk_logger.info(
+                f"Loaded KB bodies: {list(self.object_bodies_by_name.keys())}"
+            )
 
             # Do some sanity checks and quit early if necessary
             for class_name in self.descriptor.parameters.class_names:
                 if class_name not in self.object_bodies_by_name:
-                    self.feedback_message = f"Couldn't find {class_name} in Object Knowledgebase"
+                    self.feedback_message = (
+                        f"Couldn't find {class_name} in Object Knowledgebase"
+                    )
                     self.rk_logger.warning(self.feedback_message)
                     return py_trees.common.Status.SUCCESS
 
             world_frame_required = True
 
-        if self.descriptor.parameters.mode == StaticObjectMode.OBJECT_KNOWLEDGE_INSTANCE:
+        if (
+            self.descriptor.parameters.mode
+            == StaticObjectMode.OBJECT_KNOWLEDGE_INSTANCE
+        ):
             self.object_body = self.descriptor.parameters.object_knowledge_instance
 
             # Do some sanity checks and quit early if necessary
@@ -344,7 +409,9 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
                 self.rk_logger.warning(self.feedback_message)
                 return py_trees.common.Status.SUCCESS
 
-            if self.descriptor.parameters.class_name != self._body_raw_name(self.object_body):
+            if self.descriptor.parameters.class_name != self._body_raw_name(
+                self.object_body
+            ):
                 self.feedback_message = f"Couldn't find {self.descriptor.parameters.class_name} in Object Knowledge Instance"
                 self.rk_logger.warning(self.feedback_message)
                 return py_trees.common.Status.SUCCESS
@@ -353,25 +420,38 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
 
         if world_frame_required:
             try:
-                cam_to_world_transform = self.get_cas().get(CASViews.VIEWPOINT_CAM_TO_WORLD)
+                cam_to_world_transform = self.get_cas().get(
+                    CASViews.VIEWPOINT_CAM_TO_WORLD
+                )
             except:
                 self.rk_logger.warning("Couldn't find viewpoint in the CAS")
                 return py_trees.common.Status.FAILURE
 
-            assert (isinstance(cam_to_world_transform, robokudo.types.tf.StampedTransform))
-            world_to_cam_transform_matrix = robokudo.utils.annotator_helper.get_world_to_cam_transform_matrix(
-                self.get_cas())
+            assert isinstance(
+                cam_to_world_transform, robokudo.types.tf.StampedTransform
+            )
+            world_to_cam_transform_matrix = (
+                robokudo.utils.annotator_helper.get_world_to_cam_transform_matrix(
+                    self.get_cas()
+                )
+            )
 
         # Scale the image down so that it matches the depth image size
         resized_color = None
         try:
-            resized_color = robokudo.utils.cv_helper.get_scaled_color_image_for_depth_image(self.get_cas(), self.color)
+            resized_color = (
+                robokudo.utils.cv_helper.get_scaled_color_image_for_depth_image(
+                    self.get_cas(), self.color
+                )
+            )
             robokudo.utils.annotator_helper.scale_cam_intrinsics(self)
         except RuntimeError as e:
             self.rk_logger.error(
-                "No color to depth ratio set by your camera driver! Can't scale image for Point Cloud creation.")
+                "No color to depth ratio set by your camera driver! Can't scale image for Point Cloud creation."
+            )
             raise Exception(
-                "No color to depth ratio set by your camera driver! Can't scale image for Point Cloud creation.")
+                "No color to depth ratio set by your camera driver! Can't scale image for Point Cloud creation."
+            )
 
         color_rgb = cv2.cvtColor(resized_color, cv2.COLOR_BGR2RGB)
 
@@ -383,13 +463,20 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
                 return py_trees.common.Status.SUCCESS
             object_hypotheses.append(object_hypothesis)
         elif self.descriptor.parameters.mode == StaticObjectMode.OBJECT_KNOWLEDGE_BASE:
-            object_hypotheses = self.detect_from_body_base(world_to_cam_transform_matrix=world_to_cam_transform_matrix)
+            object_hypotheses = self.detect_from_body_base(
+                world_to_cam_transform_matrix=world_to_cam_transform_matrix
+            )
             if len(object_hypotheses) == 0:
                 # Simply return early but don't die
                 return py_trees.common.Status.SUCCESS
-        elif self.descriptor.parameters.mode == StaticObjectMode.OBJECT_KNOWLEDGE_INSTANCE:
-            object_hypothesis = self.detect_from_body(self.descriptor.parameters.object_knowledge_instance,
-                                                      world_to_cam_transform_matrix=world_to_cam_transform_matrix)
+        elif (
+            self.descriptor.parameters.mode
+            == StaticObjectMode.OBJECT_KNOWLEDGE_INSTANCE
+        ):
+            object_hypothesis = self.detect_from_body(
+                self.descriptor.parameters.object_knowledge_instance,
+                world_to_cam_transform_matrix=world_to_cam_transform_matrix,
+            )
             if object_hypothesis is None:
                 return py_trees.common.Status.SUCCESS
             object_hypotheses.append(object_hypothesis)
@@ -404,25 +491,36 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
         visualization_img = copy.deepcopy(self.color)
 
         for oh in object_hypotheses:
-            assert (isinstance(oh, robokudo.types.scene.ObjectHypothesis))
+            assert isinstance(oh, robokudo.types.scene.ObjectHypothesis)
             oh_roi = oh.roi.roi
             upper_left = (oh_roi.pos.x, oh_roi.pos.y)
             upper_left_text = (oh_roi.pos.x, oh_roi.pos.y - 5)
 
             font = cv2.FONT_HERSHEY_COMPLEX
-            visualization_img = cv2.putText(visualization_img, f"ROI-{oh.id}({len(oh.points.points)})",
-                                            upper_left_text, font, 0.5, (0, 0, 255), 1, 2)
-            visualization_img = cv2.rectangle(visualization_img,
-                                              upper_left,
-                                              (oh_roi.pos.x + oh_roi.width, oh_roi.pos.y + oh_roi.height),
-                                              (0, 0, 255), 2)
+            visualization_img = cv2.putText(
+                visualization_img,
+                f"ROI-{oh.id}({len(oh.points.points)})",
+                upper_left_text,
+                font,
+                0.5,
+                (0, 0, 255),
+                1,
+                2,
+            )
+            visualization_img = cv2.rectangle(
+                visualization_img,
+                upper_left,
+                (oh_roi.pos.x + oh_roi.width, oh_roi.pos.y + oh_roi.height),
+                (0, 0, 255),
+                2,
+            )
 
             self.get_annotator_output_struct().set_geometries(oh.points)
 
         self.get_annotator_output_struct().set_image(visualization_img)
 
         end_timer = default_timer()
-        self.feedback_message = f'Processing took {(end_timer - start_timer):.4f}s'
+        self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"
         return py_trees.common.Status.SUCCESS
 
     @staticmethod
@@ -436,7 +534,7 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
         """
         classification_annotation = robokudo.types.annotation.Classification()
         classification_annotation.classname = class_name
-        classification_annotation.source = 'StaticObjectDetectorAnnotator'
+        classification_annotation.source = "StaticObjectDetectorAnnotator"
         classification_annotation.confidence = 1.0
         object_hypothesis.annotations.append(classification_annotation)
 
@@ -453,17 +551,15 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
         """
         rotation_list = None
         if self.descriptor.parameters.pose_use_euler_angles:
-            rot_matrix = get_rotation_matrix_from_euler_angles(rotation_x,
-                                                               rotation_y,
-                                                               rotation_z)
+            rot_matrix = get_rotation_matrix_from_euler_angles(
+                rotation_x, rotation_y, rotation_z
+            )
             rotation_list = list(
-                robokudo.utils.transform.get_quaternion_from_rotation_matrix(rot_matrix))
+                robokudo.utils.transform.get_quaternion_from_rotation_matrix(rot_matrix)
+            )
         else:
             # Interpret values directly as a quaternion
-            rotation_list = [rotation_x,
-                             rotation_y,
-                             rotation_z,
-                             rotation_w]
+            rotation_list = [rotation_x, rotation_y, rotation_z, rotation_w]
         return rotation_list
 
     def get_cloud_from_2d_bb_roi(
@@ -476,13 +572,20 @@ class StaticObjectDetectorAnnotator(robokudo.annotators.core.BaseAnnotator):
             + self.descriptor.parameters.bounding_box_width
         )
         y1 = self.descriptor.parameters.bounding_box_y
-        y2 = self.descriptor.parameters.bounding_box_y + self.descriptor.parameters.bounding_box_height
+        y2 = (
+            self.descriptor.parameters.bounding_box_y
+            + self.descriptor.parameters.bounding_box_height
+        )
         # Respect possible color2depth scaling also for BoundingBox coordinates
         color2depth_ratio = self.get_cas().get(robokudo.cas.CASViews.COLOR2DEPTH_RATIO)
-        (sx1, sy1) = robokudo.utils.cv_helper.get_scale_coordinates(color2depth_ratio, (x1, y1))
-        (sx2, sy2) = robokudo.utils.cv_helper.get_scale_coordinates(color2depth_ratio, (x2, y2))
-        mask[int(sy1): int(sy2), int(sx1): int(sx2)] = 255
-        cloud = robokudo.utils.o3d_helper.get_cloud_from_rgb_depth_and_mask(color_rgb, self.depth,
-                                                                            mask, self.cam_intrinsics,
-                                                                            mask_true_val=255)
+        sx1, sy1 = robokudo.utils.cv_helper.get_scale_coordinates(
+            color2depth_ratio, (x1, y1)
+        )
+        sx2, sy2 = robokudo.utils.cv_helper.get_scale_coordinates(
+            color2depth_ratio, (x2, y2)
+        )
+        mask[int(sy1) : int(sy2), int(sx1) : int(sx2)] = 255
+        cloud = robokudo.utils.o3d_helper.get_cloud_from_rgb_depth_and_mask(
+            color_rgb, self.depth, mask, self.cam_intrinsics, mask_true_val=255
+        )
         return cloud

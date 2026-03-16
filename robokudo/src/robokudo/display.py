@@ -178,7 +178,7 @@ def generate_pydot_graph(
     graph.set_graph_defaults(fontname="times-roman")
     graph.set_node_defaults(fontname="times-roman")
     graph.set_edge_defaults(fontname="times-roman")
-    (node_shape, node_colour, node_font_colour) = get_node_attributes(
+    node_shape, node_colour, node_font_colour = get_node_attributes(
         root, visibility_level
     )
     node_root = Node(
@@ -219,7 +219,7 @@ def generate_pydot_graph(
             return
         if visibility_level < root.blackbox_level:
             for c in root.children:
-                (node_shape, node_colour, node_font_colour) = get_node_attributes(
+                node_shape, node_colour, node_font_colour = get_node_attributes(
                     c, visibility_level
                 )
                 proposed_dot_name = c.name

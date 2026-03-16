@@ -368,7 +368,7 @@ class PointCloudClusterExtractor(robokudo.annotators.core.ThreadedAnnotator):
             object_hypothesis.point_indices = [cluster_indices_in_outlier_cloud]
 
             object_hypothesis.id = str(cluster_idx)
-            (object_hypothesis.roi, full_mask_cluster) = (
+            object_hypothesis.roi, full_mask_cluster = (
                 generate_roi_with_mask_from_points(
                     image_height=height,
                     image_width=width,
@@ -542,7 +542,7 @@ class NaivePointCloudClusterExtractor(robokudo.annotators.core.ThreadedAnnotator
             object_hypothesis.point_indices = [cluster_indices]
 
             object_hypothesis.id = str(cluster_idx)
-            (object_hypothesis.roi, full_mask_cluster) = (
+            object_hypothesis.roi, full_mask_cluster = (
                 generate_roi_with_mask_from_points(
                     image_height=height,
                     image_width=width,

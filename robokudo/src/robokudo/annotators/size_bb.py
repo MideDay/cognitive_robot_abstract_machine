@@ -97,9 +97,7 @@ class SizeBBAnnotator(robokudo.annotators.core.BaseAnnotator):
             cluster_cloud_mat_2d = (
                 np.asarray(cluster_cloud_in_world.points)[:, 0:2] * 1000
             ).astype(np.int32)
-            (rect_center2d, rect_size, rect_angle) = cv2.minAreaRect(
-                cluster_cloud_mat_2d
-            )
+            rect_center2d, rect_size, rect_angle = cv2.minAreaRect(cluster_cloud_mat_2d)
 
             # rect size idx 0 = width
             if rect_size[0] < rect_size[1]:

@@ -11,7 +11,10 @@ from typing_extensions import Dict, List, Any, Optional
 
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.world_entity import Body, SemanticAnnotation
+from semantic_digital_twin.world_description.world_entity import (
+    Body,
+    SemanticAnnotation,
+)
 from . import defs
 
 
@@ -70,8 +73,15 @@ class BaseObjectKnowledgeBase:
 
     def get_predefined_object_bodies(self) -> List[Body]:
         """Get list of pre-defined objects."""
-        predefined_object_annotations = self.world.get_semantic_annotations_by_type(PredefinedObject)
-        return list([predefined_object.body for predefined_object in predefined_object_annotations])
+        predefined_object_annotations = self.world.get_semantic_annotations_by_type(
+            PredefinedObject
+        )
+        return list(
+            [
+                predefined_object.body
+                for predefined_object in predefined_object_annotations
+            ]
+        )
 
     def add_entry(self, entry: ObjectKnowledge) -> None:
         """Add a single object knowledge entry.
