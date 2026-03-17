@@ -2327,7 +2327,10 @@ def substitution_cache(method):
             result = method(*variable_args)
             _substitution_cache[cache_key] = (result, variables)
         expr, variables = _substitution_cache[cache_key]
-        substitutions = [item for arg in args for item in arg.flatten()]
+        try:
+            substitutions = [item for arg in args for item in arg.flatten()]
+        except Exception as e:
+            pass
         return expr.substitute(variables, substitutions)
 
     return wrapper

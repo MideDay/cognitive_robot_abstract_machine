@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Tuple, List, Dict, TYPE_CHECKING, DefaultDict, Type
 
 import numpy as np
+from line_profiler.explicit_profiler import profile
 
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.qp.constraint import (
@@ -181,6 +182,7 @@ class ProblemDataPart(ABC):
         free_variable_model.remove([], column_ids)
         return free_variable_model
 
+    @profile
     def velocity_limit(
         self, v: DegreeOfFreedom, max_derivative: Derivatives
     ) -> Tuple[sm.Vector, sm.Vector]:

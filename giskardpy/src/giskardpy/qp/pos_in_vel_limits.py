@@ -2,6 +2,7 @@ from copy import copy
 from typing import List
 
 import numpy as np
+from line_profiler.explicit_profiler import profile
 from typing_extensions import Tuple
 
 import giskardpy.utils.math as gm
@@ -43,6 +44,7 @@ def r_gauss(integral: Scalar) -> Scalar:
     return sm.sqrt(2 * integral + (1 / 4)) - 1 / 2
 
 
+@sm.substitution_cache
 def acc_cap(current_vel: Scalar, jerk_limit: Scalar, dt: Scalar) -> Scalar:
     acc_integral = sm.abs(current_vel) / dt
     jerk_step = jerk_limit * dt
@@ -51,6 +53,7 @@ def acc_cap(current_vel: Scalar, jerk_limit: Scalar, dt: Scalar) -> Scalar:
     return sm.abs(n * jerk_limit * dt + x)
 
 
+@profile
 def compute_next_vel_and_acc(
     current_vel: Scalar,
     current_acc: Scalar,
@@ -90,6 +93,7 @@ def compute_next_vel_and_acc(
     return next_vel, next_acc
 
 
+@profile
 def compute_slowdown_asap_vel_profile(
     current_vel: Scalar,
     current_acc: Scalar,
@@ -126,21 +130,8 @@ def compute_slowdown_asap_vel_profile(
     return Vector(vel_profile), acc_profile, jerk_profile
 
 
-def implicit_vel_profile(
-    acc_limit: float, jerk_limit: float, dt: float, ph: int
-) -> List[float]:
-    vel_profile = [0, 0]  # because last two vel are always 0
-    vel = 0
-    acc = 0
-    for i in range(ph - 2):
-        acc += jerk_limit * dt
-        acc = min(acc, acc_limit)
-        vel += acc * dt
-        vel_profile.append(vel)
-    return list(reversed(vel_profile))
-
-
 @memoize
+@profile
 def b_profile(
     dof_symbols: DerivativeMap[FloatVariable],
     lower_limits: DerivativeMap[float],
