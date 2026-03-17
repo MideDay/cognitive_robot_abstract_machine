@@ -37,6 +37,9 @@ from pycram.robot_plans import (
     GraspingActionDescription,
     TransportActionDescription,
 )
+from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
+    VizMarkerPublisher,
+)
 
 from semantic_digital_twin.datastructures.definitions import (
     TorsoState,
