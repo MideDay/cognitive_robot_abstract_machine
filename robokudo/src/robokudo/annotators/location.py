@@ -21,18 +21,15 @@ The module is used for:
 from __future__ import annotations
 from timeit import default_timer
 
-import numpy
-import py_trees
+from py_trees.common import Status
 from typing_extensions import List, TYPE_CHECKING
 
-import robokudo.annotators.core
-import robokudo.semantic_map
-import robokudo.types
-import robokudo.types.annotation
-import robokudo.types.scene
-import robokudo.utils.annotator_helper
-import robokudo.utils.error_handling
-import robokudo.utils.transform
+from robokudo.annotators.core import ThreadedAnnotator, BaseAnnotator
+from robokudo.semantic_map import SemanticMapEntry
+from robokudo.types.annotation import LocationAnnotation
+from robokudo.types.scene import ObjectHypothesis
+from robokudo.utils.annotator_helper import get_world_to_cam_transform_matrix
+from robokudo.utils.error_handling import catch_and_raise_to_blackboard
 from robokudo.utils.module_loader import ModuleLoader
 from robokudo.utils.semantic_map import (
     get_obb_from_semantic_map_region_in_cam_coordinates,
@@ -43,7 +40,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 
-class LocationAnnotator(robokudo.annotators.core.ThreadedAnnotator):
+class LocationAnnotator(ThreadedAnnotator):
     """Determine object locations within semantic regions.
 
     The purpose of this location annotator is to receive a list of intriguing regions and incorporate the
@@ -59,7 +56,7 @@ class LocationAnnotator(robokudo.annotators.core.ThreadedAnnotator):
     * Handles coordinate frame transformations
     """
 
-    class Descriptor(robokudo.annotators.core.BaseAnnotator.Descriptor):
+    class Descriptor(BaseAnnotator.Descriptor):
         """Configuration descriptor for location annotator."""
 
         class Parameters:
@@ -81,9 +78,8 @@ class LocationAnnotator(robokudo.annotators.core.ThreadedAnnotator):
                 self.desired_regions: List[str] = ["kitchen_island"]
                 """List of regions from semantic_maps list to consider. Leave empty to include all regions."""
 
-        parameters = (
-            Parameters()
-        )  # overwrite the parameters explicitly to enable auto-completion
+        # overwrite the parameters explicitly to enable auto-completion
+        parameters = Parameters()
 
     def __init__(
         self,
@@ -104,10 +100,7 @@ class LocationAnnotator(robokudo.annotators.core.ThreadedAnnotator):
     def load_semantic_map(self) -> None:
         """Load a semantic map from the configured package and name.
 
-        Uses ModuleLoader to dynamically load the semantic map descriptor
-        from the configured ROS package.
-
-        :return: None
+        Uses ModuleLoader to dynamically load the semantic map descriptor from the configured ROS package.
         """
         module_loader = ModuleLoader()
         self.semantic_map = module_loader.load_semantic_map(
@@ -118,9 +111,9 @@ class LocationAnnotator(robokudo.annotators.core.ThreadedAnnotator):
     def add_location_in_object_hypotheses(
         self,
         region_name: str,
-        region: robokudo.semantic_map.SemanticMapEntry,
+        region: SemanticMapEntry,
         world_to_cam_transform_matrix: npt.NDArray,
-        object_hypotheses: Iterable[robokudo.types.scene.ObjectHypothesis],
+        object_hypotheses: Iterable[ObjectHypothesis],
     ) -> None:
         """Add location annotations to objects within a region.
 
@@ -135,7 +128,6 @@ class LocationAnnotator(robokudo.annotators.core.ThreadedAnnotator):
         :param region: Semantic map region entry
         :param world_to_cam_transform_matrix: Transform from world to camera frame
         :param object_hypotheses: List of object hypotheses to check
-        :return: None
         """
         obb = get_obb_from_semantic_map_region_in_cam_coordinates(
             region,
@@ -155,13 +147,13 @@ class LocationAnnotator(robokudo.annotators.core.ThreadedAnnotator):
             percentage_indices_inside = (len(object_indices) / total_indices) * 100
             if percentage_indices_inside >= self.descriptor.parameters.percentage:
                 # Create a location annotation object
-                location_annotation = robokudo.types.annotation.LocationAnnotation()
+                location_annotation = LocationAnnotation()
                 # Insert the region name to the location annotation
                 location_annotation.name = region_name
                 object_hypothesis.annotations.append(location_annotation)
 
-    @robokudo.utils.error_handling.catch_and_raise_to_blackboard
-    def compute(self) -> py_trees.common.Status:
+    @catch_and_raise_to_blackboard
+    def compute(self) -> Status:
         """Process object hypotheses to determine their locations.
 
         The method:
@@ -182,14 +174,10 @@ class LocationAnnotator(robokudo.annotators.core.ThreadedAnnotator):
         active_regions = self.semantic_map.entries
         # TODO Filter active regions by FRUSTUM CULLING
 
-        world_to_cam_transform_matrix = (
-            robokudo.utils.annotator_helper.get_world_to_cam_transform_matrix(
-                self.get_cas()
-            )
+        world_to_cam_transform_matrix = get_world_to_cam_transform_matrix(
+            self.get_cas()
         )
-        object_hypotheses = self.get_cas().filter_annotations_by_type(
-            robokudo.types.scene.ObjectHypothesis
-        )
+        object_hypotheses = self.get_cas().filter_annotations_by_type(ObjectHypothesis)
 
         for region_name, region in active_regions.items():
 
@@ -202,7 +190,7 @@ class LocationAnnotator(robokudo.annotators.core.ThreadedAnnotator):
                 )
 
             elif region_name in self.descriptor.parameters.desired_regions:
-                assert isinstance(region, robokudo.semantic_map.SemanticMapEntry)
+                assert isinstance(region, SemanticMapEntry)
                 self.add_location_in_object_hypotheses(
                     region_name,
                     region,
@@ -212,4 +200,4 @@ class LocationAnnotator(robokudo.annotators.core.ThreadedAnnotator):
 
         end_timer = default_timer()
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"
-        return py_trees.common.Status.SUCCESS
+        return Status.SUCCESS

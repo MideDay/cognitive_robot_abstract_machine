@@ -13,7 +13,6 @@ from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world_description.geometry import Color, Scale
 
 
-
 @dataclass
 class ObjectKnowledgeBase(BaseObjectKnowledgeBase):
     def __init__(self) -> None:

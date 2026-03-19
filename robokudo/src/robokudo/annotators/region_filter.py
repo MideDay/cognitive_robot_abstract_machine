@@ -17,26 +17,23 @@ The module uses:
    Regions can be defined in either world frame or local frames.
 """
 
-import sys
 from timeit import default_timer
 
 import numpy as np
 import open3d as o3d
-import py_trees
+from py_trees.common import Status
 from rclpy.duration import Duration
 from rclpy.time import Time
 from scipy.spatial.transform import Rotation as R
 
-import robokudo.annotators
-import robokudo.annotators.core
-import robokudo.io.tf_listener_proxy
-import robokudo.semantic_map
-import robokudo.types.annotation
-import robokudo.types.scene
-import robokudo.utils.annotator_helper
-import robokudo.utils.error_handling
-import robokudo.utils.transform
+from robokudo.annotators.core import ThreadedAnnotator, BaseAnnotator
 from robokudo.cas import CASViews
+from robokudo.io import tf_listener_proxy
+from robokudo.semantic_map import SemanticMapEntry
+from robokudo.types.annotation import PoseAnnotation
+from robokudo.types.scene import RegionHypothesis
+from robokudo.utils.annotator_helper import get_world_to_cam_transform_matrix
+from robokudo.utils.error_handling import catch_and_raise_to_blackboard
 from robokudo.utils.module_loader import ModuleLoader
 from robokudo.utils.semantic_map import (
     get_obb_from_semantic_map_region_in_cam_coordinates,
@@ -44,7 +41,7 @@ from robokudo.utils.semantic_map import (
 )
 
 
-class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
+class RegionFilter(ThreadedAnnotator):
     """Point cloud filtering using semantic map regions.
 
     The RegionFilter can be used to filter point clouds based on a environment model based on different
@@ -55,16 +52,11 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
        Regions are defined in a SemanticMap with SemanticMapEntry objects.
     """
 
-    class Descriptor(robokudo.annotators.core.BaseAnnotator.Descriptor):
+    class Descriptor(BaseAnnotator.Descriptor):
         """Configuration descriptor for region filtering."""
 
         class Parameters:
-            """Parameters for configuring region filtering.
-            , defaults to "map"
-            :ivar semantic_map_ros_package: , defaults to "robokudo"
-            :ivar semantic_map_name: , defaults to "semantic_map_iai_kitchen"
-            :ivar active_region: , empty for all regions
-            """
+            """Parameters for configuring region filtering."""
 
             def __init__(self) -> None:
                 self.world_frame_name: str = "map"
@@ -115,8 +107,8 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
             self.descriptor.parameters.semantic_map_name,
         )
 
-    @robokudo.utils.error_handling.catch_and_raise_to_blackboard
-    def compute(self) -> py_trees.common.Status:
+    @catch_and_raise_to_blackboard
+    def compute(self) -> Status:
         """Filter point cloud using semantic map regions.
 
         The method:
@@ -169,21 +161,17 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
         self.rk_logger.debug(f"Analyzing {len(active_regions.keys())}")
 
         try:
-            world_to_cam_transform = (
-                robokudo.utils.annotator_helper.get_world_to_cam_transform_matrix(
-                    self.get_cas()
-                )
-            )
+            world_to_cam_transform = get_world_to_cam_transform_matrix(self.get_cas())
         except KeyError as err:
             self.rk_logger.warning(f"Couldn't find viewpoint in the CAS: {err}")
-            return py_trees.common.Status.FAILURE
+            return Status.FAILURE
 
         for key, region in active_regions.items():
-            assert isinstance(region, robokudo.semantic_map.SemanticMapEntry)
+            assert isinstance(region, SemanticMapEntry)
             # Will be used for saving the indices of the cloud for this specific region
             filtered_indices_for_this_region = set()
             # RegionHypothetis for this specific region
-            region_hypothesis = robokudo.types.scene.RegionHypothesis()
+            region_hypothesis = RegionHypothesis()
 
             # if region is defined in the world frame, the region can be transformed with the transformation matrix from world to cam
             if region.frame_id == self.world_frame_name:
@@ -193,7 +181,7 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
                     world_to_cam_transform,
                 )
                 # creates a PoseAnnotation
-                pose = robokudo.types.annotation.PoseAnnotation()
+                pose = PoseAnnotation()
                 pose.translation = [
                     region.position_x,
                     region.position_y,
@@ -211,7 +199,7 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
             # if the region is not defined in the world frame
             else:
                 # get translation and rotation of region
-                transform_listener = robokudo.io.tf_listener_proxy.instance()
+                transform_listener = tf_listener_proxy.instance()
                 newest = Time()
                 try:
                     target_frame = self.world_frame_name  # avoid leading '/'
@@ -227,7 +215,7 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
                         self.rk_logger.error(
                             f"lookup_transform: TF not available: {target_frame} <- {source_frame}"
                         )
-                        return py_trees.common.Status.FAILURE
+                        return Status.FAILURE
 
                     # ROS 2 equivalent of lookupTransform(...)
                     tf_stamped = transform_listener.lookup_transform(
@@ -251,7 +239,7 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
 
                 except Exception as err:
                     print(f"Camera Interface lookup_transform: Exception caught: {err}")
-                    return py_trees.common.Status.FAILURE
+                    return Status.FAILURE
 
                 # calculate the transformation matrix from region frame to cam
                 translation_region_frame = np.array(translation_region_frame)
@@ -303,7 +291,7 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
                 ).as_quat()
                 rotation_world_frame_list = rotation_world_frame_quat.tolist()
 
-                pose = robokudo.types.annotation.PoseAnnotation()
+                pose = PoseAnnotation()
                 pose.translation = [x_transformed, y_transformed, z_transformed]
                 pose.rotation = rotation_world_frame_list
 
@@ -344,4 +332,4 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
 
         end_timer = default_timer()
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"
-        return py_trees.common.Status.SUCCESS
+        return Status.SUCCESS

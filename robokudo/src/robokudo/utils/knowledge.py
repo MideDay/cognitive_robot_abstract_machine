@@ -20,9 +20,13 @@ import numpy
 import open3d as o3d
 from typing_extensions import TYPE_CHECKING, Tuple, Dict
 
-from . import module_loader
-from . import o3d_helper
-from . import transform
+from robokudo.utils.module_loader import ModuleLoader
+from robokudo.utils.o3d_helper import get_obb_from_size_and_transform
+from robokudo.utils.transform import (
+    get_rotation_matrix_from_euler_angles,
+    get_quaternion_from_rotation_matrix,
+    get_transform_matrix_from_q,
+)
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -41,10 +45,10 @@ def get_quaternion_from_rotation_information(
     :return: [x, y, z, w] rotation quaternion
     """
     if ok.pose_type == ok.PoseType.EULER:
-        rot_matrix = transform.get_rotation_matrix_from_euler_angles(
+        rot_matrix = get_rotation_matrix_from_euler_angles(
             ok.orientation_x, ok.orientation_x, ok.orientation_z
         )
-        return tuple(transform.get_quaternion_from_rotation_matrix(rot_matrix))
+        return tuple(get_quaternion_from_rotation_matrix(rot_matrix))
     elif ok.pose_type == ok.PoseType.QUATERNION:
         # Interpret values directly as a quaternion
         return ok.orientation_x, ok.orientation_y, ok.orientation_z, ok.orientation_w
@@ -64,7 +68,7 @@ def get_transform_matrix_from_object_knowledge(
     """
     quaternion = get_quaternion_from_rotation_information(ok)
 
-    return transform.get_transform_matrix_from_q(
+    return get_transform_matrix_from_q(
         quaternion=quaternion, translation=[ok.position_x, ok.position_y, ok.position_z]
     )
 
@@ -88,7 +92,7 @@ def load_object_knowledge_base(
     :param annotator: Annotator containing knowledge base parameters
     :return: Loaded object knowledge base
     """
-    loader = module_loader.ModuleLoader()
+    loader = ModuleLoader()
     return loader.load_object_knowledge_base(
         annotator.descriptor.parameters.object_knowledge_base_ros_package,
         annotator.descriptor.parameters.object_knowledge_base_name,
@@ -110,7 +114,7 @@ def get_obb_for_object_and_transform(
     bb_size = numpy.array(
         [object_knowledge.x_size, object_knowledge.y_size, object_knowledge.z_size]
     )
-    return o3d_helper.get_obb_from_size_and_transform(bb_size, transform_matrix)
+    return get_obb_from_size_and_transform(bb_size, transform_matrix)
 
 
 def get_obb_for_child_object_and_transform(
@@ -129,9 +133,7 @@ def get_obb_for_child_object_and_transform(
     object_transform = get_transform_matrix_from_object_knowledge(object_knowledge)
     object_transform = parent_transform @ object_transform
     object_bb_size = get_bb_size_from_object_knowledge(object_knowledge)
-    object_bb = o3d_helper.get_obb_from_size_and_transform(
-        object_bb_size, object_transform
-    )
+    object_bb = get_obb_from_size_and_transform(object_bb_size, object_transform)
     object_bb.color = [1.0, 0, 0]
 
     return object_bb

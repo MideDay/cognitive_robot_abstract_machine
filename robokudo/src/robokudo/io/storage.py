@@ -33,12 +33,7 @@ from pymongo import MongoClient
 from sensor_msgs.msg import CameraInfo
 from typing_extensions import Any, List, Type, TYPE_CHECKING, Tuple
 
-import robokudo.analysis_engine
-import robokudo.analysis_engine
-import robokudo.cas
-import robokudo.types.tf
-import robokudo.utils.serialization as serializer
-import robokudo.world
+from robokudo.utils import serialization as serializer
 from robokudo.cas import CAS, CASViews
 from robokudo.types.tf import StampedTransform
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
@@ -363,7 +358,7 @@ class Storage:
         :param stamped_transform_dict: Dictionary representation of transform
         :return: RoboKudo stamped transform
         """
-        st = robokudo.types.tf.StampedTransform()
+        st = StampedTransform()
         st.rotation = stamped_transform_dict["rotation"]
         st.translation = stamped_transform_dict["translation"]
         st.frame = stamped_transform_dict["frame"]
