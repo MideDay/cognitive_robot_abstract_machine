@@ -10,27 +10,24 @@ Features:
 - Uses a feedback mechanism to report progress dynamically.
 """
 
-import queue
+from queue import Queue
 
-import py_trees
+from py_trees.blackboard import Blackboard
+from py_trees.common import Status
 from py_trees.composites import Selector
 from py_trees.composites import Sequence
+from py_trees.decorators import Inverter
 from robokudo_msgs.action import Query
 from typing_extensions import List
 
-import robokudo
-import robokudo.analysis_engine
-import robokudo.analysis_engine
-import robokudo.descriptors.camera_configs.config_hsr
-import robokudo.io.camera_interface
-import robokudo.pipeline
-import robokudo.pipeline
+from robokudo.analysis_engine import AnalysisEngineInterface
 from robokudo.annotators.core import BaseAnnotator
 from robokudo.annotators.query import QueryAnnotator
 from robokudo.behaviours.action_server_checks import ActionServerNoPreemptRequest
 from robokudo.cas import CASViews
 from robokudo.identifier import BBIdentifier
 from robokudo.idioms import pipeline_init
+from robokudo.pipeline import Pipeline
 
 
 class PrintNumbers(BaseAnnotator):
@@ -47,11 +44,11 @@ class PrintNumbers(BaseAnnotator):
         self.current_number = 1
         self.completed = False
 
-    def update(self) -> py_trees.common.Status:
-        blackboard = py_trees.blackboard.Blackboard()
+    def update(self) -> Status:
+        blackboard = Blackboard()
         feedback_queue = blackboard.get(BBIdentifier.QUERY_FEEDBACK)
         if feedback_queue is None:
-            feedback_queue = queue.Queue()
+            feedback_queue = Queue()
             blackboard.set(BBIdentifier.QUERY_FEEDBACK, feedback_queue)
 
         if self.current_number <= 100:
@@ -66,11 +63,11 @@ class PrintNumbers(BaseAnnotator):
             feedback_queue.put(feedback_msg)
 
             self.current_number += 1
-            return py_trees.common.Status.RUNNING
+            return Status.RUNNING
         else:
             self.completed = True
             blackboard.set(BBIdentifier.QUERY_ANSWER, self.result_string)
-            return py_trees.common.Status.SUCCESS
+            return Status.SUCCESS
 
 
 class CheckQueryType(BaseAnnotator):
@@ -81,26 +78,26 @@ class CheckQueryType(BaseAnnotator):
     def __init__(self, name: str = "CheckQueryType") -> None:
         super().__init__(name)
 
-    def update(self) -> py_trees.common.Status:
+    def update(self) -> Status:
         # Retrieve the query from the CAS
         query = self.get_cas().get(CASViews.QUERY)
 
         # Check if the query type is 'numbers'
         if query and getattr(query.obj, "type", None) == "numbers":
             self.logger.info("Query type is 'numbers'. Proceeding.")
-            return py_trees.common.Status.SUCCESS
+            return Status.SUCCESS
         else:
             self.logger.warning(
                 f"Query type is not 'numbers' or query is missing: {query}"
             )
-            return py_trees.common.Status.FAILURE
+            return Status.FAILURE
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     def name(self) -> str:
         return "test_pipeline"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         # Define the sequence that runs the task
         task_sequence = Sequence(name="TaskSequence", memory=True)
         task_sequence.add_children(
@@ -114,7 +111,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         conditional_selector = Selector(name="ConditionalSelector", memory=False)
         conditional_selector.add_children(
             [
-                py_trees.decorators.Inverter(
+                Inverter(
                     name="Invert Preempt Request", child=ActionServerNoPreemptRequest()
                 ),
                 task_sequence,  # Run task sequence only if no preemption
@@ -122,7 +119,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         )
 
         # Main Pipeline
-        seq = robokudo.pipeline.Pipeline("OPExperiments")
+        seq = Pipeline("OPExperiments")
         seq.add_children(
             [
                 pipeline_init(),  # Initialize the pipeline

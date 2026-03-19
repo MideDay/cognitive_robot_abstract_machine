@@ -1,37 +1,24 @@
-import py_trees
+from py_trees.composites import Sequence
 
-import robokudo.analysis_engine
-import robokudo.pipeline
-import robokudo.annotators.outputs
-
+from robokudo.analysis_engine import AnalysisEngineInterface
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
+from robokudo.annotators.outputs import ClearAnnotatorOutputs
 from robokudo.annotators.testing import SlowAnnotator, EmptyAnnotator
-
-import robokudo.descriptors.camera_configs.config_kinect_robot
-
-import robokudo.io.camera_interface
-
-import robokudo.tree_components.task_scheduler
+from robokudo.descriptors import CrDescriptorFactory
+from robokudo.pipeline import Pipeline
+from robokudo.tree_components.task_scheduler import IterativeTaskScheduler
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     def name(self) -> str:
         return "job_scheduler"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """
         Create a pipeline which can schedule different perception tasks in a basic way
         """
-        kinect_camera_config = (
-            robokudo.descriptors.camera_configs.config_kinect_robot.CameraConfig()
-        )
-        kinect_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=kinect_camera_config,
-            camera_interface=robokudo.io.camera_interface.KinectCameraInterface(
-                kinect_camera_config
-            ),
-        )
+        kinect_config = CrDescriptorFactory.create_descriptor("kinect")
 
         # Annotator definition
         collection_reader = CollectionReaderAnnotator(descriptor=kinect_config)
@@ -44,8 +31,8 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         #
         # Please note that the same instance of annotators might be used in multiple trees.
         # The scheduler/planning will take care of maintaining the correct relationships for dynamic trees.
-        tree1 = py_trees.composites.Sequence("Tree1")
-        tree2 = py_trees.composites.Sequence("Tree1")
+        tree1 = Sequence("Tree1")
+        tree2 = Sequence("Tree1")
         tree1.add_children(
             [collection_reader, image_preprocessor, slow1, slow2],
         )
@@ -54,18 +41,14 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         )
 
         # Pipeline creation
-        seq = robokudo.pipeline.Pipeline("Pipeline")
+        seq = Pipeline("Pipeline")
         # The Job Scheduler needs to be the first child of a Sequence
-        task_scheduling = py_trees.composites.Sequence("Task Scheduling")
-        task_scheduling.add_child(
-            robokudo.tree_components.task_scheduler.IterativeTaskScheduler(
-                tree_list=[tree1, tree2]
-            )
-        )
+        task_scheduling = Sequence("Task Scheduling")
+        task_scheduling.add_child(IterativeTaskScheduler(tree_list=[tree1, tree2]))
 
         seq.add_children(
             [
-                robokudo.annotators.outputs.ClearAnnotatorOutputs(),
+                ClearAnnotatorOutputs(),
                 EmptyAnnotator(),
                 task_scheduling,
             ]

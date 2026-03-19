@@ -17,28 +17,17 @@ The pipeline implements the following functionality:
     in the camera view.
 """
 
-import robokudo.analysis_engine
-from robokudo.annotators.camera_viewpoint_visualizer import CameraViewpointVisualizer
-
+from robokudo.analysis_engine import AnalysisEngineInterface
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
 from robokudo.annotators.object_hypothesis_visualizer import ObjectHypothesisVisualizer
-from robokudo.annotators.plane import PlaneAnnotator
-from robokudo.annotators.pointcloud_cluster_extractor import PointCloudClusterExtractor
-from robokudo.annotators.pointcloud_crop import PointcloudCropAnnotator
-
-import robokudo.descriptors.camera_configs.config_mongodb_playback
-
-import robokudo.io.storage_reader_interface
-
-import robokudo.behaviours.clear_errors
-
-import robokudo.idioms
-import robokudo.pipeline
 from robokudo.annotators.static_object_detector import StaticObjectDetectorAnnotator
+from robokudo.descriptors import CrDescriptorFactory
+from robokudo.idioms import pipeline_init
+from robokudo.pipeline import Pipeline
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     """Analysis engine for static object detection from stored data.
 
     This class implements a pipeline that performs object detection using a
@@ -65,7 +54,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         """
         return "static_detector_from_storage"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """Create a pipeline for static object detection.
 
         This method constructs a processing pipeline that performs object
@@ -78,17 +67,8 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         * Bounding box size: 100x60 pixels
 
         :return: The configured pipeline for static object detection
-        :rtype: robokudo.pipeline.Pipeline
         """
-        cr_storage_camera_config = (
-            robokudo.descriptors.camera_configs.config_mongodb_playback.CameraConfig()
-        )
-        cr_storage_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=cr_storage_camera_config,
-            camera_interface=robokudo.io.storage_reader_interface.StorageReaderInterface(
-                cr_storage_camera_config
-            ),
-        )
+        cr_storage_config = CrDescriptorFactory.create_descriptor("mongo")
 
         sod = StaticObjectDetectorAnnotator.Descriptor()
         sod.parameters.bounding_box_x = 40
@@ -96,10 +76,10 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         sod.parameters.bounding_box_width = 100
         sod.parameters.bounding_box_height = 60
 
-        seq = robokudo.pipeline.Pipeline("StoragePipeline")
+        seq = Pipeline("StoragePipeline")
         seq.add_children(
             [
-                robokudo.idioms.pipeline_init(),
+                pipeline_init(),
                 CollectionReaderAnnotator(descriptor=cr_storage_config),
                 ImagePreprocessorAnnotator("ImagePreprocessor"),
                 StaticObjectDetectorAnnotator(descriptor=sod),

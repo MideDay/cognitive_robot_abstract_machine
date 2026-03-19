@@ -17,19 +17,16 @@ The pipeline implements the following functionality:
     along with the sensor data.
 """
 
-import robokudo.analysis_engine
-
+from robokudo.analysis_engine import AnalysisEngineInterface
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
 from robokudo.annotators.storage import StorageWriter
-
-import robokudo.descriptors.camera_configs.config_tiago
-import robokudo.io.camera_interface
-import robokudo.idioms
-import robokudo.pipeline
+from robokudo.descriptors import CrDescriptorFactory
+from robokudo.idioms import pipeline_init
+from robokudo.pipeline import Pipeline
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     """Analysis engine for TIAGo sensor data recording with transforms.
 
     This class implements a pipeline that records sensor data from a TIAGo
@@ -56,7 +53,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         """
         return "tiago_storage_with_transform"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """Create a pipeline for recording TIAGo data with transforms.
 
         This method constructs a processing pipeline that captures and stores
@@ -72,20 +69,12 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
 
         :return: The configured pipeline for data recording
         """
-        tiago_camera_config = (
-            robokudo.descriptors.camera_configs.config_tiago.CameraConfig()
-        )
-        tiago_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=tiago_camera_config,
-            camera_interface=robokudo.io.camera_interface.KinectCameraInterface(
-                tiago_camera_config
-            ),
-        )
+        tiago_config = CrDescriptorFactory.create_descriptor("tiago")
 
-        seq = robokudo.pipeline.Pipeline()
+        seq = Pipeline()
         seq.add_children(
             [
-                robokudo.idioms.pipeline_init(),
+                pipeline_init(),
                 CollectionReaderAnnotator(descriptor=tiago_config),
                 ImagePreprocessorAnnotator("ImagePreprocessor"),
                 StorageWriter(),

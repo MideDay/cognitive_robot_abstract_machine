@@ -22,20 +22,19 @@ import rclpy.impl.logging_severity
 import rclpy.logging
 from typing_extensions import TYPE_CHECKING
 
-import robokudo.annotators.query
-
 # RoboKudo imports
-import robokudo.defs
-import robokudo.garden
-import robokudo.identifier
-import robokudo.io.ros
-import robokudo.utils.logging_configuration
-import robokudo.utils.module_loader
-import robokudo.utils.tree
+from robokudo.annotators.query import QueryActionServer
+from robokudo.defs import LOGGING_IDENTIFIER_MAIN_EXECUTABLE, PACKAGE_NAME
+from robokudo.garden import grow_tree
+from robokudo.identifier import BBIdentifier
+from robokudo.io.ros import init_node
+from robokudo.utils.logging_configuration import configure_logging
+from robokudo.utils.module_loader import ModuleLoader
+from robokudo.utils.tree import setup_with_descendants_rk
 
 if TYPE_CHECKING:
-    import py_trees_ros.trees
-    import rclpy.node
+    from py_trees_ros.trees import BehaviourTree
+    from rclpy.node import Node
 
 # Silence some TensorFlow GPU logs if needed
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
@@ -43,12 +42,12 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 def run_ae(
     ae_name: str,
-    node: rclpy.node.Node,
-    ae_root: py_trees_ros.trees.BehaviourTree,
+    node: Node,
+    ae_root: BehaviourTree,
     tickrate: int = 20,
 ) -> None:
     """Run an Analysis Engine (AE) by periodically ticking the Behavior Tree."""
-    logger = logging.getLogger(robokudo.defs.LOGGING_IDENTIFIER_MAIN_EXECUTABLE)
+    logger = logging.getLogger(LOGGING_IDENTIFIER_MAIN_EXECUTABLE)
     logger.info(f"Running AE named '{ae_name}'...")
 
     blackboard = py_trees.blackboard.Blackboard()
@@ -100,7 +99,7 @@ def main() -> None:
         type=str,
         nargs="?",
         const=1,
-        default=robokudo.defs.PACKAGE_NAME,
+        default=PACKAGE_NAME,
         help="ROS package name containing the AE (default: robokudo).",
     )
     parser.add_argument(
@@ -142,21 +141,14 @@ def main() -> None:
         )
 
     # 3. Logging setup
-    logger = logging.getLogger(robokudo.defs.LOGGING_IDENTIFIER_MAIN_EXECUTABLE)
+    logger = logging.getLogger(LOGGING_IDENTIFIER_MAIN_EXECUTABLE)
 
-    log_cfg_file = (
-        robokudo.utils.module_loader.ModuleLoader.get_module_path(
-            robokudo.defs.PACKAGE_NAME
-        )
-        / "logging_levels.yaml"
-    )
-    robokudo.utils.logging_configuration.configure_logging(
-        logging_config_file_name=str(log_cfg_file)
-    )
+    log_cfg_file = ModuleLoader.get_module_path(PACKAGE_NAME) / "logging_levels.yaml"
+    configure_logging(logging_config_file_name=str(log_cfg_file))
 
     # 4. Create a main ROS node
-    node_name = robokudo.defs.PACKAGE_NAME + args.nodesuffix
-    node1 = robokudo.io.ros.init_node(
+    node_name = PACKAGE_NAME + args.nodesuffix
+    node1 = init_node(
         node_name,
         parameter_overrides=[
             rclpy.parameter.Parameter(
@@ -170,11 +162,11 @@ def main() -> None:
     logger.info(f"Created node: {node_name}")
 
     # 5. Create any action servers or supporting nodes
-    query_action_server = robokudo.annotators.query.QueryActionServer(name="query")
+    query_action_server = QueryActionServer(name="query")
     blackboard = py_trees.blackboard.Blackboard()
-    blackboard.set(robokudo.identifier.BBIdentifier.QUERY_SERVER, query_action_server)
+    blackboard.set(BBIdentifier.QUERY_SERVER, query_action_server)
     blackboard.set(
-        robokudo.identifier.BBIdentifier.QUERY_SERVER_IN_PIPELINE, False
+        BBIdentifier.QUERY_SERVER_IN_PIPELINE, False
     )  # Ownership in Pipeline has to be declared first
 
     # 6. Start executors in separate threads
@@ -202,18 +194,18 @@ def main() -> None:
     thread_asrv.start()
 
     # 7. Dynamically load the requested Analysis Engine (AE) using the **refactored** ModuleLoader
-    loader = robokudo.utils.module_loader.ModuleLoader()
+    loader = ModuleLoader()
     logger.info(f"Loading AE '{args.ae}' from package '{args.ros_pkg}'...")
     loaded_ae = loader.load_ae(ros_pkg_name=args.ros_pkg, module_name=args.ae)
 
     # 8. Build your Behavior Tree from the loaded AE
     #    (Assuming loaded_ae.implementation() returns a py_trees root or something similar)
-    ae_root = robokudo.garden.grow_tree(
+    ae_root = grow_tree(
         loaded_ae.implementation(), node=node1, include_gui=not args.headless
     )
 
     # If you have a custom version of `setup_with_descendants`, call it:
-    robokudo.utils.tree.setup_with_descendants_rk(ae_root)
+    setup_with_descendants_rk(ae_root)
 
     # 9. Start ticking the Behavior Tree
     run_ae(ae_name=args.ae, node=node1, ae_root=ae_root, tickrate=args.tickrate)

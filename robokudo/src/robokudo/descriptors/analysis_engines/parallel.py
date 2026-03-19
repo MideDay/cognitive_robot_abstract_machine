@@ -17,22 +17,19 @@ The pipeline implements the following functionality:
     sleep durations to show asynchronous execution.
 """
 
-import robokudo.analysis_engine
+from robokudo.analysis_engine import AnalysisEngineInterface
 
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
+from robokudo.annotators.outputs import ClearAnnotatorOutputs
 from robokudo.annotators.pipeline_trigger import PipelineTrigger
 from robokudo.annotators.testing import SlowAnnotator
-
-import robokudo.descriptors.camera_configs.config_kinect_robot
-
-import robokudo.io.camera_interface
-import robokudo.pipeline
-import robokudo.tree_components.better_parallel
-import robokudo.annotators.outputs
+from robokudo.tree_components.better_parallel import Parallel, ParallelPolicy
+from robokudo.pipeline import Pipeline
+from robokudo.descriptors import CrDescriptorFactory
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     """Analysis engine demonstrating parallel processing capabilities.
 
     This class implements a pipeline that demonstrates parallel execution of
@@ -59,7 +56,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         """
         return "parallel"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """Create a pipeline with parallel processing capabilities.
 
         This method constructs a processing pipeline that demonstrates parallel
@@ -78,23 +75,11 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
 
         :return: The configured pipeline with parallel processing
         """
-        kinect_camera_config = (
-            robokudo.descriptors.camera_configs.config_kinect_robot.CameraConfig()
-        )
-        kinect_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=kinect_camera_config,
-            camera_interface=robokudo.io.camera_interface.KinectCameraInterface(
-                kinect_camera_config
-            ),
-        )
+        kinect_config = CrDescriptorFactory.create_descriptor("kinect")
 
-        seq = robokudo.pipeline.Pipeline("RWPipeline")
+        seq = Pipeline("RWPipeline")
         # parallel = py_trees.composites.Parallel()
-        parallel = robokudo.tree_components.better_parallel.Parallel(
-            policy=robokudo.tree_components.better_parallel.ParallelPolicy.SuccessOnAll(
-                synchronise=True
-            )
-        )
+        parallel = Parallel(policy=ParallelPolicy.SuccessOnAll(synchronise=True))
         parallel.add_children(
             [
                 # py_trees.behaviours.Count(name="Annotator A", fail_until=-1, running_until=30, success_until=1000),
@@ -106,7 +91,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
 
         for annotator in [
             PipelineTrigger(),
-            robokudo.annotators.outputs.ClearAnnotatorOutputs(),
+            ClearAnnotatorOutputs(),
             CollectionReaderAnnotator(descriptor=kinect_config),
             ImagePreprocessorAnnotator("ImagePreprocessor"),
             SlowAnnotator("FastAnnotator", sleep_in_s=1),

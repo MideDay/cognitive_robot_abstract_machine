@@ -16,20 +16,16 @@ The pipeline implements the following functionality:
     the FileReader interface.
 """
 
-import robokudo.analysis_engine
-from robokudo.annotators.camera_viewpoint_visualizer import CameraViewpointVisualizer
-
+from robokudo.analysis_engine import AnalysisEngineInterface
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.file_writer import FileWriter
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
-
-import robokudo.descriptors.camera_configs.config_mongodb_playback
-
-import robokudo.io.storage_reader_interface
-import robokudo.pipeline
+from robokudo.annotators.outputs import ClearAnnotatorOutputs
+from robokudo.pipeline import Pipeline
+from robokudo.descriptors import CrDescriptorFactory
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     """Analysis engine for transferring data from MongoDB to filesystem.
 
     This class implements a pipeline that reads data from MongoDB storage and
@@ -54,7 +50,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         """
         return "filewriter_from_storage"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """Create a pipeline for writing MongoDB data to filesystem.
 
         This method constructs a processing pipeline that reads data from MongoDB
@@ -63,21 +59,12 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
 
         :return: The configured pipeline for data transfer
         """
-        cr_storage_camera_config = (
-            robokudo.descriptors.camera_configs.config_mongodb_playback.CameraConfig()
-        )
-        cr_storage_camera_config.loop = False
-        cr_storage_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=cr_storage_camera_config,
-            camera_interface=robokudo.io.storage_reader_interface.StorageReaderInterface(
-                cr_storage_camera_config
-            ),
-        )
+        cr_storage_config = CrDescriptorFactory.create_descriptor("mongo", loop=False)
 
-        seq = robokudo.pipeline.Pipeline("StoragePipeline")
+        seq = Pipeline("StoragePipeline")
         seq.add_children(
             [
-                robokudo.annotators.outputs.ClearAnnotatorOutputs(),
+                ClearAnnotatorOutputs(),
                 CollectionReaderAnnotator(descriptor=cr_storage_config),
                 ImagePreprocessorAnnotator("ImagePreprocessor"),
                 FileWriter(),

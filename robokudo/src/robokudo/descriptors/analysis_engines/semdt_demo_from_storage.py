@@ -1,14 +1,6 @@
 import os
 
-import rclpy
-
-import robokudo.analysis_engine
-import robokudo.descriptors.camera_configs.config_kinect_robot_wo_transform
-import robokudo.descriptors.camera_configs.config_mongodb_playback
-import robokudo.idioms
-import robokudo.io.camera_interface
-import robokudo.io.storage_reader_interface
-import robokudo.pipeline
+from robokudo.analysis_engine import AnalysisEngineInterface
 from robokudo.annotators.cluster_color import ClusterColorAnnotator
 from robokudo.annotators.cluster_color_histogram import ClusterColorHistogramAnnotator
 from robokudo.annotators.cluster_pose_bb import ClusterPoseBBAnnotator
@@ -19,16 +11,20 @@ from robokudo.annotators.pointcloud_cluster_extractor import PointCloudClusterEx
 from robokudo.annotators.pointcloud_crop import PointcloudCropAnnotator
 from robokudo.annotators.semantic_world_connector import SemanticDigitalTwinConnector
 from robokudo.annotators.simple_yolo_annotator import SimpleYoloAnnotator
+from robokudo.descriptors import CrDescriptorFactory
+from robokudo.idioms import pipeline_init
+from robokudo.io.ros import get_node
+from robokudo.pipeline import Pipeline
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
     VizMarkerPublisher,
 )
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     def name(self) -> str:
         return "semdt_demo_from_storage"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """
         Create a pipeline that does tabletop segmentation and integrates primary navigation
         using a YOLO annotator.
@@ -51,23 +47,16 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         # descriptor.parameters.urdf_path = urdf_path
         sw_connector = SemanticDigitalTwinConnector(descriptor=descriptor)
 
-        node = rclpy.create_node("semantic_world")
-        viz = VizMarkerPublisher(world=sw_connector.semdt_adapter.world, node=node)
-
-        cr_storage_camera_config = (
-            robokudo.descriptors.camera_configs.config_mongodb_playback.CameraConfig()
-        )
-        cr_storage_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=cr_storage_camera_config,
-            camera_interface=robokudo.io.storage_reader_interface.StorageReaderInterface(
-                cr_storage_camera_config
-            ),
+        viz = VizMarkerPublisher(
+            world=sw_connector.semdt_adapter.world, node=get_node()
         )
 
-        seq = robokudo.pipeline.Pipeline("RWPipeline")
+        cr_storage_config = CrDescriptorFactory.create_descriptor("mongo")
+
+        seq = Pipeline("RWPipeline")
         seq.add_children(
             [
-                robokudo.idioms.pipeline_init(),
+                pipeline_init(),
                 CollectionReaderAnnotator(descriptor=cr_storage_config),
                 ImagePreprocessorAnnotator("ImagePreprocessor"),
                 PointcloudCropAnnotator(),

@@ -16,25 +16,18 @@ The pipeline implements the following functionality:
     for more complex object detection and segmentation tasks.
 """
 
-import robokudo.analysis_engine
-import robokudo.descriptors.camera_configs.config_kinect_robot_wo_transform
-import robokudo.descriptors.camera_configs.config_kinect_robot
-import robokudo.descriptors.camera_configs.config_orbbec
-import robokudo.idioms
-import robokudo.io.camera_interface
-import robokudo.pipeline
-from robokudo.annotators.cluster_color import ClusterColorAnnotator
-from robokudo.annotators.cluster_color_histogram import ClusterColorHistogramAnnotator
-from robokudo.annotators.cluster_position import ClusterPositionAnnotator
+from robokudo.analysis_engine import AnalysisEngineInterface
+from robokudo.pipeline import Pipeline
+from robokudo.idioms import pipeline_init
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
 from robokudo.annotators.plane import PlaneAnnotator
 from robokudo.annotators.pointcloud_cluster_extractor import PointCloudClusterExtractor
 from robokudo.annotators.pointcloud_crop import PointcloudCropAnnotator
-from robokudo.annotators.testing import SlowAnnotator
+from robokudo.descriptors import CrDescriptorFactory
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     """Analysis engine for basic tabletop segmentation.
 
     This class implements a simple pipeline for tabletop segmentation using
@@ -61,7 +54,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         """
         return "demo"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """Create a basic pipeline for tabletop segmentation.
 
         This method constructs a processing pipeline that performs tabletop
@@ -78,27 +71,17 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         6. Extract object clusters
 
         :return: The configured pipeline for tabletop segmentation
-        :rtype: robokudo.pipeline.Pipeline
 
         .. note::
             The pipeline includes commented-out options for adding triggers
             and slow processing simulation, which can be useful for debugging.
         """
-        kinect_camera_config = (
-            robokudo.descriptors.camera_configs.config_kinect_robot_wo_transform.CameraConfig()
-        )
-        # kinect_camera_config = robokudo.descriptors.camera_configs.config_kinect_robot.CameraConfig()
-        kinect_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=kinect_camera_config,
-            camera_interface=robokudo.io.camera_interface.KinectCameraInterface(
-                kinect_camera_config
-            ),
-        )
+        kinect_config = CrDescriptorFactory.create_descriptor("kinect_wo_tf")
 
-        seq = robokudo.pipeline.Pipeline("RWPipeline")
+        seq = Pipeline("RWPipeline")
         seq.add_children(
             [
-                robokudo.idioms.pipeline_init(),
+                pipeline_init(),
                 CollectionReaderAnnotator(descriptor=kinect_config),
                 ImagePreprocessorAnnotator("ImagePreprocessor"),
                 PointcloudCropAnnotator(),

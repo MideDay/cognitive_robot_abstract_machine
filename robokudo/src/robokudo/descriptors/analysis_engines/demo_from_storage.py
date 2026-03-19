@@ -17,8 +17,9 @@ The pipeline consists of the following steps:
     MongoDB database with stored camera data.
 """
 
-import robokudo.analysis_engine
-from robokudo.annotators.camera_viewpoint_visualizer import CameraViewpointVisualizer
+from robokudo.descriptors import CrDescriptorFactory
+
+from robokudo.analysis_engine import AnalysisEngineInterface
 
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
@@ -28,17 +29,11 @@ from robokudo.annotators.outlier_removal_objecthypothesis import (
 from robokudo.annotators.plane import PlaneAnnotator
 from robokudo.annotators.pointcloud_cluster_extractor import PointCloudClusterExtractor
 from robokudo.annotators.pointcloud_crop import PointcloudCropAnnotator
-
-import robokudo.descriptors.camera_configs.config_mongodb_playback
-
-import robokudo.io.storage_reader_interface
-
-import robokudo.behaviours.clear_errors
-
-import robokudo.idioms
+from robokudo.pipeline import Pipeline
+from robokudo.idioms import pipeline_init
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     """Analysis engine for demonstrating tabletop segmentation from stored data.
 
     This class implements a basic pipeline for tabletop segmentation using stored
@@ -58,37 +53,27 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         proper database configuration.
     """
 
-    def name(self):
+    def name(self) -> str:
         """Get the name of the analysis engine.
 
         :return: The name identifier of this analysis engine
-        :rtype: str
         """
         return "demo_from_storage"
 
-    def implementation(self):
+    def implementation(self) -> Pipeline:
         """Create a basic pipeline for tabletop segmentation.
 
         This method constructs the processing pipeline by configuring and connecting
         the necessary annotators in sequence.
 
         :return: The configured pipeline for tabletop segmentation
-        :rtype: robokudo.pipeline.Pipeline
         """
-        cr_storage_camera_config = (
-            robokudo.descriptors.camera_configs.config_mongodb_playback.CameraConfig()
-        )
-        cr_storage_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=cr_storage_camera_config,
-            camera_interface=robokudo.io.storage_reader_interface.StorageReaderInterface(
-                cr_storage_camera_config
-            ),
-        )
+        cr_storage_config = CrDescriptorFactory.create_descriptor("mongo")
 
-        seq = robokudo.pipeline.Pipeline("StoragePipeline")
+        seq = Pipeline("StoragePipeline")
         seq.add_children(
             [
-                robokudo.idioms.pipeline_init(),
+                pipeline_init(),
                 CollectionReaderAnnotator(descriptor=cr_storage_config),
                 ImagePreprocessorAnnotator("ImagePreprocessor"),
                 PointcloudCropAnnotator(),

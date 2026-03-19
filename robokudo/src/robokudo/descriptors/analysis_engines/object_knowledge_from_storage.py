@@ -19,26 +19,20 @@ The pipeline implements the following functionality:
     or scenarios.
 """
 
-import robokudo.analysis_engine
+from robokudo.analysis_engine import AnalysisEngineInterface
 from robokudo.annotators.cluster_color import ClusterColorAnnotator
 
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
 from robokudo.annotators.object_hypothesis_visualizer import ObjectHypothesisVisualizer
 from robokudo.annotators.object_knowledge_visualizer import ObjectKnowledgeVisualizer
-
-import robokudo.descriptors.camera_configs.config_mongodb_playback
-
-import robokudo.io.storage_reader_interface
-
-import robokudo.behaviours.clear_errors
-
-import robokudo.idioms
-import robokudo.pipeline
+from robokudo.idioms import pipeline_init
+from robokudo.pipeline import Pipeline
 from robokudo.annotators.static_object_detector import StaticObjectDetectorAnnotator
+from robokudo.descriptors import CrDescriptorFactory
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     """Analysis engine for object detection and knowledge visualization.
 
     This class implements a pipeline that combines static object detection with
@@ -66,7 +60,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         """
         return "object_knowledge_from_storage"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """Create a pipeline for object detection and knowledge visualization.
 
         This method constructs a processing pipeline that reads stored camera data,
@@ -79,17 +73,8 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         - Rotation: Quaternion (0.575, 0.666, -0.360, 0.310)
 
         :return: The configured pipeline for object detection and visualization
-        :rtype: robokudo.pipeline.Pipeline
         """
-        cr_storage_camera_config = (
-            robokudo.descriptors.camera_configs.config_mongodb_playback.CameraConfig()
-        )
-        cr_storage_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=cr_storage_camera_config,
-            camera_interface=robokudo.io.storage_reader_interface.StorageReaderInterface(
-                cr_storage_camera_config
-            ),
-        )
+        cr_storage_config = CrDescriptorFactory.create_descriptor("mongo")
 
         sod = StaticObjectDetectorAnnotator.Descriptor()
         sod.parameters.bounding_box_x = 397
@@ -107,10 +92,10 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         sod.parameters.rotation_w = 0.31004468090154913
         sod.parameters.class_name = "Mug"
 
-        seq = robokudo.pipeline.Pipeline("StoragePipeline")
+        seq = Pipeline("StoragePipeline")
         seq.add_children(
             [
-                robokudo.idioms.pipeline_init(),
+                pipeline_init(),
                 CollectionReaderAnnotator(descriptor=cr_storage_config),
                 ImagePreprocessorAnnotator("ImagePreprocessor"),
                 StaticObjectDetectorAnnotator(descriptor=sod),

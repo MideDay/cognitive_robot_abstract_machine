@@ -15,18 +15,16 @@ The pipeline implements the following functionality:
     store some annotated data before running this pipeline.
 """
 
-import robokudo.analysis_engine
-import robokudo.behaviours.clear_errors
-import robokudo.descriptors.camera_configs.config_mongodb_playback
-import robokudo.idioms
-import robokudo.pipeline
-import robokudo.io.storage_reader_interface
+from robokudo.analysis_engine import AnalysisEngineInterface
+from robokudo.idioms import pipeline_init
+from robokudo.pipeline import Pipeline
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
 from robokudo.annotators.object_hypothesis_visualizer import ObjectHypothesisVisualizer
+from robokudo.descriptors import CrDescriptorFactory
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     """Analysis engine for visualizing stored annotations.
 
     This class implements a pipeline that reads previously stored data and
@@ -51,7 +49,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         """
         return "annotations_from_storage"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """Create a pipeline for visualizing stored annotations.
 
         This method constructs a processing pipeline that reads stored data and
@@ -59,27 +57,19 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         to read from a specific database named 'store_with_annotations'.
 
         :return: The configured pipeline for annotation visualization
-        :rtype: robokudo.pipeline.Pipeline
 
         .. warning::
             Make sure to store some annotated data in the MongoDB database
             before running this pipeline, or it will not display anything.
         """
-        cr_storage_camera_config = (
-            robokudo.descriptors.camera_configs.config_mongodb_playback.CameraConfig()
-        )
-        cr_storage_camera_config.db_name = "store_with_annotations"
-        cr_storage_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=cr_storage_camera_config,
-            camera_interface=robokudo.io.storage_reader_interface.StorageReaderInterface(
-                cr_storage_camera_config
-            ),
+        cr_storage_config = CrDescriptorFactory.create_descriptor(
+            "mongo", db_name="store_with_annotations"
         )
 
-        seq = robokudo.pipeline.Pipeline("StoragePipeline")
+        seq = Pipeline("StoragePipeline")
         seq.add_children(
             [
-                robokudo.idioms.pipeline_init(),
+                pipeline_init(),
                 CollectionReaderAnnotator(descriptor=cr_storage_config),
                 ImagePreprocessorAnnotator("ImagePreprocessor"),
                 ObjectHypothesisVisualizer(),

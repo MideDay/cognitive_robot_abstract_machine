@@ -30,16 +30,14 @@ class AnalysisEngineInterface(Protocol):
     """
 
     def name(self) -> str:
-        """
-        Get the name of this Analysis Engine.
+        """Get the name of this Analysis Engine.
 
         :return: The unique name identifying this Analysis Engine
         """
         pass
 
     def implementation(self) -> Behaviour:
-        """
-        Get the behavior tree implementation for this Analysis Engine.
+        """Get the behavior tree implementation for this Analysis Engine.
 
         :return: The root node of the behavior tree implementing this engine
         """

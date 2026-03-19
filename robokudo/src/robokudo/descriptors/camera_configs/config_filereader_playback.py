@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 
-from typing_extensions import Optional, Tuple
+from typing_extensions import Optional, Tuple, ClassVar
+
+from robokudo.descriptors.camera_configs.base_camera_config import BaseCameraConfig
 
 
-@dataclass
-class CameraConfig:
+@dataclass(slots=True)
+class FileReaderCameraConfig(BaseCameraConfig):
     """Configuration class for file-based camera data playback.
 
     This class defines the configuration parameters for reading camera data from files,
@@ -16,8 +18,9 @@ class CameraConfig:
         path. Otherwise, target_dir is appended to the ROS package path.
     """
 
+    registry_name: ClassVar[str] = "file_reader"
+
     interface_type: str = "FileReader"
-    """Type of camera interface"""
 
     loop: bool = True
     """Shall we loop after iterating over a directory?"""

@@ -1,3 +1,4 @@
+from robokudo.descriptors import CrDescriptorFactory
 import multiprocessing
 import queue
 import threading
@@ -34,6 +35,7 @@ import robokudo.scripts.query_test_client
 # def query_worker(fun):
 #     return fun()
 
+
 class QueryWorkerThread(threading.Thread):
     def __init__(self, node):
         threading.Thread.__init__(self)
@@ -45,15 +47,12 @@ class QueryWorkerThread(threading.Thread):
 
 
 def query_simple_pipeline(node):
-    cr_fr_camera_config = robokudo.descriptors.camera_configs.config_filereader_playback.CameraConfig()
-    cr_fr_camera_config.loop = True
-    cr_fr_camera_config.target_dir = robokudo.utils.data_downloader.test_data_path() / Path("data")
-    cr_fr_camera_config.kinect_height_fix_mode = True
-    cr_fr_camera_config.color2depth_ratio = (0.5, 0.5)
-
-    cr_fr_config = CollectionReaderAnnotator.Descriptor(
-        camera_config=cr_fr_camera_config,
-        camera_interface=robokudo.io.file_reader_interface.RGBDFileReaderInterface(cr_fr_camera_config),
+    cr_fr_config = CrDescriptorFactory.create_descriptor(
+        "file_reader",
+        loop=True,
+        target_dir=robokudo.utils.data_downloader.test_data_path() / Path("data"),
+        kinect_height_fix_mode=True,
+        color2depth_ratio=(0.5, 0.5),
     )
 
     # Restrict FOV of pointcloud to robustly get only one object
@@ -80,6 +79,7 @@ def query_simple_pipeline(node):
     )
 
     return seq, tree_result
+
 
 @pytest.fixture
 def tree_run(node):
@@ -109,7 +109,9 @@ class TestQueryInterface:
         # Start the action client
         print("Starting Client Process")
         client_results = queue.Queue()
-        p = multiprocessing.Process(target=robokudo.scripts.query_test_client.main(result=client_results))
+        p = multiprocessing.Process(
+            target=robokudo.scripts.query_test_client.main(result=client_results)
+        )
         p.start()
 
         t.join()
@@ -122,9 +124,9 @@ class TestQueryInterface:
         assert tree_result is py_trees.common.Status.SUCCESS
         # The action client did not time out
         client_result = client_results.get()
-        assert client_result['timed_out'] is False
-        assert client_result['goal_status'] is GoalStatus.STATUS_SUCCEEDED
-        assert len(client_result['goal_result'].res) == 1
+        assert client_result["timed_out"] is False
+        assert client_result["goal_status"] is GoalStatus.STATUS_SUCCEEDED
+        assert len(client_result["goal_result"].res) == 1
 
     # def test_normal_ae_run_without_query(self, node):
     #     cr_fr_camera_config = robokudo.descriptors.camera_configs.config_filereader_playback.CameraConfig()

@@ -19,18 +19,16 @@ The pipeline implements the following functionality:
     processing.
 """
 
-import robokudo.analysis_engine
-import robokudo.behaviours.clear_errors
-import robokudo.descriptors.camera_configs.config_mongodb_playback
-import robokudo.idioms
-import robokudo.io.storage_reader_interface
-import robokudo.pipeline
+from robokudo.analysis_engine import AnalysisEngineInterface
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
 from robokudo.annotators.region_filter import RegionFilter
+from robokudo.descriptors import CrDescriptorFactory
+from robokudo.idioms import pipeline_init
+from robokudo.pipeline import Pipeline
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     """Analysis engine for region-based point cloud filtering.
 
     This class implements a pipeline that filters point cloud data based on
@@ -58,7 +56,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         """
         return "regionfilter_from_storage"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """Create a pipeline for region-based point cloud filtering.
 
         This method constructs a processing pipeline that applies region-based
@@ -74,28 +72,19 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         5. Optional: Visualize camera viewpoint
 
         :return: The configured pipeline for region-based filtering
-        :rtype: robokudo.pipeline.Pipeline
 
         .. note::
             The pipeline includes commented-out options for adding a trigger
             and camera viewpoint visualization, which can be useful for
             debugging and development.
         """
-        cr_storage_camera_config = (
-            robokudo.descriptors.camera_configs.config_mongodb_playback.CameraConfig()
-        )
-        cr_storage_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=cr_storage_camera_config,
-            camera_interface=robokudo.io.storage_reader_interface.StorageReaderInterface(
-                cr_storage_camera_config
-            ),
-        )
+        cr_storage_config = CrDescriptorFactory.create_descriptor("mongo")
 
-        seq = robokudo.pipeline.Pipeline("StoragePipeline")
+        seq = Pipeline("StoragePipeline")
         seq.add_children(
             [
                 # PipelineTrigger(),
-                robokudo.idioms.pipeline_init(),
+                pipeline_init(),
                 CollectionReaderAnnotator(descriptor=cr_storage_config),
                 ImagePreprocessorAnnotator("ImagePreprocessor"),
                 RegionFilter(),

@@ -85,8 +85,8 @@ class BaseObjectKnowledgeBase:
     def __init__(self) -> None:
         """Initialize an empty object knowledge base."""
 
-        """Dictionary mapping object names to their knowledge"""
         self.entries: Dict[str, ObjectKnowledge] = dict()
+        """Dictionary mapping object names to their knowledge"""
 
         self.world = World()
         root = Body(name=PrefixedName(name="root", prefix="world"))

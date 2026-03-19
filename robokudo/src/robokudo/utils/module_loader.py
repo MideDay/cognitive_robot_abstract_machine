@@ -34,6 +34,8 @@ from pathlib import Path
 
 from typing_extensions import TYPE_CHECKING, List, Any, Optional
 
+from ..descriptors.camera_configs.base_camera_config import BaseCameraConfig
+
 if TYPE_CHECKING:
     from types import ModuleType
     from ..analysis_engine import AnalysisEngineInterface
@@ -157,7 +159,15 @@ class ModuleLoader:
         """
         module_type = RobokudoModuleType.CameraConfig
         loaded_module = self._load_module(ros_pkg_name, module_type, module_name)
-        return loaded_module.CameraConfig()
+        for name, obj in loaded_module.__dict__.items():
+            if (
+                isinstance(obj, type)
+                and issubclass(obj, BaseCameraConfig)
+                and obj != BaseCameraConfig
+            ):
+                return obj()
+        return None
+        # return loaded_module.CameraConfig()
 
     def load_io(self, ros_pkg_name: str, module_name: str) -> ModuleType:
         """Load an I/O module. Customize this if there's a specific class to instantiate.

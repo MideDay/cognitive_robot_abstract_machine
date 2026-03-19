@@ -18,21 +18,20 @@ The pipeline implements the following functionality:
     perception capabilities as needed.
 """
 
-import robokudo.analysis_engine
-import robokudo.descriptors.camera_configs.config_tiago
-import robokudo.idioms
-import robokudo.io.camera_interface
-import robokudo.pipeline
+from robokudo.analysis_engine import AnalysisEngineInterface
 from robokudo.annotators.cluster_pose_pca import ClusterPosePCAAnnotator
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
 from robokudo.annotators.plane import PlaneAnnotator
 from robokudo.annotators.pointcloud_cluster_extractor import PointCloudClusterExtractor
 from robokudo.annotators.pointcloud_crop import PointcloudCropAnnotator
-from robokudo.annotators.query import QueryReply, GenerateQueryResult
+from robokudo.annotators.query import QueryReply, GenerateQueryResult, QueryAnnotator
+from robokudo.descriptors import CrDescriptorFactory
+from robokudo.idioms import pipeline_init
+from robokudo.pipeline import Pipeline
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     """Analysis engine for TIAGo robot perception.
 
     This class implements a pipeline that processes camera data from the TIAGo
@@ -60,7 +59,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         """
         return "demo"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """Create a pipeline for TIAGo robot perception.
 
         This method constructs a processing pipeline that handles perception
@@ -81,24 +80,16 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
 
         :return: The configured pipeline for TIAGo perception
         """
-        tiago_camera_config = (
-            robokudo.descriptors.camera_configs.config_tiago.CameraConfig()
-        )
-        tiago_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=tiago_camera_config,
-            camera_interface=robokudo.io.camera_interface.KinectCameraInterface(
-                tiago_camera_config
-            ),
-        )
+        tiago_config = CrDescriptorFactory.create_descriptor("tiago")
 
         # pc_crop_config = PointcloudCropAnnotator.Descriptor()
         # pc_crop_config.parameters.
 
-        seq = robokudo.pipeline.Pipeline("ContPipeline")
+        seq = Pipeline("ContPipeline")
         seq.add_children(
             [
-                robokudo.idioms.pipeline_init(),
-                robokudo.annotators.query.QueryAnnotator(),
+                pipeline_init(),
+                QueryAnnotator(),
                 CollectionReaderAnnotator(descriptor=tiago_config),
                 ImagePreprocessorAnnotator("ImagePreprocessor"),
                 PointcloudCropAnnotator(),

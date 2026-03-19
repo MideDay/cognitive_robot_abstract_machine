@@ -16,21 +16,21 @@ The pipeline implements the following functionality:
     processing flows using nested pipelines and conditional execution.
 """
 
-import py_trees
-
-import robokudo.analysis_engine
-import robokudo.pipeline
+from robokudo.annotators.outputs import ClearAnnotatorOutputs
+from robokudo.descriptors import CrDescriptorFactory
+from robokudo.analysis_engine import AnalysisEngineInterface
+from robokudo.pipeline import Pipeline
+from py_trees.behaviours import Count, SuccessEveryN
+from py_trees.decorators import Condition
+from py_trees.composites import Sequence
 
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
 from robokudo.annotators.testing import SlowAnnotator
-
-import robokudo.descriptors.camera_configs.config_kinect_robot
-
-import robokudo.io.camera_interface
+from robokudo.gui import SetPipelineRedraw
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     """Analysis engine demonstrating nested pipeline architecture.
 
     This class implements a pipeline that combines a main processing pipeline
@@ -57,7 +57,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         """
         return "nested_pipeline"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """Create a pipeline with nested belief state processing.
 
         This method constructs a processing pipeline that includes both a main
@@ -72,44 +72,35 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         * Success check every 2 iterations
 
         :return: The configured pipeline with nested belief state processing
-        :rtype: robokudo.pipeline.Pipeline
         """
-        kinect_camera_config = (
-            robokudo.descriptors.camera_configs.config_kinect_robot.CameraConfig()
-        )
-        kinect_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=kinect_camera_config,
-            camera_interface=robokudo.io.camera_interface.KinectCameraInterface(
-                kinect_camera_config
-            ),
-        )
+        kinect_config = CrDescriptorFactory.create_descriptor("kinect")
 
         # create second 'pipeline
-        second_seq = py_trees.composites.Sequence(name="BS Pipeline")
+        second_seq = Sequence(name="BS Pipeline")
         second_seq.add_children(
             [
-                py_trees.behaviours.Count(
+                Count(
                     name="Annotator A", fail_until=-1, running_until=9, success_until=10
                 ),
-                py_trees.behaviours.Count(
+                Count(
                     name="Annotator B", fail_until=-1, running_until=9, success_until=10
                 ),
-                py_trees.behaviours.SuccessEveryN("Repeat Done?", 2),
+                SuccessEveryN("Repeat Done?", 2),
             ]
         )
-        condition = py_trees.decorators.Condition(second_seq)
+        condition = Condition(second_seq)
 
-        seq = robokudo.pipeline.Pipeline("RWPipeline")
+        seq = Pipeline("RWPipeline")
 
         for annotator in [
-            robokudo.annotators.outputs.ClearAnnotatorOutputs(),
+            ClearAnnotatorOutputs(),
             CollectionReaderAnnotator(descriptor=kinect_config),
             ImagePreprocessorAnnotator("ImagePreprocessor"),
             SlowAnnotator("SlowAnnotator"),
         ]:
             seq.add_child(annotator)
 
-        seq.add_child(robokudo.gui.SetPipelineRedraw())
+        seq.add_child(SetPipelineRedraw())
         seq.add_child(condition)
 
         return seq

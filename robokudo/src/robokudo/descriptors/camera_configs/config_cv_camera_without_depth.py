@@ -2,17 +2,21 @@
 This is the camera config for a openCV camera without depth information.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import cv2
-from typing_extensions import TYPE_CHECKING, Optional, Dict, Any, Tuple, Union
+from typing_extensions import TYPE_CHECKING, Optional, Dict, Any, Tuple, Union, ClassVar
+
+from robokudo.descriptors.camera_configs.base_camera_config import BaseCameraConfig
 
 if TYPE_CHECKING:
     import numpy.typing as npt
 
 
-@dataclass
-class CameraConfig:
+@dataclass(slots=True)
+class OpenCVCameraConfig(BaseCameraConfig):
     """Configuration class for OpenCV-based cameras without depth information.
 
     This class defines the configuration parameters for cameras that can be accessed
@@ -24,8 +28,9 @@ class CameraConfig:
         between 0 and 4, and there cannot be any gaps in the sequence numbering.
     """
 
+    registry_name: ClassVar[str] = "opencv"
+
     interface_type: str = "OpenCV"
-    """Type of camera interface"""
 
     device: Union[int, str] = 0
     """Input source identifier (camera index, file path, or URL).

@@ -19,31 +19,24 @@ The pipeline implements the following functionality:
     requiring direct robot access.
 """
 
-import py_trees
+from py_trees.composites import Sequence
 
-import robokudo.analysis_engine
-
+from robokudo.analysis_engine import AnalysisEngineInterface
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
 from robokudo.annotators.plane import PlaneAnnotator
 from robokudo.annotators.pointcloud_cluster_extractor import PointCloudClusterExtractor
 from robokudo.annotators.pointcloud_crop import PointcloudCropAnnotator
-from robokudo.annotators.cluster_pose_bb import ClusterPoseBBAnnotator
 from robokudo.annotators.cluster_pose_pca import ClusterPosePCAAnnotator
 from robokudo.annotators.cluster_color import ClusterColorAnnotator
-from robokudo.annotators.camera_viewpoint_visualizer import CameraViewpointVisualizer
+from robokudo.idioms import pipeline_init
+from robokudo.pipeline import Pipeline
+from robokudo.tree_components.better_parallel import Parallel, ParallelPolicy
+
+from robokudo.descriptors import CrDescriptorFactory
 
 
-import robokudo.descriptors.camera_configs.config_mongodb_playback
-import robokudo.io.storage_reader_interface
-import robokudo.tree_components.better_parallel
-import robokudo.idioms
-import robokudo.pipeline
-
-from robokudo.annotators.query import QueryReply, GenerateQueryResult
-
-
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     """Analysis engine for TIAGo robot perception with stored data.
 
     This class implements a pipeline that processes stored TIAGo camera data
@@ -75,7 +68,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         """
         return "tiago_demo_from_storage"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """Create a pipeline for TIAGo perception with stored data.
 
         This method constructs a processing pipeline that combines sequential
@@ -98,17 +91,9 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
 
         :return: The configured pipeline with parallel processing
         """
-        cr_storage_camera_config = (
-            robokudo.descriptors.camera_configs.config_mongodb_playback.CameraConfig()
-        )
-        cr_storage_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=cr_storage_camera_config,
-            camera_interface=robokudo.io.storage_reader_interface.StorageReaderInterface(
-                cr_storage_camera_config
-            ),
-        )
+        cr_storage_config = CrDescriptorFactory.create_descriptor("mongo")
 
-        pre = py_trees.composites.Sequence("Preprocessing")
+        pre = Sequence("Preprocessing")
         pre.add_children(
             [
                 CollectionReaderAnnotator(descriptor=cr_storage_config),
@@ -116,18 +101,14 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
             ]
         )
 
-        parallel = robokudo.tree_components.better_parallel.Parallel(
-            policy=robokudo.tree_components.better_parallel.ParallelPolicy.SuccessOnAll(
-                synchronise=True
-            )
-        )
+        parallel = Parallel(policy=ParallelPolicy.SuccessOnAll(synchronise=True))
         parallel.add_children(
             [
                 ClusterColorAnnotator(),
                 ClusterPosePCAAnnotator(),
             ]
         )
-        annotators = py_trees.composites.Sequence("Annotators")
+        annotators = Sequence("Annotators")
         annotators.add_children(
             [
                 PointcloudCropAnnotator(),
@@ -137,10 +118,10 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
             ]
         )
 
-        seq = robokudo.pipeline.Pipeline("ContPipeline")
+        seq = Pipeline("ContPipeline")
         seq.add_children(
             [
-                robokudo.idioms.pipeline_init(),
+                pipeline_init(),
                 # robokudo.annotators.query.QueryAnnotator(),
                 pre,
                 annotators,

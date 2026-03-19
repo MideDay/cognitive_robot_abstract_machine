@@ -23,33 +23,30 @@ The pipeline implements the following functionality:
     error handling and recovery mechanisms.
 """
 
-import py_trees
+from py_trees.composites import Sequence
+from py_trees.decorators import Inverter, Condition
+from py_trees.behaviours import SuccessEveryN
+from py_trees.common import Status
 
-import robokudo.analysis_engine
-from robokudo.annotators.blur import BlurAnnotator
-from robokudo.annotators.cluster_color import ClusterColorAnnotator
-
+from robokudo.analysis_engine import AnalysisEngineInterface
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
 from robokudo.annotators.plane import PlaneAnnotator
 from robokudo.annotators.pointcloud_cluster_extractor import PointCloudClusterExtractor
 from robokudo.annotators.pointcloud_crop import PointcloudCropAnnotator
+from robokudo.annotators.query import QueryAnnotator
 
-import robokudo.descriptors.camera_configs.config_mongodb_playback
-import robokudo.io.storage_reader_interface
-import robokudo.annotators.query
-
-import robokudo.idioms
-import robokudo.pipeline
 from robokudo.annotators.vis import Redraw
 from robokudo.behaviours.action_server_checks import (
-    ActionServerCheck,
     ActionServerNoPreemptRequest,
     AbortGoal,
 )
+from robokudo.descriptors import CrDescriptorFactory
+from robokudo.idioms import pipeline_init
+from robokudo.pipeline import Pipeline
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     """Analysis engine for continuous perception with external control.
 
     This class implements a pipeline that runs continuous perception tasks
@@ -78,7 +75,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         """
         return "query_startstop_pipeline_from_storage"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """Create a continuous perception pipeline with external control.
 
         This method constructs a processing pipeline that runs continuously
@@ -106,17 +103,9 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
             The pipeline will automatically fail after 30 iterations to
             demonstrate error handling mechanisms.
         """
-        cr_storage_camera_config = (
-            robokudo.descriptors.camera_configs.config_mongodb_playback.CameraConfig()
-        )
-        cr_storage_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=cr_storage_camera_config,
-            camera_interface=robokudo.io.storage_reader_interface.StorageReaderInterface(
-                cr_storage_camera_config
-            ),
-        )
+        cr_storage_config = CrDescriptorFactory.create_descriptor("mongo")
 
-        processing_sequence = py_trees.composites.Sequence()
+        processing_sequence = Sequence()
         processing_sequence.add_children(
             [
                 CollectionReaderAnnotator(descriptor=cr_storage_config),
@@ -126,20 +115,16 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
                 PointCloudClusterExtractor(),
                 Redraw(),
                 ActionServerNoPreemptRequest(),
-                py_trees.decorators.Inverter(
-                    py_trees.behaviours.SuccessEveryN("Fail Sim after 30 iter", n=30)
-                ),
+                Inverter(SuccessEveryN("Fail Sim after 30 iter", n=30)),
             ]
         )
 
-        pipeline = robokudo.pipeline.Pipeline("StoragePipeline")
+        pipeline = Pipeline("StoragePipeline")
         pipeline.add_children(
             [
-                robokudo.idioms.pipeline_init(),
-                robokudo.annotators.query.QueryAnnotator(),
-                py_trees.decorators.Condition(
-                    child=processing_sequence, status=py_trees.Status.FAILURE
-                ),
+                pipeline_init(),
+                QueryAnnotator(),
+                Condition(child=processing_sequence, status=Status.FAILURE),
                 AbortGoal(),
             ]
         )

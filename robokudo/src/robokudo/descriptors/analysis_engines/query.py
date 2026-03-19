@@ -16,23 +16,20 @@ The pipeline implements the following functionality:
     processing steps between query reception and response generation.
 """
 
-import robokudo.analysis_engine
+from robokudo.analysis_engine import AnalysisEngineInterface
 
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
-import robokudo.annotators.query
-import robokudo.pipeline
+from robokudo.annotators.query import QueryAnnotator, QueryReply
+from robokudo.pipeline import Pipeline
 
-import robokudo.descriptors.camera_configs.config_kinect_robot
-import robokudo.descriptors.camera_configs.config_kinect_robot_wo_transform
-
-import robokudo.io.camera_interface
-import robokudo.idioms
+from robokudo.idioms import pipeline_init
 from robokudo.behaviours.action_server_checks import ActionServerCheck
+from robokudo.descriptors import CrDescriptorFactory
 from robokudo.utils.tree import add_children_to_parent
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     """Analysis engine for query-based processing.
 
     This class implements a pipeline that handles incoming queries by processing
@@ -58,7 +55,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         """
         return "query"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """Create a pipeline for query-based processing.
 
         This method constructs a processing pipeline that can handle incoming
@@ -76,27 +73,18 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
 
         :return: The configured pipeline for query processing
         """
-        # kinect_camera_config = robokudo.descriptors.camera_configs.config_kinect_robot.CameraConfig()
-        kinect_camera_config = (
-            robokudo.descriptors.camera_configs.config_kinect_robot_wo_transform.CameraConfig()
-        )
-        kinect_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=kinect_camera_config,
-            camera_interface=robokudo.io.camera_interface.KinectCameraInterface(
-                kinect_camera_config
-            ),
-        )
+        kinect_config = CrDescriptorFactory.create_descriptor("kinect_wo_tf")
 
-        seq = robokudo.pipeline.Pipeline("RWPipeline")
+        seq = Pipeline("RWPipeline")
 
         add_children_to_parent(
             seq,
             [
-                robokudo.idioms.pipeline_init(),
-                robokudo.annotators.query.QueryAnnotator(),
+                pipeline_init(),
+                QueryAnnotator(),
                 CollectionReaderAnnotator(descriptor=kinect_config),
                 ImagePreprocessorAnnotator("ImagePreprocessor"),
-                robokudo.annotators.query.QueryReply(),
+                QueryReply(),
                 ActionServerCheck(),
             ],
         )

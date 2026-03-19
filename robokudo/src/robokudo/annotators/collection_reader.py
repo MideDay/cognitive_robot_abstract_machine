@@ -18,20 +18,21 @@ The module uses:
    This is typically the first annotator in a pipeline.
 """
 
-from dataclasses import dataclass
 from timeit import default_timer as timer
 from typing_extensions import Optional, List
 
-import py_trees
+from py_trees.common import Status
+from py_trees.composites import Sequence
+from py_trees.display import unicode_tree
 
-import robokudo.annotators.core
-import robokudo.cas
-import robokudo.io
-from robokudo.world import world_instance
-import robokudo.io.camera_interface
+from robokudo.annotators.core import BaseAnnotator
+from robokudo.io.camera_interface import CameraInterface
+from robokudo.cas import CASViews
+from robokudo.descriptors.camera_configs.base_camera_config import BaseCameraConfig
+import robokudo.world
 
 
-class CollectionReaderAnnotator(robokudo.annotators.core.BaseAnnotator):
+class CollectionReaderAnnotator(BaseAnnotator):
     """Sensor data collection and CAS initialization.
 
     This annotator:
@@ -46,13 +47,13 @@ class CollectionReaderAnnotator(robokudo.annotators.core.BaseAnnotator):
        Uses separate camera interfaces for different sensor types.
     """
 
-    class Descriptor(robokudo.annotators.core.BaseAnnotator.Descriptor):
+    class Descriptor(BaseAnnotator.Descriptor):
         """Configuration descriptor for collection reader."""
 
         def __init__(
             self,
-            camera_config,
-            camera_interface: robokudo.io.camera_interface.CameraInterface,
+            camera_config: BaseCameraConfig,
+            camera_interface: CameraInterface,
         ) -> None:
             """Initialize descriptor with camera configuration.
 
@@ -105,7 +106,7 @@ class CollectionReaderAnnotator(robokudo.annotators.core.BaseAnnotator):
         self.rk_logger.debug("%s.initialise()" % self.__class__.__name__)
 
         # Clear all feedback messages when Collection Reader starts over
-        assert isinstance(self.parent, py_trees.composites.Sequence)
+        assert isinstance(self.parent, Sequence)
         for child in self.parent.children:
             child.feedback_message = ""
 
@@ -122,7 +123,7 @@ class CollectionReaderAnnotator(robokudo.annotators.core.BaseAnnotator):
             f"added descriptor to collection readers with camera interface '{interface_type}'"
         )
 
-    def update(self) -> py_trees.common.Status:
+    def update(self) -> Status:
         """Process sensor data and update CAS.
 
         The method:
@@ -160,8 +161,8 @@ class CollectionReaderAnnotator(robokudo.annotators.core.BaseAnnotator):
             # Special case: If there is already a query present in this CAS, we need to temporarily save it and set
             # it in the new CAS
             query = None
-            if pipeline.cas.contains(robokudo.cas.CASViews.QUERY):
-                query = pipeline.cas.get(robokudo.cas.CASViews.QUERY)
+            if pipeline.cas.contains(CASViews.QUERY):
+                query = pipeline.cas.get(CASViews.QUERY)
 
             # Create a fresh CAS for the pipeline
             pipeline.create_new_cas()
@@ -181,9 +182,9 @@ class CollectionReaderAnnotator(robokudo.annotators.core.BaseAnnotator):
             )
             if self.parent:
                 self.rk_logger.info("Current Behavior Tree:")
-                print(py_trees.display.unicode_tree(self.parent))
+                print(unicode_tree(self.parent))
 
-            return py_trees.common.Status.SUCCESS
+            return Status.SUCCESS
 
         else:
             self.iterations_since_last_data += 1
@@ -200,9 +201,9 @@ class CollectionReaderAnnotator(robokudo.annotators.core.BaseAnnotator):
                         f"  CR data available?: {collection_reader.parameters.camera_interface.has_new_data()}"
                     )
                 self.iterations_since_last_data = 0
-            return py_trees.common.Status.RUNNING
+            return Status.RUNNING
 
-    def terminate(self, new_status: py_trees.common.Status) -> None:
+    def terminate(self, new_status: Status) -> None:
         """Handle behavior termination.
 
         :param new_status: New status (SUCCESS, FAILURE or INVALID)

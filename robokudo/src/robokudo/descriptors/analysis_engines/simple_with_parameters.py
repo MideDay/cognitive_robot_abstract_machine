@@ -16,20 +16,16 @@ The pipeline implements the following functionality:
     annotator code.
 """
 
-import robokudo.analysis_engine
-
+from robokudo.analysis_engine import AnalysisEngineInterface
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
 from robokudo.annotators.testing import SlowAnnotator
-
-import robokudo.descriptors.camera_configs.config_kinect_robot
-
-import robokudo.io.camera_interface
-import robokudo.idioms
-import robokudo.pipeline
+from robokudo.descriptors import CrDescriptorFactory
+from robokudo.idioms import pipeline_init
+from robokudo.pipeline import Pipeline
 
 
-class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
+class AnalysisEngine(AnalysisEngineInterface):
     """Analysis engine demonstrating parameter configuration.
 
     This class implements a pipeline that shows how to configure annotator
@@ -55,7 +51,7 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         """
         return "simple_with_parameters"
 
-    def implementation(self) -> robokudo.pipeline.Pipeline:
+    def implementation(self) -> Pipeline:
         """Create a pipeline with custom parameter configuration.
 
         This method constructs a processing pipeline that demonstrates how to
@@ -69,25 +65,16 @@ class AnalysisEngine(robokudo.analysis_engine.AnalysisEngineInterface):
         * Slow annotator for processing simulation
 
         :return: The configured pipeline with custom parameters
-        :rtype: robokudo.pipeline.Pipeline
         """
-        kinect_camera_config = (
-            robokudo.descriptors.camera_configs.config_kinect_robot.CameraConfig()
-        )
-        kinect_config = CollectionReaderAnnotator.Descriptor(
-            camera_config=kinect_camera_config,
-            camera_interface=robokudo.io.camera_interface.KinectCameraInterface(
-                kinect_camera_config
-            ),
-        )
+        kinect_config = CrDescriptorFactory.create_descriptor("kinect")
 
         image_preprocessor_config = ImagePreprocessorAnnotator.Descriptor()
         image_preprocessor_config.parameters.depth_trunc = 4.5
 
-        seq = robokudo.pipeline.Pipeline("RWPipeline")
+        seq = Pipeline("RWPipeline")
         seq.add_children(
             [
-                robokudo.idioms.pipeline_init(),
+                pipeline_init(),
                 CollectionReaderAnnotator(descriptor=kinect_config),
                 ImagePreprocessorAnnotator(
                     "ImagePreprocessor", descriptor=image_preprocessor_config
