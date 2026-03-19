@@ -15,17 +15,16 @@ from timeit import default_timer
 import open3d as o3d
 import py_trees
 
-from robokudo.utils import module_loader
-from semantic_digital_twin.world_description.world_entity import Region
-
 import robokudo.annotators
 import robokudo.annotators.core
 import robokudo.types.scene
 import robokudo.utils.annotator_helper
 import robokudo.utils.error_handling
+import robokudo.utils.knowledge
 from robokudo.cas import CASViews
-from robokudo.utils.module_loader import ModuleLoader
+from robokudo.utils import module_loader
 from robokudo.utils.region import region_obb_in_cam_coordinates, region_pose_annotation
+from semantic_digital_twin.world_description.world_entity import Region
 
 
 class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
@@ -50,11 +49,11 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
                 self.world_frame_name: str = "map"
                 """Name of the world coordinate frame"""
 
-                self.object_knowledge_ros_package: str = "robokudo"
-                """ROS package containing object/region knowledge"""
+                self.object_knowledge_base_ros_package: str = "robokudo"
+                """If you use SDT object knowledge to generate the detection, provide the knowledge base package name here"""
 
-                self.object_knowledge_name: str = "object_knowledge_iai_kitchen20"
-                """Name of object knowledge module. Should be in descriptors/object_knowledge/."""
+                self.object_knowledge_base_name: str = "object_knowledge_iai_kitchen20"
+                """If you use SDT object knowledge to generate the detection, provide the knowledge base name here"""
 
                 self.active_region: str = ""
                 """Name of active region to filter. Does not define a specific region but can be used to check the active regions."""
@@ -87,14 +86,8 @@ class RegionFilter(robokudo.annotators.core.ThreadedAnnotator):
 
     def load_object_knowledge_base(self) -> None:
         """Load object/region knowledge from configured package and module.
-
-        Uses ModuleLoader to dynamically load the object knowledge base module.
         """
-        loader = module_loader.ModuleLoader()
-        self.object_knowledge_base = loader.load_object_knowledge_base(
-            ros_pkg_name=self.descriptor.parameters.object_knowledge_ros_package,
-            module_name=self.descriptor.parameters.object_knowledge_name,
-        )
+        self.object_knowledge_base = robokudo.utils.knowledge.load_object_knowledge_base(self)
 
     @robokudo.utils.error_handling.catch_and_raise_to_blackboard
     def compute(self) -> py_trees.common.Status:
