@@ -204,8 +204,6 @@ def test_plan_all_parents(urdf_context):
     assert node3.path == [node2, node]
 
 
-#
-#
 def test_plan_node_children(urdf_context):
     world, context = urdf_context
 

@@ -2,8 +2,6 @@
 
 from enum import Enum, auto, IntEnum
 
-from pycram.failures import UnsupportedJointType
-
 
 class AdjacentBodyMethod(Enum):
     ClosestPoints = auto()

@@ -4,136 +4,109 @@ import pytest
 
 from pycram.datastructures.enums import TaskStatus, MonitorBehavior, DetectionTechnique
 from pycram.failure_handling import RetryMonitor
-from pycram.failures import PlanFailure, NotALanguageExpression
+from pycram.failures import PlanFailure
 from pycram.fluent import Fluent
 from pycram.language import (
     MonitorNode,
     SequentialNode,
     TryAllNode,
     ParallelNode,
+    TryInOrderNode,
 )
 from pycram.motion_executor import simulated_robot
-from pycram.plans.factories import sequential, parallel
+from pycram.plans.factories import sequential, parallel, try_in_order, try_all, monitor
 from pycram.robot_plans import *
 from pycram.robot_plans.actions.core.misc import DetectAction
 from pycram.robot_plans.actions.core.navigation import NavigateAction
-from pycram.robot_plans.actions.core.robot_body import MoveTorsoAction
+from pycram.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
 from semantic_digital_twin.datastructures.definitions import TorsoState
 
 
-def test_simplify_tree(immutable_model_world):
-    world, robot_view, context = immutable_model_world
+def test_factory_construction():
     act = NavigateAction(PoseStamped())
     act2 = MoveTorsoAction(TorsoState.HIGH)
     act3 = DetectAction(DetectionTechnique.TYPES)
 
-    root = sequential([act, sequential([act2, act3])], context)
-    root.plan.validate()
-
-    assert len(root.plan.nodes) == 4
-    assert len(root.children) == 3
-
-
-def test_sequential_construction(immutable_model_world):
-    world, robot_view, context = immutable_model_world
-    act = NavigateAction(PoseStamped())
-    act2 = MoveTorsoAction(TorsoState.HIGH)
-    act3 = DetectAction(DetectionTechnique.TYPES)
-
-    root = sequential([act, act2, act3], context=context)
+    root = sequential([act, act2, act3])
     assert isinstance(root, SequentialNode)
     assert len(root.children) == 3
 
 
-def test_parallel_construction(immutable_model_world):
-    world, robot_view, context = immutable_model_world
+def test_simplify_tree():
+    act = NavigateAction(PoseStamped())
+    act2 = MoveTorsoAction(TorsoState.HIGH)
+    act3 = DetectAction(DetectionTechnique.TYPES)
+    act4 = DetectAction(DetectionTechnique.TYPES)
+
+    root = sequential([act, sequential([act2, act3]), act4])
+    root.plan.validate()
+    assert [c.designator for c in root.children] == [act, act2, act3, act4]
+    assert len(root.plan.nodes) == 5
+
+
+def test_parallel_construction():
     act = NavigateAction(PoseStamped())
     act2 = MoveTorsoAction(TorsoState.HIGH)
     act3 = DetectAction(DetectionTechnique.TYPES)
 
-    plan = parallel([act, act2, act3], context)
-    plan.plan.validate()
-    assert isinstance(plan, ParallelNode)
-    assert len(plan.children) == 3
+    root = parallel(
+        [act, act2, act3],
+    )
+    root.plan.validate()
+    assert isinstance(root, ParallelNode)
+    assert len(root.children) == 3
 
 
-def test_try_in_order_construction(immutable_model_world):
-    world, robot_view, context = immutable_model_world
-    act = NavigateActionDescription(PoseStamped())
-    act2 = MoveTorsoActionDescription(TorsoState.HIGH)
-    act3 = DetectActionDescription(DetectionTechnique.TYPES)
+def test_try_in_order_construction():
+    act = NavigateAction(PoseStamped())
+    act2 = MoveTorsoAction(TorsoState.HIGH)
+    act3 = DetectAction(DetectionTechnique.TYPES)
 
-    plan = TryInOrderPlan(context, act, act2, act3)
-    assert isinstance(plan, TryInOrderPlan)
-    assert len(plan.root.children) == 3
-
-    assert len(plan.nodes) == len(plan.all_nodes)
-    assert len(plan.edges) == len(plan.all_nodes) - 1
+    root = try_in_order([act, act2, act3])
+    root.plan.validate()
+    assert isinstance(root, TryInOrderNode)
+    assert len(root.children) == 3
 
 
-def test_try_all_construction(immutable_model_world):
-    world, robot_view, context = immutable_model_world
-    act = NavigateActionDescription(PoseStamped())
-    act2 = MoveTorsoActionDescription(TorsoState.HIGH)
-    act3 = DetectActionDescription(DetectionTechnique.TYPES)
+def test_try_all_construction():
+    act = NavigateAction(PoseStamped())
+    act2 = MoveTorsoAction(TorsoState.HIGH)
+    act3 = DetectAction(DetectionTechnique.TYPES)
 
-    plan = TryAllPLan(context, act, act2, act3)
-    assert TryAllNode
-    assert isinstance(plan, TryAllPLan)
-    assert len(plan.root.children) == 3
-
-
-def test_combination_construction(immutable_model_world):
-    world, robot_view, context = immutable_model_world
-    act = NavigateActionDescription(PoseStamped())
-    act2 = MoveTorsoActionDescription(TorsoState.HIGH)
-    act3 = DetectActionDescription(DetectionTechnique.TYPES)
-
-    plan = ParallelPlan(context, SequentialPlan(context, act, act2), act3)
-    assert isinstance(plan, ParallelPlan)
-    assert len(plan.root.children) == 2
-    assert isinstance(plan.root.children[0], SequentialNode)
+    root = try_all([act, act2, act3])
+    root.plan.validate()
+    assert isinstance(root, TryAllNode)
+    assert len(root.children) == 3
 
 
-def test_pickup_par_construction(immutable_model_world):
-    world, robot_view, context = immutable_model_world
-    act = NavigateActionDescription(PoseStamped())
-    act2 = PickUpActionDescription(BelieveObject(names=["milk"]), ["left"], ["front"])
-
-    with pytest.raises(AttributeError):
-        ParallelPlan(context, act, act2)
-
-
-def test_pickup_try_all_construction(immutable_model_world):
-    world, robot_view, context = immutable_model_world
-    act = NavigateActionDescription(PoseStamped())
-    act2 = PickUpActionDescription(BelieveObject(names=["milk"]), ["left"], ["front"])
-
-    with pytest.raises(AttributeError):
-        TryAllPLan(context, act, act2)
+def test_combination_construction():
+    act = NavigateAction(PoseStamped())
+    act2 = MoveTorsoAction(TorsoState.HIGH)
+    act3 = DetectAction(DetectionTechnique.TYPES)
+    root = parallel([sequential([act, act2]), act3])
+    assert isinstance(root, ParallelNode)
+    assert len(root.children) == 2
+    assert isinstance(root.children[0], SequentialNode)
+    assert len(root.children[0].children) == 2
 
 
-def test_monitor_construction(immutable_model_world):
-    world, robot_view, context = immutable_model_world
-    act = ParkArmsActionDescription(Arms.BOTH)
-    act2 = MoveTorsoActionDescription(TorsoState.HIGH)
+def test_monitor_construction():
+    act = ParkArmsAction(Arms.BOTH)
+    act2 = MoveTorsoAction(TorsoState.HIGH)
 
     def monitor_func():
-        time.sleep(1)
         return True
 
-    plan = MonitorPlan(monitor_func, context, SequentialPlan(context, act, act2))
-    assert len(plan.root.children) == 1
-    assert isinstance(plan.root, MonitorNode)
-
-    assert len(plan.nodes) == len(plan.all_nodes)
-    assert len(plan.edges) == len(plan.all_nodes) - 1
+    root = monitor(children=[sequential([act, act2])], condition=monitor_func)
+    assert len(root.children) == 1
+    assert isinstance(root, MonitorNode)
+    root.plan.validate()
 
 
 def test_retry_monitor_construction(immutable_model_world):
     world, robot_view, context = immutable_model_world
-    act = ParkArmsActionDescription(Arms.BOTH)
-    act2 = MoveTorsoActionDescription(TorsoState.HIGH)
+    act = ParkArmsAction(Arms.BOTH)
+    act2 = MoveTorsoAction(TorsoState.HIGH)
 
     def monitor_func():
         time.sleep(1)

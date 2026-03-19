@@ -7,12 +7,10 @@ from typing_extensions import Optional, Any
 
 from pycram.config.action_conf import ActionConfig
 from pycram.datastructures.pose import PoseStamped
-from pycram.failures import NavigationGoalNotReachedError
-from pycram.plans.factories import execute_single, sequential
+from pycram.plans.factories import execute_single
 from pycram.robot_plans.actions.base import ActionDescription
 from pycram.robot_plans.motions.navigation import MoveMotion
 from pycram.robot_plans.motions.robot_body import LookingMotion
-from pycram.validation.error_checkers import PoseErrorChecker
 from semantic_digital_twin.robots.abstract_robot import Camera
 
 
@@ -36,15 +34,6 @@ class NavigateAction(ActionDescription):
         self.add_subplan(
             execute_single(MoveMotion(self.target_location, self.keep_joint_states))
         ).perform()
-
-    def validate(
-        self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None
-    ):
-        pose_validator = PoseErrorChecker(World.conf.get_pose_tolerance())
-        if not pose_validator.is_error_acceptable(
-            World.robot.pose, self.target_location
-        ):
-            raise NavigationGoalNotReachedError(World.robot.pose, self.target_location)
 
 
 @dataclass

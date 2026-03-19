@@ -213,15 +213,3 @@ class GraspingAction(ActionDescription):
                 ]
             )
         ).perform()
-
-    def validate(
-        self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None
-    ):
-        body = self.object_designator
-        contact_links = body.get_contact_points_with_body(World.robot).get_all_bodies()
-        arm_chain = RobotDescription.current_robot_description.get_arm_chain(self.arm)
-        gripper_links = arm_chain.end_effector.links
-        if not any([link.name in gripper_links for link in contact_links]):
-            raise ObjectNotGraspedError(
-                self.object_designator, World.robot, self.arm, None
-            )

@@ -1,19 +1,24 @@
 from __future__ import annotations
+
 import logging
+from dataclasses import dataclass, field
+
+from typing_extensions import (
+    Any,
+    List,
+    Type,
+    Callable,
+    TYPE_CHECKING,
+    Dict,
+)
 
 from pycram.datastructures.enums import TaskStatus
-
 from pycram.failures import PlanFailure
-from threading import Lock
-from typing_extensions import Union, Any, List, Optional, Type, Callable, TYPE_CHECKING
-from pycram.language import MonitorNode
-from pycram.plans.plan import Plan
-
-if TYPE_CHECKING:
-    from pycram.robot_plans import BaseMotion
+from pycram.plans.plan_entity import PlanEntity
 
 
-class FailureHandling:
+@dataclass
+class FailureHandling(PlanEntity):
     """
     Base class for failure handling mechanisms in automated systems or workflows.
 
@@ -21,15 +26,6 @@ class FailureHandling:
     failures that may occur during the execution of a plan or process. It is designed
     to be extended by subclasses that implement specific failure handling behaviors.
     """
-
-    def __init__(self, plan: Optional[Plan] = None):
-        """
-        Initializes a new instance of the FailureHandling class.
-
-        :param Union[DesignatorDescription, MonitorNode] plan: The description or context of the task
-        or process for which the failure handling is being set up.
-        """
-        self.plan = plan
 
     def perform(self):
         """
@@ -43,12 +39,10 @@ class FailureHandling:
         raise NotImplementedError()
 
 
+@dataclass
 class Retry(FailureHandling):
     """
-    A subclass of FailureHandling that implements a retry mechanism.
-
-    This class represents a specific failure handling strategy where the system
-    attempts to retry a failed action a certain number of times before giving up.
+    Retries the plan until it works or `max_tries` is reached.
     """
 
     max_tries: int
@@ -56,26 +50,7 @@ class Retry(FailureHandling):
     The maximum number of attempts to retry the action.
     """
 
-    def __init__(self, plan: MonitorPlan, max_tries: int = 3):
-        """
-        Initializes a new instance of the Retry class.
-
-        :param plan: The description or context of the task or process for which the retry mechanism is being set up.
-        :param max_tries: The maximum number of attempts to retry. Defaults to 3.
-        """
-        super().__init__(plan)
-        self.max_tries = max_tries
-
     def perform(self):
-        """
-        Implementation of the retry mechanism.
-
-        This method attempts to perform the action specified in the designator_description.
-        If the action fails, it is retried up to max_tries times. If all attempts fail,
-        the last exception is raised.
-
-        :raises PlanFailure: If all retry attempts fail.
-        """
         tries = 0
         for action in iter(self.plan.current_node):
             tries += 1
@@ -87,51 +62,15 @@ class Retry(FailureHandling):
                     raise e
 
 
-class RetryMonitor(FailureHandling):
+class RetryMonitor(Retry):
     """
-    A subclass of FailureHandling that implements a retry mechanism that works with a Monitor.
-
-    This class represents a specific failure handling strategy that allows us to retry a demo that is
-    being monitored, in case that monitoring condition is triggered.
+    Retry a plan by extracting recovery behaviors from the `recovery` dictionary.
     """
 
-    max_tries: int
+    recovery: Dict[Exception, Callable] = field(default_factory=dict)
     """
-    The maximum number of attempts to retry the action.
+    A dictionary that maps exception types to recovery methods
     """
-    recovery: dict
-    """
-    A dictionary that maps exception types to recovery actions
-    """
-
-    def __init__(self, monitor_plan: Plan, max_tries: int = 3, recovery: dict = None):
-        """
-        Initializes a new instance of the RetryMonitor class.
-
-        :param MonitorNode monitor_plan: The Monitor instance to be used.
-        :param int max_tries: The maximum number of attempts to retry. Defaults to 3.
-        :param dict recovery: A dictionary that maps exception types to recovery actions. Defaults to None.
-        """
-        super().__init__(monitor_plan)
-        self.max_tries = max_tries
-        self.lock = Lock()
-        if recovery is None:
-            self.recovery = {}
-        else:
-            if not isinstance(recovery, dict):
-                raise ValueError(
-                    "Recovery must be a dictionary with exception types as keys and Language instances as values."
-                )
-            for key, value in recovery.items():
-                if not issubclass(key, BaseException):
-                    raise TypeError(
-                        "Keys in the recovery dictionary must be exception types."
-                    )
-                if not callable(value):
-                    raise TypeError(
-                        "Values in the recovery dictionary must be instances of the Language class."
-                    )
-            self.recovery = recovery
 
     def perform(self) -> List[Any]:
         """
@@ -202,28 +141,6 @@ def try_action(action: Any, failure_type: Type[Exception], max_tries: int = 3):
         failure_type=failure_type,
         max_tries=max_tries,
         name="action",
-    )
-
-
-def try_motion(
-    motion: ProcessModule,
-    motion_designator_instance: BaseMotion,
-    failure_type: Type[Exception],
-    max_tries: int = 3,
-):
-    """
-    A generic function to retry a motion a certain number of times before giving up, with a specific exception.
-
-    :param motion: The motion to be executed.
-    :param motion_designator_instance: The instance of the motion designator that has the description of the motion.
-    :param failure_type: The type of exception to catch.
-    :param max_tries: The maximum number of attempts to retry the motion.
-    """
-    return try_method(
-        method=lambda: motion.execute(motion_designator_instance),
-        failure_type=failure_type,
-        max_tries=max_tries,
-        name="motion",
     )
 
 

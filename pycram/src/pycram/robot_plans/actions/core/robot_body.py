@@ -10,7 +10,6 @@ from typing_extensions import Optional, Dict, Any
 from pycram.datastructures.enums import AxisIdentifier, Arms
 from pycram.datastructures.pose import Vector3Stamped
 from pycram.datastructures.trajectory import PoseTrajectory
-from pycram.failures import TorsoGoalNotReached, ConfigurationNotReached
 from pycram.plans.factories import execute_single, sequential
 from pycram.robot_plans.actions.base import ActionDescription
 from pycram.robot_plans.motions.gripper import MoveGripperMotion, MoveTCPWaypointsMotion

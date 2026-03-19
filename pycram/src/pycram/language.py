@@ -18,7 +18,7 @@ from typing_extensions import (
 )
 
 from pycram.datastructures.enums import TaskStatus, MonitorBehavior
-from pycram.failures import PlanFailure
+from pycram.failures import PlanFailure, AllChildrenFailed
 from pycram.fluent import Fluent
 from pycram.plans.plan_node import (
     PlanNode,
@@ -41,7 +41,9 @@ class LanguageNode(PlanNode, ABC):
                 continue
 
             for grand_child in child.children:
-                self.plan.add_edge(self, grand_child)
+                self.plan.add_edge(
+                    self, grand_child, child.layer_index + grand_child.layer_index
+                )
             self.plan.plan_graph.remove_edge(self.index, child.index)
             self.plan.remove_node(child)
 
@@ -54,38 +56,15 @@ class ExecutesSequentially(LanguageNode):
 
 
 @dataclass
-class SequentialNode(ExecutesSequentially):
+class ExecutesInParallel(LanguageNode):
     """
-    Executes all children sequentially. Any failure is immediately raised.
-    """
-
-    def _perform(self):
-        result = [child.perform() for child in self.children]
-        return result
-
-
-@dataclass
-class ParallelNode(LanguageNode):
-    """
-    Executes all children in parallel by creating a thread per children and executing them in the respective thread. All
-    exceptions during execution will be caught, saved to a list, and returned in the end.
-
-    Behaviour:
-        Returns a tuple containing the final state of execution (SUCCEEDED, FAILED) and a list of results from
-        each child's perform() method. The state is :py:attr:`~TaskStatus.SUCCEEDED` *iff* all children could be executed without
-        an exception. In any other case the State :py:attr:`~TaskStatus.FAILED` will be returned.
-
+    Base class for nodes that execute their children in parallel.
     """
 
-    def _perform(self):
-        self.perform_parallel(self.children)
-        for child in self.children:
-            if child.status == TaskStatus.FAILED:
-                raise child.reason
-
-    def perform_parallel(self, nodes: List[PlanNode]):
+    @classmethod
+    def _perform_parallel(cls, nodes: List[PlanNode]):
         """
-        Behaviour of the parallel node performs the given nodes in parallel in different threads.
+        Open threads for all nodes and wait for them to finish.
 
         :param nodes: A list of nodes which should be performed in parallel
         """
@@ -100,6 +79,31 @@ class ParallelNode(LanguageNode):
             thread.join()
 
 
+@dataclass
+class SequentialNode(ExecutesSequentially):
+    """
+    Executes all children sequentially. Any failure is immediately raised.
+    """
+
+    def _perform(self):
+        result = [child.perform() for child in self.children]
+        return result
+
+
+@dataclass
+class ParallelNode(ExecutesInParallel):
+    """
+    Executes all children in parallel by creating a thread per children and executing them in the respective thread.
+    All exceptions are raised after all children have finished.
+    """
+
+    def _perform(self):
+        self._perform_parallel(self.children)
+        for child in self.children:
+            if child.status == TaskStatus.FAILED:
+                raise child.reason
+
+
 @dataclass(eq=False)
 class RepeatNode(SequentialNode):
     """
@@ -111,12 +115,7 @@ class RepeatNode(SequentialNode):
     The number of repetitions of the children.
     """
 
-    def perform(self):
-        """
-        Behaviour of repeat, executes all children in a loop as often as stated on initialization.
-
-        :return:
-        """
+    def _perform(self):
         for _ in range(self.repetitions):
             super()._perform()
 
@@ -184,67 +183,42 @@ class MonitorNode(ExecutesSequentially):
 @dataclass(eq=False)
 class TryInOrderNode(ExecutesSequentially):
     """
-    Executes all children sequentially, an exception while executing a child does not terminate the whole process.
-    Instead, the exception is saved to a list of all exceptions thrown during execution and returned.
-
-    Behaviour:
-        Returns a tuple containing the final state of execution (SUCCEEDED, FAILED) and a list of results from each
-        child's perform() method. The state is :py:attr:`~TaskStatus.SUCCEEDED` if one or more children are executed without
-        exception. In the case that all children could not be executed the State :py:attr:`~TaskStatus.FAILED` will be returned.
+    Tries all children in order sequentially and fails if all children fail.
     """
 
     def _perform(self):
-        results = []
         for child in self.children:
             try:
-                results.append(child.perform())
+                child.perform()
             except PlanFailure as e:
-                results.append(e)
-        return results
+                pass
+        failed = all([child.status == TaskStatus.FAILED for child in self.children])
+        if failed:
+            raise AllChildrenFailed(self)
 
 
-@dataclass
-class TryAllNode(ParallelNode):
+@dataclass(eq=False)
+class TryAllNode(ExecutesInParallel):
     """
-    Executes all children in parallel by creating a thread per children and executing them in the respective thread. All
-    exceptions during execution will be caught, saved to a list and returned upon end.
-
-    Behaviour:
-        Returns a tuple containing the final state of execution (SUCCEEDED, FAILED) and a list of results from each
-        child's perform() method. The state is :py:attr:`~TaskStatus.SUCCEEDED` if one or more children could be executed
-        without raising an exception. If all children fail the State :py:attr:`~TaskStatus.FAILED` will be returned.
+    Executes all children in parallel.
+    Only raise a failure if all children fail.
     """
 
-    def perform(self):
-        """
-        Behaviour of TryAll, creates a new thread for each child and executes all children in their respective threads.
-
-        :return: The state and list of results according to the behaviour described in :func:`TryAll`
-        """
-        self.perform_parallel(self.children)
-        child_statuses = [child.status for child in self.children]
-        self.status = (
-            TaskStatus.SUCCEEDED
-            if TaskStatus.SUCCEEDED in child_statuses
-            else TaskStatus.FAILED
-        )
-
-    def __hash__(self):
-        return id(self)
+    def _perform(self):
+        self._perform_parallel(self.children)
+        failed = all([child.status == TaskStatus.FAILED for child in self.children])
+        if failed:
+            raise AllChildrenFailed(self)
 
 
 @dataclass
 class CodeNode(LanguageNode):
     """
-    Executable code block in a plan.
+    Executable function in a plan.
+    This class' primary purpose is for debugging and testing.
     """
 
     code: Callable = field(default_factory=lambda: lambda: None, kw_only=True)
 
-    def execute(self) -> Any:
-        """
-        Execute the code with its arguments
-
-        :returns: Anything that the function associated with this object will return.
-        """
+    def _perform(self) -> Any:
         return self.code()
