@@ -86,9 +86,18 @@ class TransportAction(ActionDescription):
                 ).where(drawer.root == container)
             ).tolist()
             if sem_anno:
+                handle = sem_anno[0].handle.root
                 SequentialPlan(
                     self.context,
-                    OpenActionDescription(sem_anno[0].handle.body, self.arm),
+                    NavigateActionDescription(
+                        CostmapLocation(
+                            PoseStamped.from_spatial_type(handle.global_pose),
+                            reachable_arm=self.arm,
+                            reachable_for=self.robot_view,
+                        ),
+                        True,
+                    ),
+                    OpenActionDescription(handle, self.arm),
                 ).perform()
         SequentialPlan(self.context, ParkArmsActionDescription(Arms.BOTH)).perform()
         pickup_loc = CostmapLocation(
