@@ -1,5 +1,7 @@
 from copy import deepcopy
 
+from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
+from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.goals.cartesian_goals import DiffDriveBaseGoal
 from giskardpy.motion_statechart.goals.open_close import Close
 from giskardpy.motion_statechart.goals.templates import Sequence, Parallel
@@ -29,7 +31,7 @@ class StretchMoveToolCenterPoint(MoveToolCenterPointMotion, AlternativeMotion[St
     def _motion_chart(self) -> Sequence:
         tip = ViewManager().get_end_effector_view(self.arm, self.robot).tool_frame
         goal_copy = deepcopy(self.target.to_spatial_type())
-        goal_copy = self.world.transform(goal_copy, self.robot.root)
+        goal_copy = self.world.transform(goal_copy, self.world.root)
         goal_point = goal_copy.to_position()
         goal_point.z = 0
         return Sequence(
@@ -39,6 +41,7 @@ class StretchMoveToolCenterPoint(MoveToolCenterPointMotion, AlternativeMotion[St
                     tip_link=self.robot.root,
                     goal_point=goal_point,
                     pointing_axis=Vector3(0, -1, 0, reference_frame=self.robot.root),
+                    binding_policy=GoalBindingPolicy.Bind_at_build,
                 ),
                 CartesianPose(
                     root_link=self.world.root,

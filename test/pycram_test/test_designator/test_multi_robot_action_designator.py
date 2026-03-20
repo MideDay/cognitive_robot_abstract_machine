@@ -42,6 +42,9 @@ from pycram.view_manager import ViewManager
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
     VizMarkerPublisher,
 )
+from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
+    VizMarkerPublisher,
+)
 
 from semantic_digital_twin.datastructures.definitions import (
     TorsoState,
@@ -282,7 +285,6 @@ def test_follow_tcp_path_multi(immutable_multiple_robot_apartment):
         world.notify_state_change()
     # robot.full_body_controlled = True
     left_arm = ViewManager.get_arm_view(Arms.LEFT, robot)
-
     front_axis = tuple(
         int(v) for v in left_arm.manipulator.front_facing_axis.to_np()[:3]
     )
