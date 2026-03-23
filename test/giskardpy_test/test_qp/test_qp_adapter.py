@@ -1,13 +1,20 @@
+from collections import defaultdict
 from time import sleep
 
 import numpy as np
 import pytest
 from giskardpy.qp.adapters.qp_adapter import DofLimits, EqualityDerivativeLinkModel
+from giskardpy.qp.constraint_collection import ConstraintCollection
 from giskardpy.qp.qp_controller_config import QPControllerConfig
+from krrood.symbolic_math.symbolic_math import (
+    create_float_variables,
+    FloatVariable,
+    Vector,
+)
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.spatial_types import Vector3
-from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
+from semantic_digital_twin.spatial_types.derivatives import DerivativeMap, Derivatives
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import PrismaticConnection
 from semantic_digital_twin.world_description.degree_of_freedom import (
@@ -175,10 +182,10 @@ def test_DofLimits_two_joints(prismatic_bot2):
 def test_mpc_model(prismatic_bot2):
     target_frequency = 20
     prediction_horizon = 10
-    expected_jerk_limit1 = 1 / target_frequency
-    expected_jerk_limit2 = 1 / (target_frequency * 2)
+    number_of_variables = len(prismatic_bot2.active_degrees_of_freedom)
     mpc_model = EqualityDerivativeLinkModel(
-        prismatic_bot2.active_degrees_of_freedom,
+        degrees_of_freedom=prismatic_bot2.active_degrees_of_freedom,
+        constraint_collection=ConstraintCollection(),
         config=QPControllerConfig(
             target_frequency=target_frequency, prediction_horizon=prediction_horizon
         ),
@@ -188,3 +195,63 @@ def test_mpc_model(prismatic_bot2):
     assert len(mpc_model.bounds[2].free_variables()) == 1
     assert len(mpc_model.bounds[3].free_variables()) == 1
     assert len(mpc_model.bounds[4:].free_variables()) == 0
+
+    variables = []
+    variable_dicts = defaultdict(lambda: defaultdict(dict))
+    for derivative in [Derivatives.velocity, Derivatives.jerk]:
+        for k in range(prediction_horizon):
+            if derivative == Derivatives.velocity and k >= prediction_horizon - 2:
+                continue
+            for name in range(number_of_variables):
+                variables.append(FloatVariable(f"{derivative.name}_{name}_k{k}"))
+                variable_dicts[derivative][name][k] = variables[-1]
+
+    x = Vector(variables)
+    constraints = mpc_model.matrix @ x
+
+    # constraints on first two idx
+    for variable_id in range(number_of_variables):
+        constraint_index = variable_id
+        v_k0 = variable_dicts[Derivatives.velocity][variable_id][0]
+        v_k1 = variable_dicts[Derivatives.velocity][variable_id][1]
+        j_k0 = variable_dicts[Derivatives.jerk][variable_id][0]
+        j_k1 = variable_dicts[Derivatives.jerk][variable_id][1]
+        assert constraints[constraint_index] == j_k0 - v_k0
+        assert (
+            constraints[constraint_index + number_of_variables]
+            == -v_k1 + 2 * v_k0 + j_k1
+        )
+
+    # constraints on middle idx
+    constraint_index = 4
+    for k in range(2, prediction_horizon - 2):
+        for variable_id in range(number_of_variables):
+            v_k = variable_dicts[Derivatives.velocity][variable_id][k]
+            v_k_minus_1 = variable_dicts[Derivatives.velocity][variable_id][k - 1]
+            v_k_minus_2 = variable_dicts[Derivatives.velocity][variable_id][k - 2]
+            j_k = variable_dicts[Derivatives.jerk][variable_id][k]
+            assert (
+                constraints[constraint_index]
+                == -v_k_minus_2 + 2 * v_k_minus_1 - v_k + j_k
+            )
+            assert (
+                constraints[constraint_index]
+                == -v_k_minus_2 + 2 * v_k_minus_1 - v_k + j_k
+            )
+            constraint_index += 1
+
+    # constraints on last two idx
+    for variable_id in range(number_of_variables):
+        v_k_minus_1 = variable_dicts[Derivatives.velocity][variable_id][
+            prediction_horizon - 3
+        ]
+        v_k_minus_2 = variable_dicts[Derivatives.velocity][variable_id][
+            prediction_horizon - 4
+        ]
+        j_k = variable_dicts[Derivatives.jerk][variable_id][prediction_horizon - 2]
+        j_k1 = variable_dicts[Derivatives.jerk][variable_id][prediction_horizon - 1]
+        assert constraints[constraint_index] == 2 * v_k_minus_1 - v_k_minus_2 + j_k
+        assert (
+            constraints[constraint_index + number_of_variables] == -v_k_minus_1 + j_k1
+        )
+        constraint_index += 1

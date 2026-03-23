@@ -422,6 +422,7 @@ class EqualityQPComponent(ABC):
     """
 
     degrees_of_freedom: List[DegreeOfFreedom]
+    constraint_collection: ConstraintCollection
     config: QPControllerConfig
 
     matrix: sm.Matrix = field(init=False)
@@ -573,12 +574,36 @@ class EqualityConstraintModel(EqualityQPComponent):
         |------------------|   |-----------------------------------------------|   | j_4 |
     """
 
-    degrees_of_freedom: List[DegreeOfFreedom]
-    constraint_collection: ConstraintCollection
-    config: QPControllerConfig
+    def __post_init__(self):
+        self.create_matrix()
 
-    def compute_matrix(self):
-        pass
+    def create_matrix(self):
+        if len(self.constraint_collection.equality_constraints) == 0:
+            self.matrix = sm.Matrix()
+            self.slack_matrix = sm.Matrix()
+            return
+        self.matrix = sm.Matrix.zeros(
+            len(self.constraint_collection.equality_constraints),
+            self.number_of_non_slack_columns,
+        )
+        J_eq = (
+            sm.Matrix(self.equality_constraint_expressions()).jacobian(
+                variables=self.get_free_variable_symbols(Derivatives.position)
+            )
+            * self.config.mpc_dt
+        )
+        J_hstack = sm.hstack([J_eq for _ in range(self.config.prediction_horizon - 2)])
+        # set jacobian entry to 0 if control horizon shorter than prediction horizon
+        horizontal_offset = J_hstack.shape[1]
+        self.matrix[:, horizontal_offset * 0 : horizontal_offset * 1] = J_hstack
+
+        # slack variable for total error
+        self.slack_matrix = sm.Matrix.diag(
+            [
+                self.config.mpc_dt
+                for _ in self.constraint_collection.equality_constraints
+            ]
+        )
 
     def compute_bounds(self):
         pass
