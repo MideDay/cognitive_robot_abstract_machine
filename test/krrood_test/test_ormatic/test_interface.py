@@ -302,7 +302,7 @@ def test_inheriting_from_explicit_mapping(session, database):
     session.add(entity_dao)
     session.commit()
 
-    queried_entities_og = session.scalars(select(CustomEntityDAO)).all()
+    queried_entities_og = session.scalars(select(EntityMappingDAO)).all()
     queried_entity = session.scalars(select(DerivedEntityDAO)).one()
     assert queried_entity.description is not None
     assert queried_entity.overwritten_name is not None
@@ -319,7 +319,7 @@ def test_entity_association(session, database):
     association_dao = to_dao(association)
 
     assert isinstance(association_dao, EntityAssociationDAO)
-    assert isinstance(association_dao.entity, CustomEntityDAO)
+    assert isinstance(association_dao.entity, EntityMappingDAO)
 
     session.add(association_dao)
     session.commit()
@@ -511,14 +511,14 @@ def test_to_dao_alternatively_mapped_parent(session, database):
         derived_attribute="1",
         entities=[
             ParentAlternativelyMappedMappingDAO_entities_association(
-                target=CustomEntityDAO(overwritten_name="a")
+                target=EntityMappingDAO(overwritten_name="a")
             )
         ],
         level_one_attribute=2,
         level_two_attribute=3,
     )
 
-    assert isinstance(ch2_dao.entities[0].target, CustomEntityDAO)
+    assert isinstance(ch2_dao.entities[0].target, EntityMappingDAO)
     assert (
         ch2_dao.entities[0].target.overwritten_name
         == result_by_hand.entities[0].target.overwritten_name
