@@ -17,6 +17,7 @@ from krrood.ormatic.type_dict import TypeDict
 from krrood.ormatic.utils import classes_of_package, classes_of_module
 from krrood.utils import recursive_subclasses
 from pycram.orm.model import NumpyType
+import giskardpy.qp.solvers
 
 # ----------------------------------------------------------------------------------------------------------------------
 # This script generates the ORM classes for the pycram package
@@ -33,6 +34,7 @@ classes = set(classes)
 
 classes |= set(classes_of_package(pycram))
 classes |= set(classes_of_package(giskardpy))
+classes -= set(classes_of_package(giskardpy.qp.solvers))
 classes -= set(classes_of_module(pycram.locations.costmaps))
 classes -= set(classes_of_module(pycram.orm.ormatic_interface))
 classes -= {SubclassJSONSerializer}

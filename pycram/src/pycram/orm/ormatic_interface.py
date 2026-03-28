@@ -63,10 +63,6 @@ import giskardpy.qp.qp_controller
 import giskardpy.qp.qp_controller_config
 import giskardpy.qp.qp_data
 import giskardpy.qp.qp_data_factories
-import giskardpy.qp.solvers.qp_solver
-import giskardpy.qp.solvers.qp_solver_piqp
-import giskardpy.qp.solvers.qp_solver_qpSWIFT
-import giskardpy.qp.solvers.qp_solver_qpalm
 import giskardpy.ros2_tools.force_torque_filter_node
 import giskardpy.ros_executor
 import krrood.adapters.json_serializer
@@ -147,6 +143,7 @@ import semantic_digital_twin.robots.stretch
 import semantic_digital_twin.robots.tiago
 import semantic_digital_twin.robots.tracy
 import semantic_digital_twin.robots.turtlebot
+import semantic_digital_twin.robots.unitree_g1
 import semantic_digital_twin.robots.ur5
 import semantic_digital_twin.robots.ur5e_controlled
 import semantic_digital_twin.semantic_annotations.mixins
@@ -1474,6 +1471,19 @@ class UR5ControlledDAO_arms_association(Base, AssociationDataAccessObject):
     database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source_ur5controlleddao_id: Mapped[int] = mapped_column(
         ForeignKey("UR5ControlledDAO.database_id")
+    )
+    target_armdao_id: Mapped[int] = mapped_column(ForeignKey("ArmDAO.database_id"))
+
+    target: Mapped[ArmDAO] = relationship("ArmDAO", foreign_keys=[target_armdao_id])
+
+
+class UnitreeG1DAO_arms_association(Base, AssociationDataAccessObject):
+
+    __tablename__ = "_40071923731265936325691406219028504139085995168256482252910029"
+
+    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_unitreeg1dao_id: Mapped[int] = mapped_column(
+        ForeignKey("UnitreeG1DAO.database_id")
     )
     target_armdao_id: Mapped[int] = mapped_column(ForeignKey("ArmDAO.database_id"))
 
@@ -7359,6 +7369,40 @@ class AllChildrenFailedDAO(
     }
 
 
+class BodyUnfetchableDAO(
+    PlanFailureDAO, DataAccessObject[pycram.failures.BodyUnfetchable]
+):
+
+    __tablename__ = "BodyUnfetchableDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(PlanFailureDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    arm: Mapped[pycram.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+    body_id: Mapped[int] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    body: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[body_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "BodyUnfetchableDAO",
+        "inherit_condition": database_id == PlanFailureDAO.database_id,
+    }
+
+
 class ConfigurationNotReachedDAO(
     PlanFailureDAO, DataAccessObject[pycram.failures.ConfigurationNotReached]
 ):
@@ -8725,75 +8769,6 @@ class QPProblemDAO(
         foreign_keys=[target_id],
         post_update=True,
     )
-
-
-class QPSolverDAO(Base, DataAccessObject[giskardpy.qp.solvers.qp_solver.QPSolver]):
-
-    __tablename__ = "QPSolverDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        Integer, primary_key=True, use_existing_column=True
-    )
-
-    polymorphic_type: Mapped[str] = mapped_column(
-        String(255), nullable=False, use_existing_column=True
-    )
-
-    __mapper_args__ = {
-        "polymorphic_on": "polymorphic_type",
-        "polymorphic_identity": "QPSolverDAO",
-    }
-
-
-class QPSolverPIQPDAO(
-    QPSolverDAO, DataAccessObject[giskardpy.qp.solvers.qp_solver_piqp.QPSolverPIQP]
-):
-
-    __tablename__ = "QPSolverPIQPDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(QPSolverDAO.database_id), primary_key=True, use_existing_column=True
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "QPSolverPIQPDAO",
-        "inherit_condition": database_id == QPSolverDAO.database_id,
-    }
-
-
-class QPSolverQPSwiftDAO(
-    QPSolverDAO,
-    DataAccessObject[giskardpy.qp.solvers.qp_solver_qpSWIFT.QPSolverQPSwift],
-):
-
-    __tablename__ = "QPSolverQPSwiftDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(QPSolverDAO.database_id), primary_key=True, use_existing_column=True
-    )
-
-    big_ball_mode: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
-
-    __mapper_args__ = {
-        "polymorphic_identity": "QPSolverQPSwiftDAO",
-        "inherit_condition": database_id == QPSolverDAO.database_id,
-    }
-
-
-class QPSolverQPalmDAO(
-    QPSolverDAO, DataAccessObject[giskardpy.qp.solvers.qp_solver_qpalm.QPSolverQPalm]
-):
-
-    __tablename__ = "QPSolverQPalmDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(QPSolverDAO.database_id), primary_key=True, use_existing_column=True
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "QPSolverQPalmDAO",
-        "inherit_condition": database_id == QPSolverDAO.database_id,
-    }
 
 
 class ReachActionDAO(
@@ -16719,6 +16694,41 @@ class UR5ControlledDAO(
 
     __mapper_args__ = {
         "polymorphic_identity": "UR5ControlledDAO",
+        "inherit_condition": database_id == AbstractRobotDAO.database_id,
+    }
+
+
+class UnitreeG1DAO(
+    AbstractRobotDAO,
+    DataAccessObject[semantic_digital_twin.robots.unitree_g1.UnitreeG1],
+):
+
+    __tablename__ = "UnitreeG1DAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(AbstractRobotDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    neck_id: Mapped[int] = mapped_column(
+        ForeignKey("NeckDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    neck: Mapped[NeckDAO] = relationship(
+        "NeckDAO", uselist=False, foreign_keys=[neck_id], post_update=True
+    )
+    arms: Mapped[builtins.list[UnitreeG1DAO_arms_association]] = relationship(
+        "UnitreeG1DAO_arms_association",
+        collection_class=builtins.list,
+        cascade="all, delete-orphan",
+        foreign_keys="[UnitreeG1DAO_arms_association.source_unitreeg1dao_id]",
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "UnitreeG1DAO",
         "inherit_condition": database_id == AbstractRobotDAO.database_id,
     }
 
