@@ -100,7 +100,7 @@ from pycram.motion_executor import simulated_robot
 
 location_description = CostmapLocation(target=world.get_body_by_name("milk.stl"), reachable=True, context=context)
 
-plan = execute_single(NavigateAction(next(iter(location_description)), context=context)
+plan = execute_single(NavigateAction(next(iter(location_description))), context=context)
 
 with simulated_robot:
     plan.perform()

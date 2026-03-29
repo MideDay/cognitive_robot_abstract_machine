@@ -42,14 +42,15 @@ context = Context(world, pr2)
 
 ```python
 from pycram.robot_plans import *
-from pycram.datastructures.pose import PoseStamped
 from pycram.datastructures.enums import Arms
-from pycram.language import SequentialPlan
+from pycram.plans.factories import *
+from pycram.robot_plans.actions.core.robot_body import ParkArmsAction
+from pycram.robot_plans.actions.core.navigation import NavigateAction
 
-navigate = NavigateActionDescription(PoseStamped.from_list([1, 1, 0], frame=world.root))
-park = ParkArmsActionDescription([Arms.BOTH])
+navigate = NavigateAction(Pose.from_xyz_quaternion(1, 1, 0, reference_frame=world.root))
+park = ParkArmsAction(Arms.BOTH)
 
-plan = SequentialPlan(context, navigate, park)
+plan = sequantial([navigate, park], context=context).plan
 ```
 
 This will create a simple plan which has a SequentialNode as its root and two DesignatorNodes as its children. You can 
