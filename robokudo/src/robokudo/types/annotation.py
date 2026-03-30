@@ -10,8 +10,6 @@ from dataclasses import dataclass, field
 
 from typing_extensions import TYPE_CHECKING, Optional, Any, List
 
-import numpy as np
-
 from robokudo.types.core import Annotation
 from robokudo.types.cv import BoundingBox3D, Points3D
 from robokudo.types.tf import (
@@ -20,6 +18,12 @@ from robokudo.types.tf import (
     StampedPose,
     StampedPosition,
     StampedTransform,
+)
+from semantic_digital_twin.world_description.geometry import (
+    Shape as SemDTShape,
+    Box as SemDTBox,
+    Sphere as SemDTSphere,
+    Cylinder as SemDTCylinder,
 )
 
 if TYPE_CHECKING:
@@ -116,7 +120,7 @@ class Plane(Annotation):
 class Shape(Annotation):
     """Base class for shape annotations.
 
-    This class serves as a base for specific shape types like Cuboid and Sphere.
+    This class stores a SemDT geometry shape and inlier point indices.
     """
 
     inliers: List[int] = field(default_factory=list)
@@ -124,22 +128,27 @@ class Shape(Annotation):
     List of pointcloud indices that belong to this shape
     """
 
-    type: str = ""
+    geometry: SemDTShape = field(default_factory=SemDTBox)
     """
-    Type of the shape (e.g., 'Cuboid', 'Sphere')
+    SemDT geometry shape represented by this annotation
     """
+
+    @property
+    def shape_name(self) -> str:
+        """Return the semantic name of the stored shape."""
+        return self.geometry.__class__.__name__
 
 
 @dataclass
 class Cuboid(Shape):
     """Cuboid shape annotation.
 
-    This class represents a cuboid shape defined by three plane equations.
+    This class represents a cuboid shape as a SemDT box geometry.
     """
 
-    model: List = field(default_factory=list)
+    geometry: SemDTBox = field(default_factory=SemDTBox)
     """
-    Three plane equations defining the cuboid, shape (3,4)
+    SemDT box geometry represented by this annotation
     """
 
 
@@ -147,17 +156,25 @@ class Cuboid(Shape):
 class Sphere(Shape):
     """Sphere shape annotation.
 
-    This class represents a sphere shape defined by its center and radius.
+    This class represents a sphere shape as a SemDT sphere geometry.
     """
 
-    radius: float = 0.0
+    geometry: SemDTSphere = field(default_factory=SemDTSphere)
     """
-    Radius of the sphere
+    SemDT sphere geometry represented by this annotation
     """
 
-    center: npt.NDArray[np.float32] = field(default_factory=lambda: np.zeros(3))
+
+@dataclass
+class Cylinder(Shape):
+    """Cylinder shape annotation.
+
+    This class represents a cylinder shape as a SemDT cylinder geometry.
     """
-    Center coordinates of the sphere in (x, y, z)
+
+    geometry: SemDTCylinder = field(default_factory=SemDTCylinder)
+    """
+    SemDT cylinder geometry represented by this annotation
     """
 
 

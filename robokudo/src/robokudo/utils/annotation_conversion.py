@@ -26,6 +26,7 @@ from robokudo.types.annotation import (
     LocationAnnotation,
     Sphere,
     Cuboid,
+    Cylinder,
     Shape,
     StampedPositionAnnotation,
 )
@@ -406,7 +407,7 @@ class Shape2ODConverter(Annotation2ODConverter[Shape]):
     def convert(
         self, annotation: Shape, cas: CAS, object_designator: ObjectDesignator
     ) -> None:
-        object_designator.shape.append(annotation.type)
+        object_designator.shape.append(annotation.shape_name)
 
 
 class Cuboid2ODConverter(Annotation2ODConverter[Cuboid]):
@@ -424,6 +425,21 @@ class Cuboid2ODConverter(Annotation2ODConverter[Cuboid]):
         self.shape_converter.convert(annotation, cas, object_designator)
 
 
+class Cylinder2ODConverter(Annotation2ODConverter[Cylinder]):
+    """Extended `Shape2ODConverter` that converts a `Cylinder` annotation to `ObjectDesignator` data."""
+
+    def __init__(self) -> None:
+        self.shape_converter = Shape2ODConverter()
+
+    def can_convert(self, annotation: Annotation) -> bool:
+        return isinstance(annotation, Cylinder)
+
+    def convert(
+        self, annotation: Cylinder, cas: CAS, object_designator: ObjectDesignator
+    ) -> None:
+        self.shape_converter.convert(annotation, cas, object_designator)
+
+
 class Sphere2ODConverter(Annotation2ODConverter[Sphere]):
     """Extended `Shape2ODConverter` that converts a `Sphere` annotation to `ObjectDesignator` data."""
 
@@ -436,7 +452,7 @@ class Sphere2ODConverter(Annotation2ODConverter[Sphere]):
     def convert(
         self, annotation: Sphere, cas: CAS, object_designator: ObjectDesignator
     ) -> None:
-        size = ShapeSize(radius=annotation.radius)
+        size = ShapeSize(radius=annotation.geometry.radius)
 
         rk_logger = logging.getLogger(PACKAGE_NAME)
         rk_logger.info(

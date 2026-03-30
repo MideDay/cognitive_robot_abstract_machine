@@ -16,6 +16,7 @@ from robokudo.types.annotation import (
     StampedPositionAnnotation,
     Shape,
     Cuboid,
+    Cylinder,
     Sphere,
     LocationAnnotation,
 )
@@ -34,6 +35,7 @@ from robokudo.utils.annotation_conversion import (
     BoundingBox3DForShapeSizeConverter,
     Shape2ODConverter,
     Cuboid2ODConverter,
+    Cylinder2ODConverter,
     Sphere2ODConverter,
     Location2ODConverter,
 )
@@ -41,6 +43,11 @@ from robokudo_msgs.msg import ObjectDesignator, ShapeSize
 
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.world_description.geometry import (
+    Box as SemDTBox,
+    Cylinder as SemDTCylinder,
+    Sphere as SemDTSphere,
+)
 from semantic_digital_twin.world_description.world_entity import Region
 from . import _assertions
 
@@ -385,12 +392,12 @@ class TestUtilsAnnotationConversion(object):
         converter = Shape2ODConverter()
 
         shape = Shape()
-        shape.type = "some_weird_non_default_type"
+        shape.geometry = SemDTSphere(radius=0.17)
 
         converter.convert(shape, CAS(), od)
 
         assert len(od.shape) == 1
-        assert od.shape[0] == shape.type
+        assert od.shape[0] == shape.shape_name
 
     def test_cuboid_2_od_converter_can_convert(self):
         converter = Cuboid2ODConverter()
@@ -403,17 +410,35 @@ class TestUtilsAnnotationConversion(object):
         converter = Cuboid2ODConverter()
 
         shape = Cuboid()
-        shape.type = "some_weird_non_default_type"
+        shape.geometry = SemDTBox()
 
         converter.convert(shape, CAS(), od)
 
         assert len(od.shape) == 1
-        assert od.shape[0] == shape.type
+        assert od.shape[0] == shape.shape_name
 
     def test_sphere_2_od_converter_can_convert(self):
         converter = Sphere2ODConverter()
         assert converter.can_convert(Sphere()) == True
         assert converter.can_convert(Annotation()) == False
+
+    def test_cylinder_2_od_converter_can_convert(self):
+        converter = Cylinder2ODConverter()
+        assert converter.can_convert(Cylinder()) == True
+        assert converter.can_convert(Annotation()) == False
+
+    def test_cylinder_2_od_converter_convert(self):
+        od = ObjectDesignator()
+
+        converter = Cylinder2ODConverter()
+
+        shape = Cylinder()
+        shape.geometry = SemDTCylinder(width=0.22, height=0.41)
+
+        converter.convert(shape, CAS(), od)
+
+        assert len(od.shape) == 1
+        assert od.shape[0] == shape.shape_name
 
     def test_sphere_2_od_converter_convert(self):
         od = ObjectDesignator()
@@ -421,16 +446,15 @@ class TestUtilsAnnotationConversion(object):
         converter = Sphere2ODConverter()
 
         shape = Sphere()
-        shape.type = "some_weird_non_default_type"
-        shape.radius = np.random.random()
+        shape.geometry = SemDTSphere(radius=np.random.random())
 
         converter.convert(shape, CAS(), od)
 
         assert len(od.shape) == 1
-        assert od.shape[0] == shape.type
+        assert od.shape[0] == shape.shape_name
 
         assert len(od.shape_size) == 1
-        assert od.shape_size[0].radius == shape.radius
+        assert od.shape_size[0].radius == shape.geometry.radius
 
     def test_location_2_od_converter_can_convert(self):
         converter = Location2ODConverter()

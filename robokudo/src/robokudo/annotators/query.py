@@ -46,6 +46,7 @@ from robokudo.types.annotation import (
     StampedPositionAnnotation,
     Shape,
     Cuboid,
+    Cylinder,
     Sphere,
     LocationAnnotation,
     BoundingBox3DAnnotation,
@@ -62,6 +63,7 @@ from robokudo.utils.annotation_conversion import (
     StampedPosition2ODConverter,
     Shape2ODConverter,
     Cuboid2ODConverter,
+    Cylinder2ODConverter,
     Sphere2ODConverter,
     Location2ODConverter,
 )
@@ -272,6 +274,7 @@ class GenerateQueryResult(BaseAnnotator):
         self.stamped_pose_converter = StampedPose2ODConverter()
         self.shape_converter = Shape2ODConverter()
         self.cuboid_converter = Cuboid2ODConverter()
+        self.cylinder_converter = Cylinder2ODConverter()
         self.sphere_converter = Sphere2ODConverter()
         self.location_converter = Location2ODConverter()
         self.bb_size_converter = BoundingBox3DForShapeSizeConverter()
@@ -285,6 +288,7 @@ class GenerateQueryResult(BaseAnnotator):
             StampedPositionAnnotation: self.stamped_position_converter,
             Shape: self.shape_converter,
             Cuboid: self.cuboid_converter,
+            Cylinder: self.cylinder_converter,
             Sphere: self.sphere_converter,
             LocationAnnotation: self.location_converter,
             BoundingBox3D: self.bb_size_converter,

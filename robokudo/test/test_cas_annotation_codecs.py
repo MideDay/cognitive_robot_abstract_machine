@@ -1,6 +1,12 @@
 import numpy as np
 
 from robokudo.io import cas_annotation_codecs
+from robokudo.types.annotation import Shape, Sphere, Cylinder
+from semantic_digital_twin.world_description.geometry import (
+    Box as SemDTBox,
+    Cylinder as SemDTCylinder,
+    Sphere as SemDTSphere,
+)
 
 
 def test_deserialize_annotations_none_returns_empty_list():
@@ -50,3 +56,58 @@ def test_numpy_scalar_json_serializer_roundtrip():
 
     assert encoded["dtype"] == "int16"
     assert restored == scalar.item()
+
+
+def test_shape_annotation_serialization_roundtrip_preserves_metadata():
+    shape = Shape(source="shape_annotator", inliers=[1, 2, 3], geometry=SemDTBox())
+    shape.geometry.scale.x = 0.31
+
+    serialized = cas_annotation_codecs.serialize_annotations([shape])
+    restored = cas_annotation_codecs.deserialize_annotations(serialized)
+
+    assert len(restored) == 1
+    restored_shape = restored[0]
+    assert isinstance(restored_shape, Shape)
+    assert restored_shape.source == "shape_annotator"
+    assert restored_shape.inliers == [1, 2, 3]
+    assert isinstance(restored_shape.geometry, SemDTBox)
+    assert restored_shape.geometry.scale.x == 0.31
+
+
+def test_sphere_annotation_serialization_roundtrip_preserves_radius():
+    sphere = Sphere(
+        source="sphere_annotator",
+        inliers=[9, 8],
+        geometry=SemDTSphere(radius=0.27),
+    )
+
+    serialized = cas_annotation_codecs.serialize_annotations([sphere])
+    restored = cas_annotation_codecs.deserialize_annotations(serialized)
+
+    assert len(restored) == 1
+    restored_sphere = restored[0]
+    assert isinstance(restored_sphere, Sphere)
+    assert restored_sphere.source == "sphere_annotator"
+    assert restored_sphere.inliers == [9, 8]
+    assert isinstance(restored_sphere.geometry, SemDTSphere)
+    assert restored_sphere.geometry.radius == 0.27
+
+
+def test_cylinder_annotation_serialization_roundtrip_preserves_dimensions():
+    cylinder = Cylinder(
+        source="cylinder_annotator",
+        inliers=[3, 4],
+        geometry=SemDTCylinder(width=0.2, height=0.6),
+    )
+
+    serialized = cas_annotation_codecs.serialize_annotations([cylinder])
+    restored = cas_annotation_codecs.deserialize_annotations(serialized)
+
+    assert len(restored) == 1
+    restored_cylinder = restored[0]
+    assert isinstance(restored_cylinder, Cylinder)
+    assert restored_cylinder.source == "cylinder_annotator"
+    assert restored_cylinder.inliers == [3, 4]
+    assert isinstance(restored_cylinder.geometry, SemDTCylinder)
+    assert restored_cylinder.geometry.width == 0.2
+    assert restored_cylinder.geometry.height == 0.6
