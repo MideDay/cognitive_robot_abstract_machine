@@ -44,9 +44,6 @@ import giskardpy.motion_statechart.plotters.gantt_chart_plotter
 import giskardpy.motion_statechart.plotters.graphviz
 import giskardpy.motion_statechart.plotters.plot_specs
 import giskardpy.motion_statechart.plotters.styles
-import giskardpy.motion_statechart.ros2_nodes.force_torque_monitor
-import giskardpy.motion_statechart.ros2_nodes.ros_tasks
-import giskardpy.motion_statechart.ros2_nodes.topic_monitor
 import giskardpy.motion_statechart.ros_context
 import giskardpy.motion_statechart.tasks.align_planes
 import giskardpy.motion_statechart.tasks.cartesian_tasks
@@ -4798,33 +4795,6 @@ class MotionStatechartNodeDAO(
     }
 
 
-class ActionServerTaskDAO(
-    MotionStatechartNodeDAO,
-    DataAccessObject[giskardpy.motion_statechart.ros2_nodes.ros_tasks.ActionServerTask],
-):
-
-    __tablename__ = "ActionServerTaskDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(MotionStatechartNodeDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    action_topic: Mapped[builtins.str] = mapped_column(
-        String(255), use_existing_column=True
-    )
-
-    message_type: Mapped[TypeType] = mapped_column(
-        TypeType, nullable=False, use_existing_column=True
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "ActionServerTaskDAO",
-        "inherit_condition": database_id == MotionStatechartNodeDAO.database_id,
-    }
-
-
 class CancelMotionDAO(
     MotionStatechartNodeDAO,
     DataAccessObject[giskardpy.motion_statechart.graph_node.CancelMotion],
@@ -6154,45 +6124,6 @@ class NavigateActionDAO(
     __mapper_args__ = {
         "polymorphic_identity": "NavigateActionDAO",
         "inherit_condition": database_id == ActionDescriptionDAO.database_id,
-    }
-
-
-class NavigateActionServerTaskDAO(
-    ActionServerTaskDAO,
-    DataAccessObject[
-        giskardpy.motion_statechart.ros2_nodes.ros_tasks.NavigateActionServerTask
-    ],
-):
-
-    __tablename__ = "NavigateActionServerTaskDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ActionServerTaskDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    target_pose_id: Mapped[int] = mapped_column(
-        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-    base_link_id: Mapped[int] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    target_pose: Mapped[PoseMappingDAO] = relationship(
-        "PoseMappingDAO", uselist=False, foreign_keys=[target_pose_id], post_update=True
-    )
-    base_link: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[base_link_id], post_update=True
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "NavigateActionServerTaskDAO",
-        "inherit_condition": database_id == ActionServerTaskDAO.database_id,
     }
 
 
@@ -11461,136 +11392,6 @@ class TiagoMoveSimDAO(
     }
 
 
-class TopicNodeDAO(
-    MotionStatechartNodeDAO,
-    DataAccessObject[giskardpy.motion_statechart.ros2_nodes.topic_monitor.TopicNode],
-):
-
-    __tablename__ = "TopicNodeDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(MotionStatechartNodeDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    topic_name: Mapped[builtins.str] = mapped_column(
-        String(255), use_existing_column=True
-    )
-
-    msg_type: Mapped[TypeType] = mapped_column(
-        TypeType, nullable=False, use_existing_column=True
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "TopicNodeDAO",
-        "inherit_condition": database_id == MotionStatechartNodeDAO.database_id,
-    }
-
-
-class TopicPublisherNodeDAO(
-    TopicNodeDAO,
-    DataAccessObject[
-        giskardpy.motion_statechart.ros2_nodes.topic_monitor.TopicPublisherNode
-    ],
-):
-
-    __tablename__ = "TopicPublisherNodeDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(TopicNodeDAO.database_id), primary_key=True, use_existing_column=True
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "TopicPublisherNodeDAO",
-        "inherit_condition": database_id == TopicNodeDAO.database_id,
-    }
-
-
-class PublishOnStartDAO(
-    TopicPublisherNodeDAO,
-    DataAccessObject[
-        giskardpy.motion_statechart.ros2_nodes.topic_monitor.PublishOnStart
-    ],
-):
-
-    __tablename__ = "PublishOnStartDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(TopicPublisherNodeDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "PublishOnStartDAO",
-        "inherit_condition": database_id == TopicPublisherNodeDAO.database_id,
-    }
-
-
-class TopicSubscriberNodeDAO(
-    TopicNodeDAO,
-    DataAccessObject[
-        giskardpy.motion_statechart.ros2_nodes.topic_monitor.TopicSubscriberNode
-    ],
-):
-
-    __tablename__ = "TopicSubscriberNodeDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(TopicNodeDAO.database_id), primary_key=True, use_existing_column=True
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "TopicSubscriberNodeDAO",
-        "inherit_condition": database_id == TopicNodeDAO.database_id,
-    }
-
-
-class ForceTorqueNodeDAO(
-    TopicSubscriberNodeDAO,
-    DataAccessObject[
-        giskardpy.motion_statechart.ros2_nodes.force_torque_monitor.ForceTorqueNode
-    ],
-):
-
-    __tablename__ = "ForceTorqueNodeDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(TopicSubscriberNodeDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "ForceTorqueNodeDAO",
-        "inherit_condition": database_id == TopicSubscriberNodeDAO.database_id,
-    }
-
-
-class ForceImpactMonitorDAO(
-    ForceTorqueNodeDAO,
-    DataAccessObject[
-        giskardpy.motion_statechart.ros2_nodes.force_torque_monitor.ForceImpactMonitor
-    ],
-):
-
-    __tablename__ = "ForceImpactMonitorDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ForceTorqueNodeDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    threshold: Mapped[builtins.float] = mapped_column(use_existing_column=True)
-
-    __mapper_args__ = {
-        "polymorphic_identity": "ForceImpactMonitorDAO",
-        "inherit_condition": database_id == ForceTorqueNodeDAO.database_id,
-    }
-
-
 class TransportActionDAO(
     ActionDescriptionDAO,
     DataAccessObject[pycram.robot_plans.actions.composite.transporting.TransportAction],
@@ -11602,10 +11403,6 @@ class TransportActionDAO(
         ForeignKey(ActionDescriptionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
-    )
-
-    place_rotation_agnostic: Mapped[typing.Optional[builtins.bool]] = mapped_column(
-        use_existing_column=True
     )
 
     arm: Mapped[typing.Optional[pycram.datastructures.enums.Arms]] = mapped_column(
@@ -12572,27 +12369,6 @@ class ViewManagerDAO(Base, DataAccessObject[pycram.view_manager.ViewManager]):
     database_id: Mapped[builtins.int] = mapped_column(
         Integer, primary_key=True, use_existing_column=True
     )
-
-
-class WaitForMessageDAO(
-    TopicSubscriberNodeDAO,
-    DataAccessObject[
-        giskardpy.motion_statechart.ros2_nodes.topic_monitor.WaitForMessage
-    ],
-):
-
-    __tablename__ = "WaitForMessageDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(TopicSubscriberNodeDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "WaitForMessageDAO",
-        "inherit_condition": database_id == TopicSubscriberNodeDAO.database_id,
-    }
 
 
 class WeightsDAO(
