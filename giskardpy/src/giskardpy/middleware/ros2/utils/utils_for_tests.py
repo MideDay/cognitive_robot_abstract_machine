@@ -38,7 +38,7 @@ from semantic_digital_twin.world_description.geometry import (
     Scale,
     Sphere,
     Cylinder,
-    FileMesh,
+    Mesh,
 )
 from semantic_digital_twin.world_description.world_entity import (
     Body,
@@ -366,7 +366,7 @@ class GiskardTester(ABC):
         )
         with self.api.world.modify_world():
             mesh_body = Body(name=PrefixedName(name))
-            mesh_shape = FileMesh(filename=mesh, scale=Scale(*scale))
+            mesh_shape = Mesh(filename=mesh, scale=Scale(*scale))
             mesh_body.collision.append(mesh_shape)
             mesh_body.visual.append(mesh_shape)
 
