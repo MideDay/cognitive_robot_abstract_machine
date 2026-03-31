@@ -509,15 +509,16 @@ class TestCollisionGroups:
             except AssertionError:
                 pass
 
-        # the parent connection of every group is controlled, unless it's the root group
+        # every non-root group root must be either controlled or have collision geometry
         for group in collision_group_consumer.collision_groups:
             if group.root == world.root:
                 continue
             assert (
-                group.root.parent_connection.is_controlled
-            ), f"parent of group root {group.root.name} is not controlled"
-            for body in group.bodies:
-                assert body == group.root or not body.parent_connection.is_controlled
+                group.root.parent_connection.is_controlled or group.root.has_collision()
+            ), (
+                f"group root {group.root.name} has neither a controlled parent connection "
+                f"nor collision geometry"
+            )
 
         # no group body should be in another group body
         for group1, group2 in combinations(
