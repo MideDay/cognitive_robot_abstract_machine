@@ -40,66 +40,6 @@ class _CollisionAvoidanceTask(Task):
     Superclass with helper methods for collision avoidance tasks.
     """
 
-    def create_upper_slack(
-        self,
-        context: MotionStatechartContext,
-        buffer_zone_expr: sm.Scalar,
-        violated_distance: sm.Scalar,
-        distance_expression: sm.Scalar,
-        max_velocity: float = 0.2,
-    ) -> sm.Scalar:
-        """
-        Creates upper slack limits for collision avoidance tasks that is just large enough to reach the violated distance.
-        :param context: The motion statechart context.
-        :param buffer_zone_expr: The buffer zone expression for the collision avoidance task.
-        :param violated_distance: The violated distance for the collision avoidance task.
-        :param distance_expression: The distance expression for the collision avoidance task.
-        :param max_velocity: The maximum velocity for the collision avoidance task.
-        :return: The upper slack limit for the collision avoidance task.
-        """
-        distance_to_buffer_zone = buffer_zone_expr - distance_expression
-        qp_limits_for_lower_error_bound = (
-            max_velocity
-            * context.qp_controller_config.mpc_dt
-            * self.compute_control_horizon(context.qp_controller_config)
-        )
-
-        hard_threshold = sm.min(violated_distance, buffer_zone_expr / 2)
-
-        lower_limit_limited = sm.limit(
-            distance_to_buffer_zone,
-            -qp_limits_for_lower_error_bound,
-            qp_limits_for_lower_error_bound,
-        )
-
-        upper_slack = sm.if_greater(
-            distance_expression,
-            hard_threshold,
-            lower_limit_limited + sm.max(0, distance_expression - hard_threshold),
-            lower_limit_limited - 1e-4,
-        )
-        # undo factor in A
-        upper_slack /= context.qp_controller_config.mpc_dt
-
-        upper_slack = sm.if_greater(
-            distance_expression,
-            50,  # assuming that distance of unchecked closest points is 100
-            sm.Scalar(1e4),
-            sm.max(0, upper_slack),
-        )
-        return upper_slack
-
-    def compute_control_horizon(
-        self, qp_controller_config: QPControllerConfig
-    ) -> float:
-        """
-        Computes the control horizon for the QP controller.
-        """
-        control_horizon = qp_controller_config.prediction_horizon - (
-            qp_controller_config.max_derivative - 1
-        )
-        return max(1, control_horizon)
-
 
 @dataclass(eq=False, repr=False)
 class _ExternalCollisionAvoidanceNode(_CollisionAvoidanceTask):
@@ -524,14 +464,6 @@ class _SelfCollisionAvoidanceTask(_SelfCollisionAvoidanceNode):
             upper_error=float("inf"),
             quadratic_weight=DefaultWeights.WEIGHT_COLLISION_AVOIDANCE,
             task_expression=a_projected_on_normal,
-            lower_slack_limit=-float("inf"),
-            upper_slack_limit=self.create_upper_slack(
-                context=context,
-                max_velocity=self.max_velocity,
-                buffer_zone_expr=self.buffer_zone_distance,
-                violated_distance=self.violated_distance,
-                distance_expression=sm.Scalar(self.contact_distance),
-            ),
         )
 
         return artifacts

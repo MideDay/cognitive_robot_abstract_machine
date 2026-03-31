@@ -1,20 +1,21 @@
-from copy import deepcopy
 from dataclasses import dataclass, field
 from time import sleep
 
 import numpy as np
 import pytest
-from geometry_msgs.msg import PoseStamped, PointStamped, Vector3Stamped, Point
-from numpy import pi
-
-from giskardpy.middleware.ros2.scripts.iai_robots.hsr.hsr import (
+from geometry_msgs.msg import PoseStamped, PointStamped
+from giskardpy.middleware.ros2.behavior_tree_config import StandAloneBTConfig
+from giskardpy.middleware.ros2.giskard import Giskard
+from giskardpy.middleware.ros2.scripts.iai_robots.hsr.configs import (
     WorldWithHSRConfig,
     HSRStandaloneInterface,
 )
+from giskardpy.middleware.ros2.utils.utils import load_xacro
+from giskardpy.middleware.ros2.utils.utils_for_tests import compare_poses, GiskardTester
 from giskardpy.motion_statechart.goals.collision_avoidance import SelfCollisionAvoidance
 from giskardpy.motion_statechart.goals.open_close import Open, Close
 from giskardpy.motion_statechart.goals.templates import Sequence
-from giskardpy.motion_statechart.goals.test import GraspSequence, Cutting
+from giskardpy.motion_statechart.goals.test import Cutting
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetOdometry,
@@ -27,25 +28,19 @@ from giskardpy.motion_statechart.monitors.payload_monitors import (
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
-from giskardpy.motion_statechart.tasks.pointing import PointingCone, Pointing
+from giskardpy.motion_statechart.tasks.pointing import Pointing
 from giskardpy.qp.qp_controller_config import QPControllerConfig
-from giskardpy.utils.math import (
-    quaternion_from_rotation_matrix,
-)
-from giskardpy.middleware.ros2.behavior_tree_config import StandAloneBTConfig
-from giskardpy.middleware.ros2.giskard import Giskard
 from giskardpy.tree.blackboard_utils import GiskardBlackboard
-from giskardpy.middleware.ros2.utils.utils import load_xacro
-from giskardpy.middleware.ros2.utils.utils_for_tests import compare_poses, GiskardTester
 from krrood.symbolic_math.symbolic_math import trinary_logic_not
+from numpy import pi
 from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
     Vector3,
     Point3,
-    Quaternion,
     RotationMatrix,
 )
+from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import ActiveConnection1DOF
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
@@ -103,23 +98,10 @@ class HSRTester(GiskardTester):
     @property
     def robot(self) -> HSRB:
         return (
-            GiskardBlackboard().executor.context.world.get_semantic_annotation_by_name(
-                self.api.robot_name
-            )
+            GiskardBlackboard().executor.context.world.get_semantic_annotations_by_type(
+                HSRB
+            )[0]
         )
-
-    def open_gripper(self):
-        self.command_gripper(1.23)
-
-    def close_gripper(self):
-        self.command_gripper(0)
-
-    def command_gripper(self, width):
-        js = {"hand_motor_joint": width}
-        self.api.monitors.add_set_seed_configuration(
-            seed_configuration=js, name="move gripper"
-        )
-        self.execute()
 
 
 @pytest.fixture()
@@ -201,7 +183,7 @@ class TestJointGoals:
             node := CartesianPose(
                 root_link=giskard.base_footprint,
                 tip_link=giskard.tip,
-                goal_pose=HomogeneousTransformationMatrix.from_xyz_axis_angle(
+                goal_pose=Pose.from_xyz_axis_angle(
                     z=0.2,
                     reference_frame=giskard.tip,
                 ),
@@ -240,7 +222,7 @@ class TestJointGoals:
             node := CartesianPose(
                 root_link=giskard.base_footprint,
                 tip_link=head,
-                goal_pose=HomogeneousTransformationMatrix.from_xyz_axis_angle(
+                goal_pose=Pose.from_xyz_axis_angle(
                     z=0.15,
                     reference_frame=head,
                 ),
@@ -324,7 +306,7 @@ class TestCartGoals:
                     CartesianPose(
                         root_link=giskard.default_root,
                         tip_link=giskard.base_footprint,
-                        goal_pose=HomogeneousTransformationMatrix.from_xyz_axis_angle(
+                        goal_pose=Pose.from_xyz_axis_angle(
                             x=1.0,
                             axis=Vector3.Z(),
                             angle=pi,
@@ -343,7 +325,7 @@ class TestCartGoals:
             node := CartesianPose(
                 root_link=giskard.default_root,
                 tip_link=giskard.base_footprint,
-                goal_pose=HomogeneousTransformationMatrix.from_xyz_axis_angle(
+                goal_pose=Pose.from_xyz_axis_angle(
                     x=1.0,
                     reference_frame=giskard.map,
                 ),
@@ -358,7 +340,7 @@ class TestCartGoals:
             node := CartesianPose(
                 root_link=giskard.default_root,
                 tip_link=giskard.base_footprint,
-                goal_pose=HomogeneousTransformationMatrix.from_xyz_axis_angle(
+                goal_pose=Pose.from_xyz_axis_angle(
                     y=1.0,
                     reference_frame=giskard.map,
                 ),
@@ -373,7 +355,7 @@ class TestCartGoals:
             node := CartesianPose(
                 root_link=giskard.default_root,
                 tip_link=giskard.base_footprint,
-                goal_pose=HomogeneousTransformationMatrix.from_xyz_axis_angle(
+                goal_pose=Pose.from_xyz_axis_angle(
                     x=1.0,
                     y=1.0,
                     reference_frame=giskard.map,
@@ -389,7 +371,7 @@ class TestCartGoals:
             node := CartesianPose(
                 root_link=giskard.default_root,
                 tip_link=giskard.base_footprint,
-                goal_pose=HomogeneousTransformationMatrix.from_xyz_axis_angle(
+                goal_pose=Pose.from_xyz_axis_angle(
                     axis=Vector3.Z(),
                     angle=pi / 3,
                     reference_frame=giskard.map,
@@ -405,7 +387,7 @@ class TestCartGoals:
             node := CartesianPose(
                 root_link=giskard.default_root,
                 tip_link=giskard.base_footprint,
-                goal_pose=HomogeneousTransformationMatrix.from_xyz_axis_angle(
+                goal_pose=Pose.from_xyz_axis_angle(
                     x=1.0,
                     axis=Vector3.Z(),
                     angle=pi / 3,
@@ -422,7 +404,7 @@ class TestCartGoals:
             node := CartesianPose(
                 root_link=giskard.default_root,
                 tip_link=giskard.tip,
-                goal_pose=HomogeneousTransformationMatrix.from_xyz_axis_angle(
+                goal_pose=Pose.from_xyz_axis_angle(
                     y=1.0,
                     axis=Vector3.Z(),
                     angle=pi,
@@ -507,7 +489,7 @@ class TestConstraints:
             parent_link=box,
         )
 
-        pre_schnibble_pose = HomogeneousTransformationMatrix.from_point_rotation_matrix(
+        pre_schnibble_pose = Pose.from_point_rotation_matrix(
             point=Point3(0.85, 0.2, 0.75, reference_frame=box_setup.map),
             rotation_matrix=RotationMatrix(
                 [[0, 0, 1, 0], [0, -1, 0, 0], [1, 0, 0, 0], [0, 0, 0, 1]],
@@ -565,31 +547,6 @@ class TestConstraints:
         msc.add_node(EndMotion.when_true(node))
         giskard.api.execute(msc)
 
-    @pytest.mark.skip(reason="suturo must fix")
-    def test_PointingCone(self, default_pose_giskard: HSRTester):
-        tip_link = "head_center_camera_frame"
-        goal_point = PointStamped()
-        goal_point.header.frame_id = "map"
-        goal_point.point.x = 0.5
-        goal_point.point.y = -0.5
-        goal_point.point.z = 1.0
-
-        pointing_axis = Vector3Stamped()
-        pointing_axis.header.frame_id = tip_link
-        pointing_axis.vector.z = 1.0
-
-        default_pose_giskard.api.motion_goals.add_motion_goal(
-            class_name=PointingCone.__name__,
-            name="pointy_cone",
-            tip_link=tip_link,
-            root_link="map",
-            goal_point=goal_point,
-            pointing_axis=pointing_axis,
-        )
-        default_pose_giskard.api.motion_goals.allow_all_collisions()
-        default_pose_giskard.api.add_default_end_motion_conditions()
-        default_pose_giskard.execute(local_min_end=False)
-
     def test_open_fridge(self, kitchen_setup: HSRTester, better_pose):
         handle_frame_id = kitchen_setup.api.world.get_body_by_name(
             "iai_fridge_door_handle"
@@ -604,14 +561,14 @@ class TestConstraints:
                         CartesianPose(
                             root_link=kitchen_setup.map,
                             tip_link=kitchen_setup.base_footprint,
-                            goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
+                            goal_pose=Pose.from_xyz_rpy(
                                 x=0.3, y=-0.5, z=0.0, reference_frame=kitchen_setup.map
                             ),
                         ),
                         CartesianPose(
                             root_link=kitchen_setup.map,
                             tip_link=kitchen_setup.tip,
-                            goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
+                            goal_pose=Pose.from_xyz_rpy(
                                 x=0,
                                 y=0,
                                 z=0.0,
@@ -651,7 +608,7 @@ class TestCollisionAvoidanceGoals:
                 cart_goal := CartesianPose(
                     root_link=giskard.map,
                     tip_link=giskard.tip,
-                    goal_pose=HomogeneousTransformationMatrix.from_xyz_axis_angle(
+                    goal_pose=Pose.from_xyz_axis_angle(
                         z=0.5,
                         reference_frame=giskard.tip,
                     ),
@@ -687,7 +644,7 @@ class TestCollisionAvoidanceGoals:
                         CartesianPose(
                             root_link=giskard.map,
                             tip_link=giskard.tip,
-                            goal_pose=HomogeneousTransformationMatrix.from_xyz_axis_angle(
+                            goal_pose=Pose.from_xyz_axis_angle(
                                 x=0.5,
                                 reference_frame=hand_palm_link,
                             ),
@@ -699,135 +656,6 @@ class TestCollisionAvoidanceGoals:
         )
         msc.add_node(EndMotion.when_true(sequence))
         giskard.api.execute(msc)
-
-    @pytest.mark.skip(reason="graspsequence must be fixed")
-    def test_attached_collision1(self, box_setup: HSRTester):
-        box_name = "asdf"
-        box_pose = PoseStamped()
-        box_pose.header.frame_id = "map"
-        box_pose.pose.position = Point(x=0.85, y=0.3, z=0.66)
-        box_pose.pose.orientation = Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
-
-        box_setup.add_box_to_world(box_name, (0.07, 0.04, 0.1), box_pose)
-        box_setup.open_gripper()
-
-        grasp_pose = deepcopy(box_pose)
-        # grasp_pose.pose.position.x -= 0.05
-        q = quaternion_from_rotation_matrix(
-            [[0, 0, 1, 0], [0, -1, 0, 0], [1, 0, 0, 0], [0, 0, 0, 1]]
-        )
-        grasp_pose.pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
-        grasp = box_setup.api.motion_goals.add_motion_goal(
-            class_name=GraspSequence.__name__,
-            name="pick up",
-            tip_link=box_setup.tip,
-            root_link="map",
-            gripper_joint="hand_motor_joint",
-            goal_pose=grasp_pose,
-        )
-        detected = box_setup.api.monitors.add_pulse(name="Detect Object", after_ticks=5)
-        success = box_setup.api.monitors.add_time_above(
-            name="Obj in Hand?", threshold=10
-        )
-        stop_retry = box_setup.api.monitors.add_pulse(
-            name="Above 5 Retries", after_ticks=100000
-        )
-
-        not_obj_in_hand = f"not {success}"
-        box_setup.api.update_end_condition(node_name=detected, condition=detected)
-        box_setup.api.update_reset_condition(
-            node_name=detected, condition=not_obj_in_hand
-        )
-
-        box_setup.api.update_start_condition(node_name=grasp, condition=detected)
-        box_setup.api.update_end_condition(node_name=grasp, condition=grasp)
-        box_setup.api.update_reset_condition(node_name=grasp, condition=not_obj_in_hand)
-
-        box_setup.api.update_start_condition(node_name=success, condition=grasp)
-        box_setup.api.update_end_condition(node_name=success, condition=success)
-        box_setup.api.update_reset_condition(
-            node_name=success, condition=not_obj_in_hand
-        )
-
-        box_setup.api.update_start_condition(
-            node_name=stop_retry, condition=f"{grasp} and not {success}"
-        )
-        box_setup.api.update_reset_condition(
-            node_name=stop_retry, condition=f"not {stop_retry}"
-        )
-
-        box_setup.api.monitors.add_end_motion(start_condition=success)
-        box_setup.api.monitors.add_cancel_motion(
-            start_condition=stop_retry, error=Exception("too many retries")
-        )
-        box_setup.api.motion_goals.allow_all_collisions()
-        box_setup.execute(local_min_end=False)
-        box_setup.update_parent_link_of_group(box_name, box_setup.tip)
-
-        base_goal = PoseStamped()
-        base_goal.header.frame_id = box_setup.default_root
-        base_goal.pose.position.x -= 0.5
-        base_goal.pose.orientation.w = 1.0
-        box_setup.move_base(base_goal)
-
-    @pytest.mark.skip(reason="endless shaking")
-    def test_collision_avoidance(self, giskard: HSRTester):
-        msc = MotionStatechart()
-        msc.add_nodes(
-            [
-                JointPositionList(
-                    goal_state=JointState.from_str_dict(
-                        {"arm_flex_joint": -np.pi / 2}, world=giskard.api.world
-                    )
-                ),
-                CollisionAvoidance([CollisionRule.avoid_all_collision()]),
-            ]
-        )
-        msc.add_node(EndMotion.when_true(msc.nodes[0]))
-        giskard.api.execute(msc)
-
-        giskard.add_box_to_world(
-            name="box",
-            size=(1, 1, 0.01),
-            pose=HomogeneousTransformationMatrix.from_xyz_rpy(
-                x=0.9, z=0.5, reference_frame=giskard.map
-            ),
-        )
-
-        msc = MotionStatechart()
-        msc.add_nodes(
-            [
-                JointPositionList(
-                    goal_state=JointState.from_str_dict(
-                        {"arm_flex_joint": 0}, world=giskard.api.world
-                    )
-                ),
-                CollisionAvoidance([CollisionRule.avoid_all_collision()]),
-            ]
-        )
-        msc.add_node(EndMotion.when_true(msc.nodes[0]))
-        giskard.api.execute(msc)
-
-    #
-    # def test_avoid_collision_touch_hard_threshold(self, box_setup: HSRTestWrapper):
-    #     base_goal = PoseStamped()
-    #     base_goal.header.frame_id = box_setup.default_root
-    #     base_goal.pose.position.x = 0.2
-    #     base_goal.pose.orientation.z = 1
-    #     box_setup.teleport_base(base_goal)
-    #
-    #     box_setup.avoid_collision(min_distance=0.05, group1=box_setup.robot_name)
-    #     box_setup.allow_self_collision()
-    #
-    #     base_goal = PoseStamped()
-    #     base_goal.header.frame_id = 'base_footprint'
-    #     base_goal.pose.position.x = -0.3
-    #     base_goal.pose.orientation.w = 1
-    #     box_setup.api.motion_goals.add_joint_position(base_goal, tip_link='base_footprint', root_link='map', weight=WEIGHT_ABOVE_CA)
-    #     box_setup.set_max_traj_length(30)
-    #     box_setup.execute(local_min_end=False)
-    #     box_setup.check_cpi_geq(['base_link'], 0.048)
-    #     box_setup.check_cpi_leq(['base_link'], 0.07)
 
 
 class TestAddObject:
