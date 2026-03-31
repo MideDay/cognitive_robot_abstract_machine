@@ -31,7 +31,9 @@ class PlotTrajectory(GiskardBehavior):
 
     def plot(self):
         try:
-            if len(GiskardBlackboard().executor.world_state_trajectory.times) <= 1:
+            if plotter := GiskardBlackboard().executor.trajectory_plotter is None:
+                return
+            if len(plotter.world_state_trajectory.times) <= 1:
                 return
             file_name = (
                 GiskardBlackboard().executor.tmp_folder
