@@ -6,6 +6,8 @@ from zipfile import ZipFile
 import json
 import requests
 
+from semantic_digital_twin.adapters.sage_10k_dataset.schema import Sage10kScene
+
 
 @dataclass
 class Sage10kDatasetLoader:
@@ -50,7 +52,7 @@ class Sage10kDatasetLoader:
 
         return extract_dir
 
-    def _parse_json(self, extracted_dir: Path):
+    def _parse_json(self, extracted_dir: Path) -> Sage10kScene:
         json_files = list(extracted_dir.glob("layout_*.json"))
         if not json_files:
             raise ValueError(f"JSON file not found in {extracted_dir}")
@@ -60,4 +62,6 @@ class Sage10kDatasetLoader:
 
         raw_json = json_file.read_text()
         json_dict = json.loads(raw_json)
-        return json_dict
+        result = Sage10kScene._from_json(json_dict)
+        result.directory_path = extracted_dir
+        return result

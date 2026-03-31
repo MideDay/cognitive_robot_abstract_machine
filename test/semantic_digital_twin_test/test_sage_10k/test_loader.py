@@ -9,6 +9,5 @@ def test_loader():
     )
     target_path = loader._download_scene()
     unzipped = loader._unzip_scene(target_path)
-    json_data = loader._parse_json(unzipped)
-    data = Sage10kScene.from_json(json_data)
-    print(data)
+    scene = loader._parse_json(unzipped)
+    world = scene.create_world()
