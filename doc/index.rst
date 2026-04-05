@@ -48,7 +48,7 @@ CRAM consists of the following sub-packages:
    intuitive, object-oriented abstractions.
 
 -  `Probabilistic
-   Model <(https://cram2.github.io/cognitive_robot_abstract_machine/probabilistic_model)>`__
+   Model <https://cram2.github.io/cognitive_robot_abstract_machine/probabilistic_model>`__
    is a Python library that offers a clean and
    unified API for probabilistic models, similar to scikit-learn for
    classical machine learning.
