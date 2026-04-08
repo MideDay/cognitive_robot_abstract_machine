@@ -1,13 +1,3 @@
-"""
-exceptions
-==========
-Exception classes for the causal probabilistic circuit module.
-
-All violation and verification result types are defined here, consistent
-with the convention used across cram packages of keeping exception
-definitions in a dedicated exceptions.py module.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

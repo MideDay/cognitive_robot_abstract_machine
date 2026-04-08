@@ -73,11 +73,6 @@ class MarginalDeterminismTreeNode(NodeMixin):
     the tree. Named parent_node so it does not shadow NodeMixin's parent descriptor."""
 
     def __post_init__(self) -> None:
-        # NodeMixin.__init__ must run before self.parent is assigned so that
-        # its internal node registry is ready when the parent descriptor fires.
-        # Calling it here is safe because the dataclass only assigns plain fields
-        # (variables, query_set, parent_node) before __post_init__ — none of
-        # which touch NodeMixin's parent/children descriptors.
         NodeMixin.__init__(self)
         if self.query_set is None:
             self.query_set = set()
@@ -394,8 +389,6 @@ class CausalCircuit:
         :param query_variable: The query Variable to check marginal disjointness on.
         :returns: A violation if overlapping children are detected, else None.
         """
-        # Skip support events that do not cover query_variable — calling
-        # marginal() on an event that lacks the variable raises KeyError.
         if not all(query_variable in event.variables for event in child_support_events):
             return None
         child_marginals = [
@@ -427,10 +420,6 @@ class CausalCircuit:
         :returns: List of violations, empty if all split nodes are support-disjoint.
         """
         violations: List[OverlappingChildSupportsViolation] = []
-        # Calling .support triggers a bottom-up traversal that populates
-        # result_of_current_query on every node. The returned event is not
-        # used directly — the side effect is what the loop below reads via
-        # child.result_of_current_query.
         _ = self.probabilistic_circuit.support
 
         for layer in self.probabilistic_circuit.layers:
