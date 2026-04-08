@@ -1,3 +1,13 @@
+"""
+exceptions
+==========
+Exception classes for the causal probabilistic circuit module.
+
+All violation and verification result types are defined here, consistent
+with the convention used across cram packages of keeping exception
+definitions in a dedicated exceptions.py module.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -140,3 +150,75 @@ class SupportDeterminismVerificationResult(DataclassException):
             for violation in self.violations:
                 lines.append(f"    - {str(violation)}")
         return "\n".join(lines)
+
+
+@dataclass
+class UnregisteredVariableError(DataclassException):
+    """
+    Raised when a Variable passed to backdoor_adjustment or diagnose_failure
+    is not registered as a cause or effect Variable in the CausalCircuit.
+    """
+
+    variable_name: str
+    """Name of the unregistered Variable."""
+
+    registered_names: List[str]
+    """Names of all Variables registered in the relevant role."""
+
+    role: str
+    """Either 'cause' or 'effect', describing which role the Variable was expected in."""
+
+    def __post_init__(self) -> None:
+        self.message = (
+            f"'{self.variable_name}' is not a registered {self.role} Variable. "
+            f"Registered: {self.registered_names}."
+        )
+        super().__post_init__()
+
+
+@dataclass
+class EmptyInterventionalCircuitError(DataclassException):
+    """
+    Raised when backdoor_adjustment produces no ProductUnit components,
+    meaning the interventional circuit is empty. This indicates the cause
+    Variable's observed value lies entirely outside the training distribution,
+    or the adjustment variables produce no valid strata.
+    """
+
+    cause_variable_name: str
+    """Name of the cause Variable for which the circuit is empty."""
+
+    adjustment_variable_names: List[str]
+    """Names of adjustment Variables used, empty list if no adjustment was applied."""
+
+    def __post_init__(self) -> None:
+        if self.adjustment_variable_names:
+            self.message = (
+                f"Interventional circuit with adjustment is empty. "
+                f"cause='{self.cause_variable_name}', "
+                f"adjustment={self.adjustment_variable_names}."
+            )
+        else:
+            self.message = (
+                f"Interventional circuit is empty for cause '{self.cause_variable_name}'. "
+                f"Ensure the circuit was trained on data covering this Variable's domain."
+            )
+        super().__post_init__()
+
+
+@dataclass
+class NoCauseVariablesError(DataclassException):
+    """
+    Raised when diagnose_failure finds no numeric cause Variables in
+    observed_values that match any registered cause Variable.
+    """
+
+    registered_cause_names: List[str]
+    """Names of all cause Variables registered in the CausalCircuit."""
+
+    def __post_init__(self) -> None:
+        self.message = (
+            f"No cause Variables found in observed_values. "
+            f"Expected at least one of: {self.registered_cause_names}."
+        )
+        super().__post_init__()

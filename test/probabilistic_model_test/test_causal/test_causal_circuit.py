@@ -1,3 +1,19 @@
+"""
+Tests for causal_circuit.
+
+Each test class targets a single unit of behaviour. Test names describe the
+expected outcome. Every correctness test uses a circuit whose ground-truth
+answer is analytically known.
+
+Circuit inventory
+-----------------
+_build_independent_circuit    — ProductUnit root, P(x,y) = P(x)P(y)
+_build_three_variable_circuit — ProductUnit root, three independent variables
+_build_correlated_circuit     — SumUnit root, x fully determines y region
+_build_confounded_circuit     — SumUnit root, confounder z drives both x and y
+_build_unnormalized_circuit   — SumUnit with weights that exceed 1
+"""
+
 import math
 import unittest
 
@@ -25,8 +41,14 @@ from probabilistic_model.probabilistic_circuit.causal.exceptions import (
     OverlappingChildSupportsViolation,
     SupportDeterminismVerificationResult,
     UnnormalizedSumUnitViolation,
+    UnregisteredVariableError,
+    NoCauseVariablesError,
 )
 
+
+# ---------------------------------------------------------------------------
+# Circuit builders
+# ---------------------------------------------------------------------------
 
 def _build_independent_circuit() -> tuple:
     """
@@ -167,6 +189,9 @@ def _build_unnormalized_circuit() -> tuple:
     return circuit, x, y
 
 
+# ---------------------------------------------------------------------------
+# Helper
+# ---------------------------------------------------------------------------
 
 def _marginal_probability(
     circuit: ProbabilisticCircuit,
@@ -182,6 +207,10 @@ def _marginal_probability(
     )
     return float(circuit.probability(event))
 
+
+# ---------------------------------------------------------------------------
+# MarginalDeterminismTreeNode — is_leaf
+# ---------------------------------------------------------------------------
 
 class MarginalDeterminismTreeNodeLeafTestCase(unittest.TestCase):
 
@@ -200,6 +229,10 @@ class MarginalDeterminismTreeNodeLeafTestCase(unittest.TestCase):
         x = Continuous("x")
         self.assertTrue(MarginalDeterminismTreeNode(variables={x}, query_set=set()).is_leaf)
 
+
+# ---------------------------------------------------------------------------
+# MarginalDeterminismTreeNode — find_node_for_variable
+# ---------------------------------------------------------------------------
 
 class MarginalDeterminismTreeNodeFindVariableTestCase(unittest.TestCase):
 
@@ -226,6 +259,10 @@ class MarginalDeterminismTreeNodeFindVariableTestCase(unittest.TestCase):
         found = self.root.find_node_for_variable(self.x)
         self.assertTrue(found.is_root)
 
+
+# ---------------------------------------------------------------------------
+# MarginalDeterminismTreeNode — all_query_sets
+# ---------------------------------------------------------------------------
 
 class MarginalDeterminismTreeNodeAllQuerySetsTestCase(unittest.TestCase):
 
@@ -254,6 +291,10 @@ class MarginalDeterminismTreeNodeAllQuerySetsTestCase(unittest.TestCase):
         MarginalDeterminismTreeNode(variables={z}, query_set={z}, parent_node=root)
         self.assertIn(x, root.all_query_sets()[0])
 
+
+# ---------------------------------------------------------------------------
+# MarginalDeterminismTreeNode — from_causal_graph
+# ---------------------------------------------------------------------------
 
 class MarginalDeterminismTreeNodeFromCausalGraphTestCase(unittest.TestCase):
 
@@ -297,6 +338,10 @@ class MarginalDeterminismTreeNodeFromCausalGraphTestCase(unittest.TestCase):
         self.assertNotIn(self.z, all_variables)
 
 
+# ---------------------------------------------------------------------------
+# SupportDeterminismVerificationResult — string representation
+# ---------------------------------------------------------------------------
+
 class SupportDeterminismVerificationResultTestCase(unittest.TestCase):
 
     def test_passing_result_contains_pass_and_not_fail(self):
@@ -324,6 +369,9 @@ class SupportDeterminismVerificationResultTestCase(unittest.TestCase):
         self.assertIn("x", str(result))
 
 
+# ---------------------------------------------------------------------------
+# FailureDiagnosisResult — string representation
+# ---------------------------------------------------------------------------
 
 class FailureDiagnosisResultTestCase(unittest.TestCase):
 
@@ -356,6 +404,10 @@ class FailureDiagnosisResultTestCase(unittest.TestCase):
         self.assertEqual(self.result.interventional_probability_at_failure, lowest_probability)
 
 
+# ---------------------------------------------------------------------------
+# CausalCircuit — construction
+# ---------------------------------------------------------------------------
+
 class CausalCircuitConstructionTestCase(unittest.TestCase):
 
     def setUp(self):
@@ -387,7 +439,10 @@ class CausalCircuitConstructionTestCase(unittest.TestCase):
         self.assertIs(self._make_causal_circuit().marginal_determinism_tree, self.tree)
 
 
+# ---------------------------------------------------------------------------
 # verify_support_determinism — Check 1: all query variables exist in circuit
+# ---------------------------------------------------------------------------
+
 class VerifySupportDeterminismVariableExistenceTestCase(unittest.TestCase):
 
     def setUp(self):
@@ -425,7 +480,10 @@ class VerifySupportDeterminismVariableExistenceTestCase(unittest.TestCase):
         self.assertGreater(len(result.checked_query_sets), 0)
 
 
+# ---------------------------------------------------------------------------
 # verify_support_determinism — Check 2: SumUnit weights sum to 1
+# ---------------------------------------------------------------------------
+
 class VerifySupportDeterminismNormalizationTestCase(unittest.TestCase):
 
     def test_unnormalized_sum_unit_fails_with_log_weight_violation(self):
@@ -438,7 +496,16 @@ class VerifySupportDeterminismNormalizationTestCase(unittest.TestCase):
         self.assertTrue(any("log-weights" in str(v) for v in ctx.exception.violations))
 
 
+# ---------------------------------------------------------------------------
 # verify_support_determinism — Check 3: SumUnit children are support-disjoint
+#
+# Check 3 uses an any_disjoint guard: a SumUnit is only inspected for a query
+# variable if at least one pair of its children has disjoint marginals on that
+# variable. Whether boundary-sharing intervals (e.g. [0,1] and [1,2]) are
+# considered disjoint depends on the underlying C++ random_events library.
+# The tests below verify that well-formed circuits correctly pass this check.
+# ---------------------------------------------------------------------------
+
 class VerifySupportDeterminismDisjointnessTestCase(unittest.TestCase):
 
     def test_correlated_circuit_with_clean_split_passes(self):
@@ -456,6 +523,9 @@ class VerifySupportDeterminismDisjointnessTestCase(unittest.TestCase):
         self.assertTrue(result.passed, msg=f"Violations: {result.violations}")
 
 
+# ---------------------------------------------------------------------------
+# backdoor_adjustment — structural contracts
+# ---------------------------------------------------------------------------
 
 class BackdoorAdjustmentStructuralTestCase(unittest.TestCase):
 
@@ -473,12 +543,12 @@ class BackdoorAdjustmentStructuralTestCase(unittest.TestCase):
     def test_returned_circuit_contains_variables(self):
         self.assertGreater(len(self.cc.backdoor_adjustment(self.x, self.y, []).variables), 0)
 
-    def test_unregistered_cause_variable_raises_value_error(self):
-        with self.assertRaises(ValueError):
+    def test_unregistered_cause_variable_raises_error(self):
+        with self.assertRaises(UnregisteredVariableError):
             self.cc.backdoor_adjustment(self.y, self.y, [])
 
-    def test_unregistered_effect_variable_raises_value_error(self):
-        with self.assertRaises(ValueError):
+    def test_unregistered_effect_variable_raises_error(self):
+        with self.assertRaises(UnregisteredVariableError):
             self.cc.backdoor_adjustment(self.x, self.x, [])
 
     def test_explicit_empty_and_default_adjustment_produce_identical_result(self):
@@ -490,6 +560,10 @@ class BackdoorAdjustmentStructuralTestCase(unittest.TestCase):
             delta=1e-6,
         )
 
+
+# ---------------------------------------------------------------------------
+# backdoor_adjustment — correctness for independent circuit
+# ---------------------------------------------------------------------------
 
 class BackdoorAdjustmentIndependentCorrectnessTestCase(unittest.TestCase):
     """
@@ -529,6 +603,9 @@ class BackdoorAdjustmentIndependentCorrectnessTestCase(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# backdoor_adjustment — correctness for correlated circuit
+# ---------------------------------------------------------------------------
 
 class BackdoorAdjustmentCorrelatedCorrectnessTestCase(unittest.TestCase):
     """
@@ -564,6 +641,9 @@ class BackdoorAdjustmentCorrelatedCorrectnessTestCase(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# backdoor_adjustment — adjustment set removes confounding
+# ---------------------------------------------------------------------------
 
 class BackdoorAdjustmentWithAdjustmentTestCase(unittest.TestCase):
     """
@@ -602,6 +682,9 @@ class BackdoorAdjustmentWithAdjustmentTestCase(unittest.TestCase):
         self.assertAlmostEqual(_marginal_probability(with_adjustment, z, 0, 1), 0.8, delta=0.05)
 
 
+# ---------------------------------------------------------------------------
+# _extract_leaf_regions_for_variable — direct coverage
+# ---------------------------------------------------------------------------
 
 class ExtractLeafRegionsTestCase(unittest.TestCase):
     """
@@ -643,6 +726,9 @@ class ExtractLeafRegionsTestCase(unittest.TestCase):
             self.assertTrue(hasattr(event, "simple_sets"))
 
 
+# ---------------------------------------------------------------------------
+# diagnose_failure — structural contracts
+# ---------------------------------------------------------------------------
 
 class DiagnoseFailureStructuralTestCase(unittest.TestCase):
 
@@ -675,8 +761,8 @@ class DiagnoseFailureStructuralTestCase(unittest.TestCase):
             for field in ("actual_value", "interventional_probability", "recommended_region"):
                 self.assertIn(field, variable_result)
 
-    def test_empty_observed_values_raises_value_error(self):
-        with self.assertRaises(ValueError):
+    def test_empty_observed_values_raises_error(self):
+        with self.assertRaises(NoCauseVariablesError):
             self.cc.diagnose_failure({}, self.y)
 
     def test_primary_cause_has_the_minimum_interventional_probability(self):
@@ -699,6 +785,9 @@ class DiagnoseFailureStructuralTestCase(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# diagnose_failure — correctness on correlated circuit
+# ---------------------------------------------------------------------------
 
 class DiagnoseFailureCorrectnessTestCase(unittest.TestCase):
 
@@ -757,6 +846,9 @@ class DiagnoseFailureCorrectnessTestCase(unittest.TestCase):
         self.assertIn("PRIMARY", str(result))
 
 
+# ---------------------------------------------------------------------------
+# End-to-end integration
+# ---------------------------------------------------------------------------
 
 class EndToEndIntegrationTestCase(unittest.TestCase):
     """

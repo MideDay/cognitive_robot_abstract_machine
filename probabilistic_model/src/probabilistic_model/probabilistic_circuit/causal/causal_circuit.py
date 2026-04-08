@@ -6,6 +6,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+import numpy as np
 from anytree import NodeMixin, PreOrderIter, findall
 from scipy.special import logsumexp
 from random_events.interval import closed
@@ -22,18 +23,18 @@ from probabilistic_model.probabilistic_circuit.rx.probabilistic_circuit import (
 
 from tabulate import tabulate
 
-
-from probabilistic_model.probabilistic_circuit.causal.helpers import (
+from .helpers import (
     attach_marginal_circuit,
     sum_unit_is_normalized,
 )
 
-from probabilistic_model.probabilistic_circuit.causal.exceptions import (
+from .exceptions import (
     SupportDeterminismViolation,
     MissingQueryVariableViolation,
     UnnormalizedSumUnitViolation,
     OverlappingChildSupportsViolation,
-    SupportDeterminismVerificationResult,
+    SupportDeterminismVerificationResult, UnregisteredVariableError, EmptyInterventionalCircuitError,
+    NoCauseVariablesError,
 )
 
 
@@ -72,6 +73,11 @@ class MarginalDeterminismTreeNode(NodeMixin):
     the tree. Named parent_node so it does not shadow NodeMixin's parent descriptor."""
 
     def __post_init__(self) -> None:
+        # NodeMixin.__init__ must run before self.parent is assigned so that
+        # its internal node registry is ready when the parent descriptor fires.
+        # Calling it here is safe because the dataclass only assigns plain fields
+        # (variables, query_set, parent_node) before __post_init__ — none of
+        # which touch NodeMixin's parent/children descriptors.
         NodeMixin.__init__(self)
         if self.query_set is None:
             self.query_set = set()
@@ -262,11 +268,6 @@ class CausalCircuit:
 
     Use empty adjustment sets for independent randomised training data.
     Supply confounder Variables for correlated deployment data.
-
-    The confounder variable causally influences both the cause variable and the effect variable,
-    creating a correlation between them in observational data.
-    For example, if Z influences both X (cause) and Y (effect),
-    then the observed P(Y | X) has the true causal effect of X on Y with the indirect influence of Z.
     """
 
     probabilistic_circuit: ProbabilisticCircuit
@@ -393,7 +394,8 @@ class CausalCircuit:
         :param query_variable: The query Variable to check marginal disjointness on.
         :returns: A violation if overlapping children are detected, else None.
         """
-
+        # Skip support events that do not cover query_variable — calling
+        # marginal() on an event that lacks the variable raises KeyError.
         if not all(query_variable in event.variables for event in child_support_events):
             return None
         child_marginals = [
@@ -416,15 +418,20 @@ class CausalCircuit:
         Check that for each declared query Variable, no SumUnit that splits on
         that Variable has children with overlapping marginal support.
 
-        Calls self.probabilistic_circuit.support exactly once to populate
-        result_of_current_query on every node via a bottom-up traversal, then
-        delegates per-node, per-variable inspection to _check_sum_unit_for_variable.
+        Calls self.probabilistic_circuit.support once as a side-effecting
+        traversal that populates result_of_current_query on every node bottom-up.
+        The returned event is discarded; only the per-node side effect matters.
+        Delegates per-node, per-variable inspection to _check_sum_unit_for_variable.
 
         :param all_query_variables: Union of all Variables across all query_sets.
         :returns: List of violations, empty if all split nodes are support-disjoint.
         """
         violations: List[OverlappingChildSupportsViolation] = []
-        self.probabilistic_circuit.support
+        # Calling .support triggers a bottom-up traversal that populates
+        # result_of_current_query on every node. The returned event is not
+        # used directly — the side effect is what the loop below reads via
+        # child.result_of_current_query.
+        _ = self.probabilistic_circuit.support
 
         for layer in self.probabilistic_circuit.layers:
             for node in layer:
@@ -514,14 +521,16 @@ class CausalCircuit:
         :returns: Joint interventional circuit over (cause, effect).
         """
         if cause_variable not in self.causal_variables:
-            raise ValueError(
-                f"'{cause_variable.name}' is not a registered cause Variable. "
-                f"Registered: {[v.name for v in self.causal_variables]}."
+            raise UnregisteredVariableError(
+                variable_name=cause_variable.name,
+                registered_names=[v.name for v in self.causal_variables],
+                role="cause",
             )
         if effect_variable not in self.effect_variables:
-            raise ValueError(
-                f"'{effect_variable.name}' is not a registered effect Variable. "
-                f"Registered: {[v.name for v in self.effect_variables]}."
+            raise UnregisteredVariableError(
+                variable_name=effect_variable.name,
+                registered_names=[v.name for v in self.effect_variables],
+                role="effect",
             )
         if adjustment_variables is None:
             adjustment_variables = []
@@ -625,9 +634,9 @@ class CausalCircuit:
         )
 
         if regions_added == 0:
-            raise ValueError(
-                f"Interventional circuit is empty for cause '{cause_variable.name}'. "
-                f"Ensure the circuit was trained on data covering this Variable's domain."
+            raise EmptyInterventionalCircuitError(
+                cause_variable_name=cause_variable.name,
+                adjustment_variable_names=[],
             )
         return output_circuit
 
@@ -732,10 +741,9 @@ class CausalCircuit:
         )
 
         if regions_added == 0:
-            raise ValueError(
-                f"Interventional circuit with adjustment is empty. "
-                f"cause='{cause_variable.name}', "
-                f"adjustment={[v.name for v in adjustment_variables]}."
+            raise EmptyInterventionalCircuitError(
+                cause_variable_name=cause_variable.name,
+                adjustment_variable_names=[v.name for v in adjustment_variables],
             )
         return output_circuit
 
@@ -925,9 +933,8 @@ class CausalCircuit:
             interventional_circuits_by_cause[cause_variable] = interventional_circuit
 
         if not all_variable_results:
-            raise ValueError(
-                f"No cause Variables found in observed_values. "
-                f"Expected at least one of: {[v.name for v in self.causal_variables]}"
+            raise NoCauseVariablesError(
+                registered_cause_names=[v.name for v in self.causal_variables],
             )
 
         primary_cause_variable = min(
