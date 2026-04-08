@@ -38,5 +38,5 @@ for nb in "${notebooks[@]}"; do
   echo "============================================================"
   echo "Executing notebook: $nb"
   echo "============================================================"
-  treon -v --threads 1 --timeout "${NOTEBOOK_TIMEOUT_SECONDS}" "$nb"
+  treon --thread 1 -v
 done
