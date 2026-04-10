@@ -495,7 +495,15 @@ class CallableWrapperDAO(
         Integer, primary_key=True, use_existing_column=True
     )
 
-    func: Mapped[builtins.function] = mapped_column(use_existing_column=True)
+    func_id: Mapped[int] = mapped_column(
+        ForeignKey("FunctionMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    func: Mapped[FunctionMappingDAO] = relationship(
+        "FunctionMappingDAO", uselist=False, foreign_keys=[func_id], post_update=True
+    )
 
 
 class EntryPointMappingDAO(
@@ -622,9 +630,6 @@ class GenericClass_floatDAO(
     )
 
     value: Mapped[builtins.float] = mapped_column(use_existing_column=True)
-    optional_value: Mapped[typing.Optional[builtins.float]] = mapped_column(
-        use_existing_column=True
-    )
 
     container: Mapped[typing.List[builtins.float]] = mapped_column(
         JSON, nullable=False, use_existing_column=True
@@ -1440,7 +1445,6 @@ class KRROODOrientationDAO(
     x: Mapped[builtins.float] = mapped_column(use_existing_column=True)
     y: Mapped[builtins.float] = mapped_column(use_existing_column=True)
     z: Mapped[builtins.float] = mapped_column(use_existing_column=True)
-    w: Mapped[typing.Optional[builtins.float]] = mapped_column(use_existing_column=True)
 
     __mapper_args__ = {
         "polymorphic_identity": "KRROODOrientationDAO",
@@ -2569,10 +2573,6 @@ class DrawerDAO(
         ForeignKey(ViewDAO.database_id), primary_key=True, use_existing_column=True
     )
 
-    correct: Mapped[typing.Optional[builtins.bool]] = mapped_column(
-        use_existing_column=True
-    )
-
     handle_id: Mapped[int] = mapped_column(
         ForeignKey("HandleDAO.database_id", use_alter=True),
         nullable=True,
@@ -2679,8 +2679,5 @@ class FunctionMappingDAO(
         sqlalchemy.sql.sqltypes.Text, use_existing_column=True
     )
     function_name: Mapped[builtins.str] = mapped_column(
-        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
-    )
-    class_name: Mapped[typing.Optional[builtins.str]] = mapped_column(
         sqlalchemy.sql.sqltypes.Text, use_existing_column=True
     )

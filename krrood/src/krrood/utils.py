@@ -465,7 +465,7 @@ def is_typing_type(type_object: Type):
     return type_object.__module__ == "typing"
 
 
-def is_builtin_type(type_object: Type):
+def is_builtin_type(type_object: Any):
     """
     :param type_object: A type object to check.
     :return: True if the type is a built-in type, False otherwise.
