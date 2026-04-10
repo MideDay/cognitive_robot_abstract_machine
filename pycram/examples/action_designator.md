@@ -1,4 +1,4 @@
-from pycram.plans.factories import sequentialfrom pycram.plans.factories import sequential---
+---
 jupyter:
   jupytext:
     text_representation:
@@ -177,14 +177,20 @@ from pycram.datastructures.grasp import GraspDescription
 from pycram.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from pycram.robot_plans.actions.composite.transporting import NavigateAction, PickUpAction, PlaceAction
 
+import rclpy
+from semantic_digital_twin.adapters.ros.visualization.viz_marker import  VizMarkerPublisher
+
 arm = Arms.RIGHT
+rclpy.init()
+node = rclpy.create_node("tet")
+VizMarkerPublisher(_world=world, node=node).with_tf_publisher()
 
 with simulated_robot:
     sequential(
         [ParkArmsAction(Arms.BOTH),
         MoveTorsoAction(TorsoState.HIGH),
         NavigateAction(
-            Pose.from_xyz_rpy(1.8, 2.4, 0.0, reference_frame=world.root)
+            Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root)
         ),
         PickUpAction(
             object_designator=world.get_body_by_name("milk.stl"),
@@ -197,7 +203,7 @@ with simulated_robot:
         ),
         PlaceAction(
             object_designator=world.get_body_by_name("milk.stl"),
-            target_location=Pose.from_xyz_rpy(1.4, 2.1, 1, reference_frame=world.root),
+            target_location=Pose.from_xyz_rpy(2.4, 2.2, 1, reference_frame=world.root),
             arm=arm,
         )],
         context=context,
@@ -263,7 +269,7 @@ from pycram.datastructures.enums import Arms
 from semantic_digital_twin.datastructures.definitions import TorsoState
 
 description = TransportAction(world.get_body_by_name("milk.stl"),
-                                         Pose.from_xyz_quaternion(3, 2.2, 0.95,
+                                         Pose.from_xyz_quaternion(2.9, 2.2, 0.99,
                                                                 0.0, 0.0, 1.0, 0.0, reference_frame=world.root),
                                          Arms.LEFT)
 with simulated_robot:
