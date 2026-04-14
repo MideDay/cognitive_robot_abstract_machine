@@ -13,11 +13,10 @@ It handles:
 import logging
 
 import open3d as o3d  # this import creates a SIGINT during unit test execution....
-from typing_extensions import Any, List, Dict, Union, Optional, TYPE_CHECKING
-
 from robokudo.annotators.core import BaseAnnotator
 from robokudo.defs import PACKAGE_NAME
 from robokudo.vis.visualizer import Visualizer
+from typing_extensions import Any, List, Dict, Union, Optional
 
 
 class O3DVisualizer(Visualizer, Visualizer.Observer):

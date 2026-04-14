@@ -17,6 +17,7 @@ import cv2
 import numpy as np
 from py_trees.blackboard import Blackboard
 from typing_extensions import Any, Optional
+
 from robokudo.annotators.core import BaseAnnotator
 from robokudo.vis.visualizer import Visualizer
 
@@ -211,7 +212,7 @@ class CVVisualizer(Visualizer, Visualizer.Observer):
         if key == 27:  # ESC
             return False
 
-        if key == 81 or key == 112:
+        if key == 81 or key == 112 or key == 106:
             vis_state.active_annotator_i = (
                 len(annotator_list) - 1
                 if vis_state.active_annotator_i == 0
@@ -231,7 +232,7 @@ class CVVisualizer(Visualizer, Visualizer.Observer):
             # print(f"Left arrow key pressed. Active annotator: {vis_state.active_annotator.name}")
             return True
 
-        if key == 83 or key == 110:  # right arrow
+        if key == 83 or key == 110 or key == 107:  # right arrow
             vis_state.active_annotator_i = (
                 0
                 if vis_state.active_annotator_i == len(annotator_list) - 1

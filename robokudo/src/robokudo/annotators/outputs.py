@@ -26,13 +26,13 @@ import numpy as np
 from py_trees.behaviour import Behaviour
 from py_trees.blackboard import Blackboard
 from py_trees.common import Status
-from typing_extensions import TYPE_CHECKING, Dict, List, Any, Optional
-
 from robokudo.defs import PACKAGE_NAME
 from robokudo.pipeline import Pipeline
 from robokudo.utils.tree import find_parent_of_type
+from typing_extensions import TYPE_CHECKING, Dict, List, Any
 
 if TYPE_CHECKING:
+    import open3d as o3d
     import numpy.typing as npt
 
 
@@ -50,7 +50,7 @@ class AnnotatorOutputStruct:
         self.image: npt.NDArray[np.uint8] = np.zeros((640, 480, 3), dtype="uint8")
         """Image output data"""
 
-        self.geometries: Optional[List[Dict[str, Any]]] = None
+        self.geometries: List[Dict[str, o3d.geometry.Geometry3D]] = []
         """Open3D Geometries data. Will be passed to o3d.visualization.O3DVisualizer.add_geometry."""
 
         self.render_next_time = True
