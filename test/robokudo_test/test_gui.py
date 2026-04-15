@@ -11,15 +11,6 @@ from robokudo.vis.ros_visualizer import AllAnnotatorROSVisualizer
 from robokudo.vis.visualizer import Visualizer
 
 
-# @pytest.fixture(scope=u'module')
-# def module_setup(request):
-#     print("Module setup")
-#     # rospy.init_node('RoboKudo')
-#     rclpy.init()
-#     yield
-#     rclpy.shutdown()
-
-
 @pytest.fixture()
 def function_setup(node):
     """

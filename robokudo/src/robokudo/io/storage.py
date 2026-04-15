@@ -275,7 +275,9 @@ class Storage:
         if cas_document["annotations"]:
             tracker = world.get_world_entity_tracker()
             kwargs = tracker.create_kwargs() if tracker is not None else {}
-            cas.annotations = deserialize_annotations(cas_document["annotations"], **kwargs)
+            cas.annotations = deserialize_annotations(
+                cas_document["annotations"], **kwargs
+            )
 
     @staticmethod
     def generate_dict_from_real_cas(cas: CAS) -> Dict[str, Any]:

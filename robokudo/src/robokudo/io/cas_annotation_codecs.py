@@ -22,7 +22,9 @@ from robokudo.io.open3d_codec_utils import (
 try:
     # Side effect import: registers ROS message serializers from SemDT.
     import semantic_digital_twin.adapters.ros  # noqa: F401
-except ImportError:  # pragma: no cover - only needed in environments with ROS message fields
+except (
+    ImportError
+):  # pragma: no cover - only needed in environments with ROS message fields
     pass
 
 

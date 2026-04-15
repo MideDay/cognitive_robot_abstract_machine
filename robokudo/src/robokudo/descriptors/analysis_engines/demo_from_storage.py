@@ -1,21 +1,3 @@
-"""Analysis engine for demonstrating tabletop segmentation using stored data.
-
-This module provides an analysis engine that processes stored camera data to perform
-tabletop segmentation. It reads data from MongoDB storage and applies a sequence of
-annotators for image preprocessing and object detection.
-
-The pipeline consists of the following steps:
-
-1. Reading stored camera data
-2. Image preprocessing
-3. Point cloud cropping
-4. Plane detection
-5. Point cloud cluster extraction
-
-.. note::
-    This demo uses the MongoDB storage interface and requires a properly configured
-    MongoDB database with stored camera data.
-"""
 from robokudo.annotators.cluster_pose_bb import ClusterPoseBBAnnotator
 from robokudo.descriptors import CrDescriptorFactory
 
@@ -39,18 +21,6 @@ class AnalysisEngine(AnalysisEngineInterface):
     This class implements a basic pipeline for tabletop segmentation using stored
     camera data. It reads data from MongoDB storage and processes it through a
     sequence of annotators to detect and segment objects on a table surface.
-
-    The pipeline includes:
-
-    * Collection reader for accessing stored data
-    * Image preprocessing for data preparation
-    * Point cloud cropping to focus on relevant regions
-    * Plane detection for table surface identification
-    * Point cloud cluster extraction for object segmentation
-
-    .. note::
-        The pipeline is configured to use MongoDB storage by default and requires
-        proper database configuration.
     """
 
     def name(self) -> str:

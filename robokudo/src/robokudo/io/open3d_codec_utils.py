@@ -20,7 +20,9 @@ def is_open3d_point_cloud(value: Any) -> bool:
 def encode_open3d_point_cloud_to_base64_pcd(point_cloud: Any) -> str:
     """Encode an Open3D point cloud to a base64-encoded PCD payload."""
     if o3d is None:  # pragma: no cover - guarded by optional dependency
-        raise RuntimeError("Open3D is not available but point cloud encoding was requested.")
+        raise RuntimeError(
+            "Open3D is not available but point cloud encoding was requested."
+        )
 
     temp_file = tempfile.NamedTemporaryFile(suffix=".pcd")
     o3d.io.write_point_cloud(temp_file.name, point_cloud)
@@ -33,7 +35,9 @@ def encode_open3d_point_cloud_to_base64_pcd(point_cloud: Any) -> str:
 def decode_open3d_point_cloud_from_base64_pcd(payload: str) -> Any:
     """Decode a base64-encoded PCD payload into an Open3D point cloud."""
     if o3d is None:  # pragma: no cover - guarded by optional dependency
-        raise RuntimeError("Open3D is not available but point cloud decoding was requested.")
+        raise RuntimeError(
+            "Open3D is not available but point cloud decoding was requested."
+        )
 
     temp_file = tempfile.NamedTemporaryFile(suffix=".pcd")
     temp_file.write(base64.b64decode(payload.encode("ascii")))
