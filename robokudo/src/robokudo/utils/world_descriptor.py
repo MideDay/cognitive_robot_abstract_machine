@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing_extensions import TYPE_CHECKING
 
-from . import module_loader
+import robokudo.utils.module_loader as module_loader
 
 if TYPE_CHECKING:
-    from ..annotators.core import BaseAnnotator
-    from ..world_descriptor import BaseWorldDescriptor
+    from robokudo.annotators.core import BaseAnnotator
+    from robokudo.world_descriptor import BaseWorldDescriptor
 
 
 def load_world_descriptor(annotator: BaseAnnotator) -> BaseWorldDescriptor:

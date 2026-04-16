@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 import timeit
-import typing
 
 from py_trees.blackboard import Blackboard
 from py_trees.common import Status
@@ -24,12 +23,10 @@ from py_trees.composites import Sequence
 from typing_extensions import TYPE_CHECKING, Optional, List, Any
 
 import robokudo.annotators.core
-import robokudo.utils.tree
-from . import cas
-from . import defs
 import robokudo.annotators.outputs
-
-# from robokudo.annotators.outputs import AnnotatorOutputPerPipelineMap, AnnotatorOutputs
+import robokudo.cas as cas
+import robokudo.defs as defs
+import robokudo.utils.tree
 
 if TYPE_CHECKING:
     from py_trees.behaviour import Behaviour

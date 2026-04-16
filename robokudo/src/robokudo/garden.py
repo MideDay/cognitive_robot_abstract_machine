@@ -22,9 +22,8 @@ from py_trees.decorators import OneShot
 from py_trees_ros.trees import BehaviourTree
 from typing_extensions import TYPE_CHECKING
 
+from robokudo.annotators.outputs import AnnotatorOutputPerPipelineMap
 from robokudo.vis.visualizer_manager import VisualizationManager
-
-from .annotators.outputs import AnnotatorOutputPerPipelineMap
 
 if TYPE_CHECKING:
     from rclpy.node import Node

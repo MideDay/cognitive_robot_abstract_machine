@@ -1,17 +1,10 @@
-"""Decorator utilities for RoboKudo annotators.
-
-This module provides decorators to extend annotator functionality.
-
-:module: decorators
-:synopsis: Decorator utilities for RoboKudo annotators
-:moduleauthor: RoboKudo Team
-"""
+"""Decorator utilities for RoboKudo annotators."""
 
 import timeit
 from collections import defaultdict
 
 from typing_extensions import Callable, Any
-from ..annotators.core import BaseAnnotator
+from robokudo.annotators.core import BaseAnnotator
 
 
 def timer_decorator(func: Callable[[...], Any]) -> Callable[[...], Any]:
