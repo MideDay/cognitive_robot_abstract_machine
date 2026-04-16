@@ -10,7 +10,7 @@ from py_trees.common import Status
 
 import robokudo.utils.annotator_helper
 from robokudo.annotators.core import BaseAnnotator
-from ..cas import CASViews
+from robokudo.cas import CASViews
 
 
 class CameraViewpointVisualizer(BaseAnnotator):
