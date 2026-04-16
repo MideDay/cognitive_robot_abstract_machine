@@ -21,9 +21,8 @@ import json
 
 import cv2
 import ament_index_python.packages
-from typing import Optional
 
-from typing_extensions import Dict, List, Any, TypeVar
+from typing_extensions import Any, Dict, List, Optional, TypeVar
 
 from pathlib import Path
 

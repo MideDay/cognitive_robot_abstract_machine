@@ -4,12 +4,11 @@ import importlib
 import logging
 import uuid
 from collections.abc import Iterable
-from typing import Self
 
 import numpy as np
 import open3d as o3d
 from trimesh import Trimesh
-from typing_extensions import Callable, List, Protocol, Dict, Any, Optional, Set
+from typing_extensions import Callable, List, Protocol, Dict, Any, Optional, Set, Self
 
 import robokudo.cas
 from krrood.utils import recursive_subclasses

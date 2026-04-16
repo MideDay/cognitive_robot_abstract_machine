@@ -9,7 +9,7 @@ This module provides utilities to:
 
 from __future__ import annotations
 
-from typing import Iterable, Optional, Tuple, Union
+from typing_extensions import Iterable, Optional, Tuple, Union
 
 import numpy as np
 import open3d as o3d

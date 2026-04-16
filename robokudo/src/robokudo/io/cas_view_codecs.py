@@ -7,10 +7,9 @@ import base64
 import importlib
 import io
 from dataclasses import dataclass, field
-from typing import Optional
 
 import numpy as np
-from typing_extensions import Any, Dict, Iterable, List
+from typing_extensions import Any, Dict, Iterable, List, Optional
 from robokudo import world
 from robokudo.io.cas_annotation_codecs import krrood_to_json, krrood_from_json
 from robokudo.io.open3d_codec_utils import (

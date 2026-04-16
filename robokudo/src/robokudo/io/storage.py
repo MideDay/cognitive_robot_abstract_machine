@@ -18,10 +18,9 @@ The module handles:
 
 from __future__ import annotations
 import os
-from typing import Optional, Dict
 
 from pymongo import MongoClient
-from typing_extensions import Any, List, TYPE_CHECKING, Tuple
+from typing_extensions import Any, Dict, List, Optional, TYPE_CHECKING, Tuple
 from robokudo import world
 
 from robokudo.cas import CAS

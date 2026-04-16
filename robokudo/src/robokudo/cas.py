@@ -22,10 +22,18 @@ import numpy as np
 
 from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, field
-from typing import TypeVar, Optional
 
 from sensor_msgs.msg import CameraInfo
-from typing_extensions import TYPE_CHECKING, Any, Tuple, Dict, List, Type
+from typing_extensions import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+)
 
 from robokudo.types.tf import StampedTransform
 
