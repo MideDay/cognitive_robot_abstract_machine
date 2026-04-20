@@ -124,7 +124,7 @@ class TestVisGeometryMaps(object):
         mesh_size = (
             (np.dtype(np.float64).itemsize * (3 + 3 + 3 + 3 + 2))
             + (np.dtype(np.int32).itemsize * (3 + 1))
-        ) * 1000
+        ) * 1000 + ((np.dtype(np.uint8).itemsize * (512 * 512)) * 2)
 
         shm = shared_memory.SharedMemory(
             create=True,
@@ -151,6 +151,14 @@ class TestVisGeometryMaps(object):
             input_mesh.triangle_material_ids = o3d.utility.IntVector(
                 np.random.randint(0, 10, size=1000, dtype=np.int32)
             )
+            input_mesh.textures = [
+                o3d.geometry.Image(
+                    np.random.randint(0, 255, size=(512, 512), dtype=np.uint8)
+                ),
+                o3d.geometry.Image(
+                    np.random.randint(0, 255, size=(512, 512), dtype=np.uint8)
+                ),
+            ]
 
             memory_map = GeometryMemoryMapFactory.from_geometry(
                 "TriangleMesh", input_mesh
@@ -197,6 +205,11 @@ class TestVisGeometryMaps(object):
                 np.asarray(output_mesh.triangle_material_ids)
                 == np.asarray(input_mesh.triangle_material_ids)
             )
+            for i in range(len(input_mesh.textures)):
+                assert np.all(
+                    np.asarray(output_mesh.textures[i])
+                    == np.asarray(input_mesh.textures[i])
+                )
 
     def test_tetra_mesh_maps(self, write_manager: SharedMemoryManager) -> None:
         """Test writing and reading base meshes with the shared memory manager."""

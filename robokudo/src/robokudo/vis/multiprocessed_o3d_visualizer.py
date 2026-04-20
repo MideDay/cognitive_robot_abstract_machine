@@ -166,7 +166,7 @@ class ArrayMemoryMap(MemoryMap):
 
 
 @dataclass(slots=True, frozen=True, kw_only=True)
-class GeometryMemoryMap(MemoryMap):
+class Geometry3DMemoryMap(MemoryMap):
     """A memory map for a geometry in shared memory."""
 
     name: str
@@ -195,16 +195,24 @@ class GeometryMemoryMap(MemoryMap):
         group: Optional[str] = None,
         time: Optional[float] = None,
         is_visible: Optional[bool] = None,
-    ) -> "GeometryMemoryMap":
+    ) -> "Geometry3DMemoryMap":
         """Create a new memory memory map for the given geometry."""
         size = 0
-        attribute_dict: Dict[str, ArrayMemoryMap] = {}
+        attribute_dict: Dict[str, Union[ArrayMemoryMap, List[ArrayMemoryMap]]] = {}
 
         for attribute, _ in cls.mapped_attributes:
-            attribute_dict[attribute] = ArrayMemoryMap.from_numpy_array(
-                np.asarray(getattr(geometry, attribute))
-            )
-            size += attribute_dict[attribute].byte_size
+            attribute_value = getattr(geometry, attribute)
+            if isinstance(attribute_value, list):
+                attribute_dict[attribute] = [
+                    ArrayMemoryMap.from_numpy_array(np.asarray(v))
+                    for v in attribute_value
+                ]
+                size += sum(attr.byte_size for attr in attribute_dict[attribute])
+            else:
+                attribute_dict[attribute] = ArrayMemoryMap.from_numpy_array(
+                    np.asarray(getattr(geometry, attribute))
+                )
+                size += attribute_dict[attribute].byte_size
 
         return cls(
             name=name,
@@ -218,7 +226,7 @@ class GeometryMemoryMap(MemoryMap):
         )
 
     @classmethod
-    def from_geometry_dict(cls, geometry: Dict) -> "GeometryMemoryMap":
+    def from_geometry_dict(cls, geometry: Dict) -> "Geometry3DMemoryMap":
         """Create a new memory map from a geometry dictionary."""
         instance = cls.from_geometry(**geometry)
         return instance
@@ -256,15 +264,27 @@ class GeometryMemoryMap(MemoryMap):
 
         for attribute, _ in self.mapped_attributes:
             attribute_map = getattr(self, attribute)
-            if attribute_map.byte_size == 0:
-                continue
-            buf = np.ndarray(
-                attribute_map.shape,
-                dtype=attribute_map.dtype,
-                buffer=write_buf[write_idx : write_idx + attribute_map.byte_size],
-            )
-            buf[:] = np.asarray(getattr(geometry, attribute))[:]
-            write_idx += attribute_map.byte_size
+            if isinstance(attribute_map, list):
+                if len(attribute_map) == 0:
+                    continue
+                for i, attr in enumerate(attribute_map):
+                    buf = np.ndarray(
+                        attr.shape,
+                        dtype=attr.dtype,
+                        buffer=write_buf[write_idx : write_idx + attr.byte_size],
+                    )
+                    buf[:] = np.asarray(getattr(geometry, attribute)[i])[:]
+                    write_idx += attr.byte_size
+            else:
+                if attribute_map.byte_size == 0:
+                    continue
+                buf = np.ndarray(
+                    attribute_map.shape,
+                    dtype=attribute_map.dtype,
+                    buffer=write_buf[write_idx : write_idx + attribute_map.byte_size],
+                )
+                buf[:] = np.asarray(getattr(geometry, attribute))[:]
+                write_idx += attribute_map.byte_size
         return write_idx
 
     def to_geometry(
@@ -276,18 +296,35 @@ class GeometryMemoryMap(MemoryMap):
         geometry = self.type()
         for attribute, attribute_type in self.mapped_attributes:
             attribute_map = getattr(self, attribute)
-            if attribute_map.byte_size == 0:
-                continue
-            buf = np.ndarray(
-                attribute_map.shape,
-                dtype=attribute_map.dtype,
-                buffer=read_buf[read_idx : read_idx + attribute_map.byte_size],
-            )
-            if attribute_type == np.ndarray:
-                setattr(geometry, attribute, buf)
+            if isinstance(attribute_map, list):
+                if len(attribute_map) == 0:
+                    continue
+                attrs = []
+                for i, attr in enumerate(attribute_map):
+                    buf = np.ndarray(
+                        attr.shape,
+                        dtype=attr.dtype,
+                        buffer=read_buf[read_idx : read_idx + attr.byte_size],
+                    )
+                    if attribute_type == np.ndarray:
+                        attrs.append(buf)
+                    else:
+                        attrs.append(attribute_type(buf))
+                    read_idx += attr.byte_size
+                setattr(geometry, attribute, attrs)
             else:
-                setattr(geometry, attribute, attribute_type(buf))
-            read_idx += attribute_map.byte_size
+                if attribute_map.byte_size == 0:
+                    continue
+                buf = np.ndarray(
+                    attribute_map.shape,
+                    dtype=attribute_map.dtype,
+                    buffer=read_buf[read_idx : read_idx + attribute_map.byte_size],
+                )
+                if attribute_type == np.ndarray:
+                    setattr(geometry, attribute, buf)
+                else:
+                    setattr(geometry, attribute, attribute_type(buf))
+                read_idx += attribute_map.byte_size
         return geometry, read_idx
 
 
@@ -295,7 +332,7 @@ class GeometryMemoryMap(MemoryMap):
     slots=True,
     frozen=True,
 )
-class PointCloudMemoryMap(GeometryMemoryMap):
+class PointCloud3DMemoryMap(Geometry3DMemoryMap):
     points: ArrayMemoryMap
     """Memory map of the point clouds points."""
 
@@ -317,7 +354,7 @@ class PointCloudMemoryMap(GeometryMemoryMap):
 
 
 @dataclass(slots=True, frozen=True)
-class LineSetMemoryMap(GeometryMemoryMap):
+class LineSet3DMemoryMap(Geometry3DMemoryMap):
     colors: ArrayMemoryMap
     """Memory map of the line set colors."""
 
@@ -338,7 +375,7 @@ class LineSetMemoryMap(GeometryMemoryMap):
     slots=True,
     frozen=True,
 )
-class MeshBaseMemoryMap(GeometryMemoryMap):
+class MeshBase3DMemoryMap(Geometry3DMemoryMap):
     vertices: ArrayMemoryMap
     """Memory map of the mesh vertices."""
 
@@ -359,7 +396,7 @@ class MeshBaseMemoryMap(GeometryMemoryMap):
     slots=True,
     frozen=True,
 )
-class TriangleMeshMemoryMap(GeometryMemoryMap):
+class TriangleMesh3DMemoryMap(Geometry3DMemoryMap):
     vertices: ArrayMemoryMap
     """Memory map of the mesh vertices."""
 
@@ -381,8 +418,8 @@ class TriangleMeshMemoryMap(GeometryMemoryMap):
     triangle_material_ids: ArrayMemoryMap
     """Memory map of the mesh triangle material ids."""
 
-    # textures: ArrayMemoryMap
-    # """Memory map of the mesh textures."""
+    textures: List[ArrayMemoryMap]
+    """Memory map of the mesh textures."""
 
     # adjacency_list: ArrayMemoryMap
     # """Memory map of the mesh adjacency list."""
@@ -395,8 +432,7 @@ class TriangleMeshMemoryMap(GeometryMemoryMap):
         ("triangle_normals", o3d.utility.Vector3dVector),
         ("triangle_uvs", o3d.utility.Vector2dVector),
         ("triangle_material_ids", o3d.utility.IntVector),
-        # TODO: Transfer textures too
-        # ("textures", o3d.geometry.Image),
+        ("textures", o3d.geometry.Image),
         # Not useful or visualization
         # ("adjacency_list", o3d.utility.Vector3dVector),
     ]
@@ -406,7 +442,7 @@ class TriangleMeshMemoryMap(GeometryMemoryMap):
     slots=True,
     frozen=True,
 )
-class OrientedBoundingBoxMemoryMap(GeometryMemoryMap):
+class OrientedBoundingBox3DMemoryMap(Geometry3DMemoryMap):
     center: ArrayMemoryMap
     """Memory map of the oriented bounding box center."""
 
@@ -431,7 +467,7 @@ class OrientedBoundingBoxMemoryMap(GeometryMemoryMap):
     slots=True,
     frozen=True,
 )
-class AxisAlignedBoundingBoxMemoryMap(GeometryMemoryMap):
+class AxisAlignedBoundingBox3DMemoryMap(Geometry3DMemoryMap):
     color: ArrayMemoryMap
     """Memory map of the axis aligned bounding box color."""
 
@@ -449,7 +485,7 @@ class AxisAlignedBoundingBoxMemoryMap(GeometryMemoryMap):
 
 
 @dataclass(slots=True, frozen=True)
-class TetraMeshMemoryMap(GeometryMemoryMap):
+class TetraMesh3DMemoryMap(Geometry3DMemoryMap):
     tetras: ArrayMemoryMap
     """Memory map of the tetra mesh tetras."""
 
@@ -474,7 +510,7 @@ class TetraMeshMemoryMap(GeometryMemoryMap):
     slots=True,
     frozen=True,
 )
-class VoxelGridMemoryMap(GeometryMemoryMap):
+class VoxelGrid3DMemoryMap(Geometry3DMemoryMap):
     # TODO: No actual data accessible in the VoxelGrid how to transfer?
     origin: ArrayMemoryMap
     """Memory map of the voxel grid origin."""
@@ -489,7 +525,7 @@ class VoxelGridMemoryMap(GeometryMemoryMap):
 
 
 @dataclass(slots=True, frozen=True)
-class OctreeMemoryMap(GeometryMemoryMap):
+class Octree3DMemoryMap(Geometry3DMemoryMap):
     # TODO: No actual data accessible in the Octree how to transfer?
     max_depth: int
     """Maximum depth of the octree."""
@@ -507,26 +543,26 @@ class OctreeMemoryMap(GeometryMemoryMap):
 class GeometryMemoryMapFactory:
     """A factory class for creating geometry memory maps from open3d geometry objects."""
 
-    geometry_proxies: Dict[Type, Type[GeometryMemoryMap]] = {
-        o3d.geometry.PointCloud: PointCloudMemoryMap,
-        o3d.geometry.MeshBase: MeshBaseMemoryMap,
-        o3d.geometry.TetraMesh: TetraMeshMemoryMap,
-        o3d.geometry.TriangleMesh: TriangleMeshMemoryMap,
-        o3d.geometry.OrientedBoundingBox: OrientedBoundingBoxMemoryMap,
-        o3d.geometry.AxisAlignedBoundingBox: AxisAlignedBoundingBoxMemoryMap,
-        o3d.geometry.LineSet: LineSetMemoryMap,
+    geometry_proxies: Dict[Type, Type[Geometry3DMemoryMap]] = {
+        o3d.geometry.PointCloud: PointCloud3DMemoryMap,
+        o3d.geometry.MeshBase: MeshBase3DMemoryMap,
+        o3d.geometry.TetraMesh: TetraMesh3DMemoryMap,
+        o3d.geometry.TriangleMesh: TriangleMesh3DMemoryMap,
+        o3d.geometry.OrientedBoundingBox: OrientedBoundingBox3DMemoryMap,
+        o3d.geometry.AxisAlignedBoundingBox: AxisAlignedBoundingBox3DMemoryMap,
+        o3d.geometry.LineSet: LineSet3DMemoryMap,
     }
     """Map of open3d geometry types to their corresponding memory map types."""
 
     @classmethod
     def from_geometry(
         cls, name: str, geometry: o3d.geometry.Geometry3D
-    ) -> GeometryMemoryMap:
+    ) -> Geometry3DMemoryMap:
         """Create a geometry proxy from a geometry3d object."""
         return cls.geometry_proxies[type(geometry)].from_geometry(name, geometry)
 
     @classmethod
-    def from_geometry_dict(cls, geometry: Dict) -> GeometryMemoryMap:
+    def from_geometry_dict(cls, geometry: Dict) -> Geometry3DMemoryMap:
         """Create a geometry proxy from a geometry3d object."""
         return cls.geometry_proxies[type(geometry["geometry"])].from_geometry(
             **geometry
@@ -540,7 +576,7 @@ class MemoryMapTransport(object):
     shm_name: str
     """The shared memory to read from."""
 
-    memory_maps: List[GeometryMemoryMap] = field(default_factory=list)
+    memory_maps: List[Geometry3DMemoryMap] = field(default_factory=list)
     """The memory mappings for the geometries."""
 
 
@@ -548,7 +584,7 @@ class MemoryMapTransport(object):
 class SharedMemoryManager(object):
     """A manager for geometries in shared memory."""
 
-    memory_maps: List[GeometryMemoryMap] = field(default_factory=list)
+    memory_maps: List[Geometry3DMemoryMap] = field(default_factory=list)
     """A list of all memory maps managed by this object."""
 
     write_cursor: int = 0
@@ -557,7 +593,7 @@ class SharedMemoryManager(object):
     read_cursor: int = 0
     """The current start byte index of the shared memory (sum of all memory map sizes)."""
 
-    def append(self, memory_map: GeometryMemoryMap) -> int:
+    def append(self, memory_map: Geometry3DMemoryMap) -> int:
         """Add a memory map to the shared memory manager.
 
         :param memory_map: MemoryMap to add to the shared memory manager.
@@ -569,7 +605,7 @@ class SharedMemoryManager(object):
         self.write_cursor += memory_map.byte_size
         return write_cursor
 
-    def extend(self, memory_maps: List[GeometryMemoryMap]) -> List[int]:
+    def extend(self, memory_maps: List[Geometry3DMemoryMap]) -> List[int]:
         """Add a list of memory maps to the shared memory manager.
 
         :return: The byte indices to start writing to for each of the appended memory maps
@@ -582,7 +618,7 @@ class SharedMemoryManager(object):
             self.write_cursor += memory_map.byte_size
         return write_cursors
 
-    def read(self) -> Iterator[Tuple[int, GeometryMemoryMap]]:
+    def read(self) -> Iterator[Tuple[int, Geometry3DMemoryMap]]:
         """Read all memory maps from the shared memory manager."""
         for memory_map in self.memory_maps:
             yield self.read_cursor, memory_map
