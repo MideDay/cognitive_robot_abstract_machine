@@ -204,7 +204,11 @@ class Geometry3DMemoryMap(MemoryMap):
             attribute_value = getattr(geometry, attribute)
             if isinstance(attribute_value, list):
                 attribute_dict[attribute] = [
-                    ArrayMemoryMap.from_numpy_array(np.asarray(v))
+                    (
+                        ArrayMemoryMap.from_numpy_array(np.asarray(list(v)))
+                        if isinstance(v, set)
+                        else ArrayMemoryMap.from_numpy_array(np.asarray(v))
+                    )
                     for v in attribute_value
                 ]
                 size += sum(attr.byte_size for attr in attribute_dict[attribute])
@@ -253,6 +257,26 @@ class Geometry3DMemoryMap(MemoryMap):
 
         return geometry_dict, read_idx
 
+    def _write_attribute(
+        self,
+        write_buf: memoryview,
+        write_idx: int,
+        attribute_map: Any,
+        geometry_attribute: Any,
+    ) -> int:
+        buf = np.ndarray(
+            attribute_map.shape,
+            dtype=attribute_map.dtype,
+            buffer=write_buf[write_idx : write_idx + attribute_map.byte_size],
+        )
+
+        if isinstance(geometry_attribute, set):
+            buf[:] = np.asarray(list(geometry_attribute))[:]
+        else:
+            buf[:] = np.asarray(geometry_attribute)[:]
+
+        return write_idx + attribute_map.byte_size
+
     def write_geometry(
         self,
         shm: shared_memory.SharedMemory,
@@ -261,30 +285,26 @@ class Geometry3DMemoryMap(MemoryMap):
     ) -> int:
         """Write the given geometry to the shared memory using the memory map."""
         write_buf = shm.buf
+        if write_buf is None:
+            raise RuntimeError("Shared memory buffer is None")
 
         for attribute, _ in self.mapped_attributes:
             attribute_map = getattr(self, attribute)
             if isinstance(attribute_map, list):
                 if len(attribute_map) == 0:
                     continue
+
+                geometry_attrs = getattr(geometry, attribute)
                 for i, attr in enumerate(attribute_map):
-                    buf = np.ndarray(
-                        attr.shape,
-                        dtype=attr.dtype,
-                        buffer=write_buf[write_idx : write_idx + attr.byte_size],
+                    write_idx = self._write_attribute(
+                        write_buf, write_idx, attr, geometry_attrs[i]
                     )
-                    buf[:] = np.asarray(getattr(geometry, attribute)[i])[:]
-                    write_idx += attr.byte_size
             else:
                 if attribute_map.byte_size == 0:
                     continue
-                buf = np.ndarray(
-                    attribute_map.shape,
-                    dtype=attribute_map.dtype,
-                    buffer=write_buf[write_idx : write_idx + attribute_map.byte_size],
+                write_idx = self._write_attribute(
+                    write_buf, write_idx, attribute_map, getattr(geometry, attribute)
                 )
-                buf[:] = np.asarray(getattr(geometry, attribute))[:]
-                write_idx += attribute_map.byte_size
         return write_idx
 
     def to_geometry(
@@ -421,7 +441,7 @@ class TriangleMesh3DMemoryMap(Geometry3DMemoryMap):
     textures: List[ArrayMemoryMap]
     """Memory map of the mesh textures."""
 
-    # adjacency_list: ArrayMemoryMap
+    adjacency_list: List[ArrayMemoryMap]
     # """Memory map of the mesh adjacency list."""
 
     mapped_attributes = [
@@ -434,7 +454,7 @@ class TriangleMesh3DMemoryMap(Geometry3DMemoryMap):
         ("triangle_material_ids", o3d.utility.IntVector),
         ("textures", o3d.geometry.Image),
         # Not useful or visualization
-        # ("adjacency_list", o3d.utility.Vector3dVector),
+        ("adjacency_list", set),
     ]
 
 

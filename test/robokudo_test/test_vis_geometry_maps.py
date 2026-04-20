@@ -124,6 +124,7 @@ class TestVisGeometryMaps(object):
         mesh_size = (
             (np.dtype(np.float64).itemsize * (3 + 3 + 3 + 3 + 2))
             + (np.dtype(np.int32).itemsize * (3 + 1))
+            + (np.dtype(np.int64).itemsize * (3 + 2 + 3))
         ) * 1000 + ((np.dtype(np.uint8).itemsize * (512 * 512)) * 2)
 
         shm = shared_memory.SharedMemory(
@@ -151,6 +152,7 @@ class TestVisGeometryMaps(object):
             input_mesh.triangle_material_ids = o3d.utility.IntVector(
                 np.random.randint(0, 10, size=1000, dtype=np.int32)
             )
+            input_mesh.adjacency_list = [{3, 8, 9}, {0, 4}, {0, 2, 4}]
             input_mesh.textures = [
                 o3d.geometry.Image(
                     np.random.randint(0, 255, size=(512, 512), dtype=np.uint8)
@@ -205,10 +207,17 @@ class TestVisGeometryMaps(object):
                 np.asarray(output_mesh.triangle_material_ids)
                 == np.asarray(input_mesh.triangle_material_ids)
             )
-            for i in range(len(input_mesh.textures)):
+            for j in range(len(input_mesh.adjacency_list)):
+                assert isinstance(output_mesh.adjacency_list[j], set)
                 assert np.all(
-                    np.asarray(output_mesh.textures[i])
-                    == np.asarray(input_mesh.textures[i])
+                    np.array(list(output_mesh.adjacency_list[j]))
+                    == np.array(list(input_mesh.adjacency_list[j]))
+                )
+            for j in range(len(input_mesh.textures)):
+                assert isinstance(output_mesh.textures[j], o3d.geometry.Image)
+                assert np.all(
+                    np.asarray(output_mesh.textures[j])
+                    == np.asarray(input_mesh.textures[j])
                 )
 
     def test_tetra_mesh_maps(self, write_manager: SharedMemoryManager) -> None:
