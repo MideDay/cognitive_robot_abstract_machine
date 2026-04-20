@@ -37,7 +37,6 @@ from typing_extensions import (
 
 from robokudo.annotators.core import BaseAnnotator
 from robokudo.defs import PACKAGE_NAME
-from robokudo.utils.decorators import timer_decorator
 from robokudo.vis.o3d_visualizer import Viewer3D
 from robokudo.vis.visualizer import Visualizer
 
@@ -329,9 +328,9 @@ class LineSetMemoryMap(GeometryMemoryMap):
     """Memory map of the line set points."""
 
     mapped_attributes = [
-        ("colors", np.ndarray),
-        ("lines", np.ndarray),
-        ("points", np.ndarray),
+        ("colors", o3d.utility.Vector3dVector),
+        ("lines", o3d.utility.Vector2iVector),
+        ("points", o3d.utility.Vector3dVector),
     ]
 
 
@@ -410,10 +409,14 @@ class OrientedBoundingBoxMap(GeometryMemoryMap):
     extent: ArrayMemoryMap
     """Memory map of the oriented bounding box extent."""
 
+    R: ArrayMemoryMap
+    """Memory map of the oriented bounding box extent."""
+
     mapped_attributes = [
         ("center", np.ndarray),
         ("color", np.ndarray),
         ("extent", np.ndarray),
+        ("R", np.ndarray),
     ]
 
 
@@ -608,8 +611,14 @@ class MultiprocessedViewer3DClient(object):
     def run(self) -> None:
         """Run the visualization client."""
         self.receiver_thread.start()
+        coordinate_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.01)
+        self.viewer3d.main_vis.add_geometry("dummy", coordinate_frame)
         try:
-            o3d.visualization.gui.Application.instance.run()
+            while True:
+                self.viewer3d.main_vis.remove_geometry("dummy")
+                self.viewer3d.main_vis.add_geometry("dummy", coordinate_frame)
+                self.viewer3d.tick()
+                time.sleep(1.0 / 60.0)
         except KeyboardInterrupt:
             self.rk_logger.info("Keyboard interrupt received, shutting down...")
             self.close()
@@ -627,6 +636,7 @@ class MultiprocessedViewer3DClient(object):
         start_t = time.perf_counter()
         with self.geometries_lock:
             self.viewer3d.update_cloud(self.geometries)
+            # self.viewer3d.tick()
         self.rk_logger.debug(
             f"Updated geometry in {time.perf_counter() - start_t:.4f}s"
         )
