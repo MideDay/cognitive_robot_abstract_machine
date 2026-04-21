@@ -11,6 +11,8 @@ import numpy as np
 import objgraph
 import pytest
 
+from semantic_digital_twin.robots.dualarm import DualArm
+
 try:
     from pycram.datastructures.dataclasses import Context
 except ModuleNotFoundError:
@@ -42,7 +44,7 @@ from semantic_digital_twin.robots.tiago import Tiago
 from semantic_digital_twin.robots.tracy import Tracy
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Vector3
-from semantic_digital_twin.utils import rclpy_installed, tracy_installed
+from semantic_digital_twin.utils import rclpy_installed, tracy_installed, dualarm_installed
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
     OmniDrive,
@@ -424,6 +426,22 @@ def tracy_world():
     Tracy.from_world(world_with_tracy)
     return world_with_tracy
 
+@pytest.fixture(scope="session")
+def dualarm_world():
+    if not dualarm_installed():
+        pytest.skip("Dualarm not installed")
+    urdf_dir = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "semantic_digital_twin",
+        "resources",
+        "urdf",
+    )
+    dualarm = os.path.join(urdf_dir, "dualarm.urdf")
+    dualarm_parser = URDFParser.from_file(file_path=dualarm)
+    world_with_dualarm = dualarm_parser.parse()
+    DualArm.from_world(world_with_dualarm)
+    return world_with_dualarm
 
 @pytest.fixture(scope="session")
 def stretch_world():
