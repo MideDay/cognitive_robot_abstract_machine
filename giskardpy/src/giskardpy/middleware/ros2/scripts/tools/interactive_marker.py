@@ -7,7 +7,9 @@ from typing import Dict
 import rclpy
 from interactive_markers.interactive_marker_server import InteractiveMarkerServer
 from rclpy import Parameter
-from semantic_digital_twin.world_description.world_entity import KinematicStructureEntity
+from semantic_digital_twin.world_description.world_entity import (
+    KinematicStructureEntity,
+)
 from visualization_msgs.msg import InteractiveMarker, InteractiveMarkerControl, Marker
 from visualization_msgs.msg import InteractiveMarkerFeedback
 
@@ -39,23 +41,51 @@ class InteractiveMarkerNode:
     users to manipulate them via RViz. When a marker is moved, it generates motion
     goals that are sent to Giskard for execution.
 
-    Parameters are read from ROS parameter server:
+    Node parameters for launching the node:
 
     - root_links: List of root link names for kinematic chains
     - tip_links: List of tip link names corresponding to root_links
 
-    :var giskard: Wrapper for Giskard motion planner (computed)
-    :var markers: Dictionary mapping marker names to KinematicChainMarker instances (computed)
-    :var server: Interactive marker server for RViz (computed)
-    :var root_links: List of root link names (computed from parameters)
-    :var tip_links: List of tip link names (computed from parameters)
+    Example Node for .launch.py::
+
+        Node(
+            package="giskardpy_ros",
+            executable="interactive_marker",
+            name="giskard_interactive_marker",
+            parameters=[
+                {
+                    "root_links": ["map", "map", "map"],
+                    "tip_links": [
+                        "r_gripper_tool_frame",
+                        "l_gripper_tool_frame",
+                        "base_footprint",
+                    ],
+                }
+            ],
+            output="screen",
+        ),
     """
 
     giskard: GiskardWrapper = field(init=False)
+    """
+    Wrapper for Giskard motion planner.
+    """
     markers: Dict[str, KinematicChainMarker] = field(init=False)
+    """
+    Dictionary mapping marker names to KinematicChainMarker instances.
+    """
     server: InteractiveMarkerServer | None = field(init=False)
+    """
+    Interactive marker server for RViz.
+    """
     root_links: list = field(init=False)
+    """
+    List of root link names from parameters.
+    """
     tip_links: list = field(init=False)
+    """
+    List of tip link names from parameters.
+    """
 
     def __post_init__(self) -> None:
         """
@@ -108,7 +138,9 @@ class InteractiveMarkerNode:
                     tip_body = (
                         self.giskard.world.get_kinematic_structure_entity_by_name(tip)
                     )
-                    kinematic_chain = KinematicChainMarker(root, tip, root_body, tip_body)
+                    kinematic_chain = KinematicChainMarker(
+                        root, tip, root_body, tip_body
+                    )
                     self.markers[kinematic_chain.name] = kinematic_chain
 
                 return  # Success
@@ -181,7 +213,9 @@ class InteractiveMarkerNode:
                 motion_timeout := CountSeconds(seconds=MOTION_TIMEOUT_SECONDS),
             ]
         )
-        motion_statechart.add_node(EndMotion.when_any_true([goal_transformation, motion_timeout]))
+        motion_statechart.add_node(
+            EndMotion.when_any_true([goal_transformation, motion_timeout])
+        )
         self.giskard.execute_async(motion_statechart)
 
         # Reset marker pose
@@ -200,21 +234,32 @@ class KinematicChainMarker:
     This dataclass encapsulates all data and functionality needed to create and manage
     an interactive marker for a robot kinematic chain. It handles marker visualization,
     control setup (translation and rotation), and pose representation.
-
-    :var root_link: Name of the root link in the kinematic chain
-    :var tip_link: Name of the tip/end-effector link in the kinematic chain
-    :var root_body: Kinematic structure entity representing the root body
-    :var tip_body: Kinematic structure entity representing the tip body
-    :var name: Formatted name combining root and tip links (computed)
-    :var interactive_marker_message: ROS InteractiveMarker message object (computed)
     """
 
     root_link: str
+    """
+    Name of the root link in the kinematic chain.
+    """
     tip_link: str
+    """
+    Name of the tip/end-effector link in the kinematic chain.
+    """
     root_body: KinematicStructureEntity
+    """
+    Kinematic structure entity representing the root body.
+    """
     tip_body: KinematicStructureEntity
+    """
+    Kinematic structure entity representing the tip body.
+    """
     name: str = field(init=False)
+    """
+    Formatted name combining root and tip links.
+    """
     interactive_marker_message: InteractiveMarker = field(init=False)
+    """
+    ROS InteractiveMarker message object.
+    """
 
     def __post_init__(self) -> None:
         """
