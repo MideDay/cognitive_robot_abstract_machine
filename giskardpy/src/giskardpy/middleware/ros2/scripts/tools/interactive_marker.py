@@ -63,14 +63,6 @@ class InteractiveMarkerNode:
     """
     Timeout in seconds for motion execution.
     """
-    world_entity_retry_attempts: int = 100
-    """
-    Number of retry attempts when finding world entities.
-    """
-    world_entity_retry_delay: float = 0.5
-    """
-    Delay in seconds between retry attempts for world entities.
-    """
     giskard: GiskardWrapper = field(init=False)
     """
     Wrapper for Giskard motion planner.
@@ -123,39 +115,23 @@ class InteractiveMarkerNode:
     def _initialize_markers(self) -> None:
         """
         Attempts to find kinematic structure entities and create markers for them.
-        Retries up to world_entity_retry_attempts times with world_entity_retry_delay
-        between attempts.
 
         :raises WorldEntityNotFoundError: If entities cannot be found after all retries.
         """
-        last_error: WorldEntityNotFoundError | None = None
-
-        for attempt in range(self.world_entity_retry_attempts):
-            try:
-                for root, tip in zip(self.root_links, self.tip_links):
-                    root_body = (
-                        self.giskard.world.get_kinematic_structure_entity_by_name(root)
-                    )
-                    tip_body = (
-                        self.giskard.world.get_kinematic_structure_entity_by_name(tip)
-                    )
-                    kinematic_chain = KinematicChainMarker(
-                        root, tip, root_body, tip_body
-                    )
-                    self.markers[kinematic_chain.name] = kinematic_chain
-
-                return  # Success
-            except WorldEntityNotFoundError as error:
-                last_error = error
-                self.markers.clear()
-                sleep(self.world_entity_retry_delay)
-                self.giskard.node_handle.get_logger().error(
-                    f"Failed to find bodies in world (attempt {attempt + 1}/{self.world_entity_retry_attempts}), "
-                    f"retrying in {self.world_entity_retry_delay}s..."
+        try:
+            for root, tip in zip(self.root_links, self.tip_links):
+                root_body = self.giskard.world.get_kinematic_structure_entity_by_name(
+                    root
                 )
+                tip_body = self.giskard.world.get_kinematic_structure_entity_by_name(
+                    tip
+                )
+                kinematic_chain = KinematicChainMarker(root, tip, root_body, tip_body)
+                self.markers[kinematic_chain.name] = kinematic_chain
 
-        if last_error is not None:
-            raise last_error
+            return
+        except WorldEntityNotFoundError as error:
+            raise error
 
     def _setup_marker_server(self) -> None:
         """
