@@ -521,7 +521,7 @@ class EnforcementStrategy(ABC):
     config: QPControllerConfig
 
     @abstractmethod
-    def create_matrix(self, constraints: list[DerivativeConstraint]) -> Matrix: ...
+    def create_matrix(self, constraints: list[GiskardConstraint]) -> Matrix: ...
 
     @abstractmethod
     def create_slack_matrix(self, constraints: list[GiskardConstraint]) -> Matrix: ...
@@ -654,6 +654,31 @@ class IntegralStrategy(EnforcementStrategy):
 @dataclass
 class VelocityStrategy(EnforcementStrategy):
     """
+    The constraint will be applied to the derivative of the expression.
+    Position constraints are implemented by constraining the integral of the expressions' derivative over a prediction horizon.
+    All other constraints are applied directly to that derivative of the expression.
+    As a result, position constraints are cheaper, as they only require a single constraint.
+    """
+
+    # normalization_factor: sm.ScalarData = field(kw_only=True)
+    """
+    This value is important to make constraints with different units comparable.
+    The meaning depends on derivative.
+    If the derivative is position, the normalization factor is rough velocity with which the expression can change.
+    For example:
+        - If you have a joint position constraint, the normalization factor should be the joint velocity limit.
+        - If you have a cartesian position constraint, the normalization factor should be the cartesian velocity limit.
+    For other derivatives, the normalization factor is the same unit as the expression.
+    For example:
+        - Joint velocity constraint -> joint velocity limit
+        - Cartesian velocity constraint -> cartesian velocity limit
+    .. Warning: This number is different from the bounds of the expression. 
+                If you want to enforce a bound below the actual limit, the normalization factor should still be the true limit.
+    In practice, use joint limits from the URDF for joint space constraints and define two values for cartesian constraints:
+        - a m/s limit for translation
+        - a rad/s value for rotation
+    """
+    """
     Equality constraints have the form:
     .. math::
         f(q) = b
@@ -677,7 +702,7 @@ class VelocityStrategy(EnforcementStrategy):
         |--------------------------------------------------------------------------------|
     """
 
-    def create_matrix(self, constraints: list[DerivativeConstraint]) -> Matrix:
+    def create_matrix(self, constraints: list[GiskardConstraint]) -> Matrix:
         number_of_vel_rows = len(constraints) * (self.config.prediction_horizon - 2)
         if number_of_vel_rows == 0:
             return sm.Matrix()
@@ -793,49 +818,3 @@ class GiskardConstraint:
     """
 
     enforcement_strategy: type[EnforcementStrategy]
-
-
-@dataclass
-class DerivativeConstraint(GiskardConstraint):
-    derivative: Derivatives = field(kw_only=True)
-    """
-    The constraint will be applied to the derivative of the expression.
-    Position constraints are implemented by constraining the integral of the expressions' derivative over a prediction horizon.
-    All other constraints are applied directly to that derivative of the expression.
-    As a result, position constraints are cheaper, as they only require a single constraint.
-    """
-
-    # normalization_factor: sm.ScalarData = field(kw_only=True)
-    """
-    This value is important to make constraints with different units comparable.
-    The meaning depends on derivative.
-    If the derivative is position, the normalization factor is rough velocity with which the expression can change.
-    For example:
-        - If you have a joint position constraint, the normalization factor should be the joint velocity limit.
-        - If you have a cartesian position constraint, the normalization factor should be the cartesian velocity limit.
-    For other derivatives, the normalization factor is the same unit as the expression.
-    For example:
-        - Joint velocity constraint -> joint velocity limit
-        - Cartesian velocity constraint -> cartesian velocity limit
-    .. Warning: This number is different from the bounds of the expression. 
-                If you want to enforce a bound below the actual limit, the normalization factor should still be the true limit.
-    In practice, use joint limits from the URDF for joint space constraints and define two values for cartesian constraints:
-        - a m/s limit for translation
-        - a rad/s value for rotation
-    """
-
-
-@dataclass
-class DerivativeInequalityConstraint(DerivativeConstraint):
-    lower_limit: sm.ScalarData
-    upper_limit: sm.ScalarData
-
-    lower_slack_limit: sm.ScalarData
-    upper_slack_limit: sm.ScalarData
-
-
-@dataclass
-class DerivativeEqualityConstraint(DerivativeConstraint):
-    bound: sm.ScalarData
-    lower_slack_limit: sm.ScalarData
-    upper_slack_limit: sm.ScalarData

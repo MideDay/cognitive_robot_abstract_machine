@@ -1,49 +1,21 @@
 from __future__ import annotations
 
-import abc
 import logging
-from abc import ABC, abstractproperty, abstractmethod
 from abc import ABC
-from collections import defaultdict
-from copy import copy
+from abc import abstractmethod
 from dataclasses import dataclass, field
-from itertools import product
-from typing import Tuple, List, Dict, TYPE_CHECKING, Type
-from uuid import UUID
+from typing import List, TYPE_CHECKING
 
 import numpy as np
-import scipy.sparse as sp
-from typing_extensions import Self
 
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.qp.constraint import (
-    GiskardConstraint,
-    DerivativeConstraint,
     DirectLimits,
-    max_velocity_from_horizon_and_jerk_qp,
     DofLimits,
 )
 from giskardpy.qp.constraint_collection import ConstraintCollection
-from giskardpy.qp.exceptions import (
-    InfeasibleException,
-    VelocityLimitUnreachableException,
-)
-from giskardpy.qp.pos_in_vel_limits import (
-    shifted_velocity_profile,
-    compute_slowdown_asap_vel_profile,
-)
-from giskardpy.qp.solvers.qp_solver import QPSolver
-from giskardpy.utils.decorators import memoize
-from giskardpy.utils.math import mpc
-from krrood.symbolic_math.symbolic_math import Vector, Matrix, Scalar, FloatVariable
-from semantic_digital_twin.spatial_types.derivatives import Derivatives, DerivativeMap
-from semantic_digital_twin.world_description.degree_of_freedom import (
-    DegreeOfFreedom,
-    DegreeOfFreedomLimits,
-)
+from krrood.symbolic_math.symbolic_math import Vector, Matrix
 from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
-import giskardpy.utils.math as gm
-from krrood.utils import memoize
 
 logger = logging.getLogger(__name__)
 
@@ -200,67 +172,6 @@ class EqualityDerivativeLinkModel(QPConstraintComponent):
 
 
 @dataclass
-class EqualityVelocityConstraintModel:
-    def eq_derivative_slack_limits(
-        self, derivative: Derivatives
-    ) -> Tuple[Dict[str, sm.Scalar], Dict[str, sm.Scalar]]:
-        lower_slack = {}
-        upper_slack = {}
-        for t in range(self.config.prediction_horizon):
-            for c in self.constraint_collection.get_equality_constraints_by_derivative(
-                derivative
-            ):
-                if t < self.control_horizon:
-                    lower_slack[f"t{t:03}/{c.name}"] = c.lower_slack_limit[t]
-                    upper_slack[f"t{t:03}/{c.name}"] = c.upper_slack_limit[t]
-        return lower_slack, upper_slack
-
-    @memoize
-    def find_best_jerk_limit(
-        self,
-        prediction_horizon: int,
-        dt: float,
-        target_vel_limit: float,
-        solver_class: Type[QPSolver],
-        eps: float = 0.0001,
-    ) -> float:
-        jerk_limit = (4 * target_vel_limit) / dt**2
-        upper_bound = jerk_limit
-        lower_bound = 0
-        best_vel_limit = 0
-        best_jerk_limit = 0
-        i = -1
-        for i in range(100):
-            vel_limit = max_velocity_from_horizon_and_jerk_qp(
-                prediction_horizon=prediction_horizon,
-                vel_limit=1000,
-                acc_limit=np.inf,
-                jerk_limit=jerk_limit,
-                dt=dt,
-                max_derivative=Derivatives.jerk,
-                solver_class=solver_class,
-            )[0]
-            if abs(vel_limit - target_vel_limit) < abs(
-                best_vel_limit - target_vel_limit
-            ):
-                best_vel_limit = vel_limit
-                best_jerk_limit = jerk_limit
-            if abs(vel_limit - target_vel_limit) < eps:
-                break
-            if vel_limit > target_vel_limit:
-                upper_bound = jerk_limit
-                jerk_limit = round((jerk_limit + lower_bound) / 2, 4)
-            else:
-                lower_bound = jerk_limit
-                jerk_limit = round((jerk_limit + upper_bound) / 2, 4)
-        logger.debug(
-            f"best velocity limit: {best_vel_limit} "
-            f"(target = {target_vel_limit}) with jerk limit: {best_jerk_limit} after {i + 1} iterations"
-        )
-        return best_jerk_limit
-
-
-@dataclass
 class QPDataSymbolic:
     """
     Takes free variables and constraints and converts them to a QP problem in the following format, depending on the
@@ -387,14 +298,6 @@ class QPDataSymbolic:
 
     def __hash__(self):
         return hash(id(self))
-
-    @property
-    def num_eq_constraints(self) -> int:
-        return len(self.constraint_collection.equality_constraints)
-
-    @property
-    def num_neq_constraints(self) -> int:
-        return len(self.constraint_collection.inequality_constraints)
 
     @property
     def num_free_variable_constraints(self) -> int:

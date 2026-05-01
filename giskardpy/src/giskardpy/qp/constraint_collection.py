@@ -15,8 +15,6 @@ from giskardpy.motion_statechart.exceptions import (
     MotionStatechartError,
 )
 from giskardpy.qp.constraint import (
-    DerivativeInequalityConstraint,
-    DerivativeEqualityConstraint,
     GiskardConstraint,
     EqualityBound,
     EnforcementStrategy,
@@ -24,9 +22,7 @@ from giskardpy.qp.constraint import (
     IntegralStrategy,
     VelocityStrategy,
 )
-from krrood.symbolic_math.symbolic_math import Scalar
 from semantic_digital_twin.spatial_types import Point3, Vector3, RotationMatrix
-from semantic_digital_twin.spatial_types.derivatives import Derivatives
 
 if TYPE_CHECKING:
     from giskardpy.motion_statechart.graph_node import MotionStatechartNode
@@ -61,48 +57,8 @@ class ConstraintCollection:
         return [c for c in self._constraints if isinstance(c.bound, EqualityBound)]
 
     @property
-    def derivative_equality_constraints(self) -> list[DerivativeEqualityConstraint]:
-        return [
-            c for c in self._constraints if isinstance(c, DerivativeEqualityConstraint)
-        ]
-
-    def get_equality_constraints_by_derivative(
-        self, derivative: Derivatives
-    ) -> list[DerivativeEqualityConstraint]:
-        return [
-            c
-            for c in self.derivative_equality_constraints
-            if c.derivative == derivative
-        ]
-
-    @property
-    def velocity_equality_constraints(self) -> list[DerivativeEqualityConstraint]:
-        return self.get_equality_constraints_by_derivative(Derivatives.velocity)
-
-    @property
     def inequality_constraints(self) -> list[GiskardConstraint]:
         return [c for c in self._constraints if isinstance(c.bound, InequalityBound)]
-
-    @property
-    def derivative_inequality_constraints(self) -> list[DerivativeInequalityConstraint]:
-        return [
-            c
-            for c in self._constraints
-            if isinstance(c, DerivativeInequalityConstraint)
-        ]
-
-    def get_inequality_constraints_by_derivative(
-        self, derivative: Derivatives
-    ) -> list[DerivativeInequalityConstraint]:
-        return [
-            c
-            for c in self.derivative_inequality_constraints
-            if c.derivative == derivative
-        ]
-
-    @property
-    def velocity_inequality_constraints(self) -> list[DerivativeInequalityConstraint]:
-        return self.get_inequality_constraints_by_derivative(Derivatives.velocity)
 
     def merge(self, name_prefix: str, other: ConstraintCollection):
         for constraint in other._constraints:
