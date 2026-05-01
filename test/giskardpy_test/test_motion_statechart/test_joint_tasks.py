@@ -26,6 +26,9 @@ from krrood.symbolic_math.symbolic_math import (
     trinary_logic_and,
     shortest_angular_distance,
 )
+from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
+    VizMarkerPublisher,
+)
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -236,7 +239,10 @@ def test_continuous_joint(pr2_world_state_reset):
     )
 
 
-def test_revolute_joint(pr2_world_state_reset):
+def test_revolute_joint(pr2_world_state_reset, rclpy_node):
+    VizMarkerPublisher(
+        _world=pr2_world_state_reset, node=rclpy_node
+    ).with_tf_publisher()
     head_pan_joint = pr2_world_state_reset.get_connection_by_name("head_pan_joint")
     head_tilt_joint = pr2_world_state_reset.get_connection_by_name("head_tilt_joint")
     msc = MotionStatechart()

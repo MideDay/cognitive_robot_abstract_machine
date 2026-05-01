@@ -55,7 +55,7 @@ from giskardpy.motion_statechart.test_nodes.test_nodes import (
     TestEndBeforeStart,
     TestUnpauseUnknownFromParentPause,
 )
-from giskardpy.qp.constraint import EqualityConstraint
+from giskardpy.qp.constraint import GiskardConstraint, IntegralStrategy, EqualityBound
 from giskardpy.qp.constraint_collection import ConstraintCollection
 from krrood.symbolic_math.symbolic_math import (
     trinary_logic_and,
@@ -1299,15 +1299,16 @@ def test_constraint_collection(pr2_world_state_reset: World):
         quadratic_weight=DefaultWeights.WEIGHT_BELOW_CA,
         task_expression=expr,
     )
-    constraint = EqualityConstraint(
+    constraint = GiskardConstraint(
         name="same_name",
         expression=expr,
-        bound=0.0,
         normalization_factor=0.1,
         quadratic_weight=DefaultWeights.WEIGHT_BELOW_CA,
         lower_slack_limit=-float("inf"),
         upper_slack_limit=float("inf"),
         linear_weight=0,
+        enforcement_strategy=IntegralStrategy,
+        bound=EqualityBound(0.0),
     )
     col3._constraints.append(constraint)
 

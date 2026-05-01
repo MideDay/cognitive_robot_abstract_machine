@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -14,13 +15,13 @@ from giskardpy.motion_statechart.exceptions import (
     MotionStatechartError,
 )
 from giskardpy.qp.constraint import (
-    EqualityConstraint,
-    InequalityConstraint,
     DerivativeInequalityConstraint,
     DerivativeEqualityConstraint,
     GiskardConstraint,
-    Integral,
     EqualityBound,
+    EnforcementStrategy,
+    InequalityBound,
+    IntegralStrategy,
 )
 from krrood.symbolic_math.symbolic_math import Scalar
 from semantic_digital_twin.spatial_types import Point3, Vector3, RotationMatrix
@@ -36,14 +37,34 @@ Large_Number = 1e4
 class ConstraintCollection:
     _constraints: list[GiskardConstraint] = field(default_factory=list, init=False)
 
+    def get_equality_constraint_blocks(
+        self,
+    ) -> dict[EnforcementStrategy, list[GiskardConstraint]]:
+        result = defaultdict(list)
+        for c in self._constraints:
+            if isinstance(c.bound, EqualityBound):
+                result[c.enforcement_strategy].append(c)
+        return result
+
+    def get_inequality_constraint_blocks(
+        self,
+    ) -> dict[EnforcementStrategy, list[GiskardConstraint]]:
+        result = defaultdict(list)
+        for c in self._constraints:
+            if isinstance(c.bound, InequalityBound):
+                result[c.enforcement_strategy].append(c)
+        return result
+
     @property
-    def equality_constraints(self) -> list[EqualityConstraint]:
-        return [c for c in self._constraints if isinstance(c, EqualityConstraint)]
+    def equality_constraints(self) -> list[GiskardConstraint]:
+        return [c for c in self._constraints if isinstance(c.bound, EqualityBound)]
 
     @property
     def equality_constraints_expressions(self) -> list[Scalar]:
         return [
-            c.expression for c in self._constraints if isinstance(c, EqualityConstraint)
+            c.expression
+            for c in self._constraints
+            if isinstance(c.bound, EqualityBound)
         ]
 
     @property
@@ -66,8 +87,8 @@ class ConstraintCollection:
         return self.get_equality_constraints_by_derivative(Derivatives.velocity)
 
     @property
-    def inequality_constraints(self) -> list[InequalityConstraint]:
-        return [c for c in self._constraints if isinstance(c, InequalityConstraint)]
+    def inequality_constraints(self) -> list[GiskardConstraint]:
+        return [c for c in self._constraints if isinstance(c.bound, InequalityBound)]
 
     @property
     def derivative_inequality_constraints(self) -> list[DerivativeInequalityConstraint]:
@@ -172,7 +193,7 @@ class ConstraintCollection:
             lower_slack_limit=lower_slack_limit,
             upper_slack_limit=upper_slack_limit,
             linear_weight=0,
-            enforcement_strategy=Integral(),
+            enforcement_strategy=IntegralStrategy,
         )
         self.add_constraint(constraint)
 
@@ -213,16 +234,16 @@ class ConstraintCollection:
         upper_slack_limit = (
             upper_slack_limit if upper_slack_limit is not None else float("inf")
         )
-        constraint = InequalityConstraint(
+        constraint = GiskardConstraint(
             name=name,
             expression=task_expression,
-            lower_error=lower_error,
-            upper_error=upper_error,
             normalization_factor=reference_velocity,
             quadratic_weight=quadratic_weight,
             lower_slack_limit=lower_slack_limit,
             upper_slack_limit=upper_slack_limit,
             linear_weight=linear_weight,
+            enforcement_strategy=IntegralStrategy,
+            bound=InequalityBound(lower_error, upper_error),
         )
         self.add_constraint(constraint)
 
