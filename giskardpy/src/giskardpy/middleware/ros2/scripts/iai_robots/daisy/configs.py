@@ -6,12 +6,12 @@ from giskardpy.middleware.ros2.robot_interface_config import (
 )
 from giskardpy.model.world_config import WorldWithFixedRobot
 from semantic_digital_twin.robots.abstract_robot import AbstractRobot
-from semantic_digital_twin.robots.dualarm import DualArm
+from semantic_digital_twin.robots.daisy import DAiSy
 
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 
 
-class WorldWithDualarmConfig(WorldWithFixedRobot):
+class WorldWithDaisyConfig(WorldWithFixedRobot):
     """Minimal Tracy world config analogous to WorldWithPR2Config.
 
     - Fixed-base robot (no drive joint)
@@ -21,15 +21,15 @@ class WorldWithDualarmConfig(WorldWithFixedRobot):
 
     def __init__(self, urdf: Optional[str] = None):
         super().__init__(
-            urdf=urdf, root_name=PrefixedName(name="map2"), urdf_view=DualArm
+            urdf=urdf, root_name=PrefixedName(name="map2"), urdf_view=DAiSy
         )
 
     def setup_world(self, robot_name: Optional[str] = None) -> None:
         super().setup_world()
-        self.robot = self.world.get_semantic_annotations_by_type(DualArm)[0]
+        self.robot = self.world.get_semantic_annotations_by_type(DAiSy)[0]
 
 
-class DualarmStandAloneRobotInterfaceConfig(StandAloneRobotInterfaceConfig):
+class DaisyStandAloneRobotInterfaceConfig(StandAloneRobotInterfaceConfig):
     def __init__(self):
         super().__init__(
             [

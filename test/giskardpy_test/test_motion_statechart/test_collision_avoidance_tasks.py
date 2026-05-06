@@ -811,9 +811,15 @@ def test_hard_constraints_violated(cylinder_bot_world: World, rclpy_node):
 
 
 @pytest.mark.parametrize(
-    "fix_name, tool_frame_id", [("tracy_world", "r_gripper_tool_frame"), ("dualarm_world", "right_gripper_tool_frame")]
+    "fix_name, tool_frame_id",
+    [
+        ("tracy_world", "r_gripper_tool_frame"),
+        ("daisy_world", "right_gripper_tool_frame"),
+    ],
 )
-def test_collision_for_robot_with_static_base(fix_name, tool_frame_id, request, rclpy_node):
+def test_collision_for_robot_with_static_base(
+    fix_name, tool_frame_id, request, rclpy_node
+):
     world = request.getfixturevalue(fix_name)
     robot = world.get_semantic_annotations_by_type(AbstractRobot)[0]
 

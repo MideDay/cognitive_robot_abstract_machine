@@ -154,17 +154,19 @@ def tracy_installed() -> bool:
     except (ImportError, PackageNotFoundError, ValueError):
         return False
 
-def dualarm_installed() -> bool:
+
+def daisy_installed() -> bool:
     try:
         from ament_index_python.packages import get_package_share_directory
 
-        pkg_name = "iai_dualarm_description"
+        pkg_name = "iai_daisy_description"
 
         if get_package_share_directory(pkg_name):
             return True
         return False
     except (ImportError, PackageNotFoundError, ValueError):
         return False
+
 
 def hsrb_installed() -> bool:
     try:

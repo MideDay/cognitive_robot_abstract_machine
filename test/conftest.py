@@ -7,7 +7,7 @@ import numpy as np
 import objgraph
 import pytest
 
-from semantic_digital_twin.robots.dualarm import DualArm
+from semantic_digital_twin.robots.daisy import DAiSy
 
 try:
     from pycram.datastructures.dataclasses import Context
@@ -36,10 +36,21 @@ from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.robots.stretch import Stretch
 from semantic_digital_twin.robots.tiago import Tiago
 from semantic_digital_twin.robots.tracy import Tracy
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk, Table, Apple, Orange, Carrot, Lettuce, \
-    Banana
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Milk,
+    Table,
+    Apple,
+    Orange,
+    Carrot,
+    Lettuce,
+    Banana,
+)
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Vector3
-from semantic_digital_twin.utils import rclpy_installed, tracy_installed, dualarm_installed
+from semantic_digital_twin.utils import (
+    rclpy_installed,
+    tracy_installed,
+    daisy_installed,
+)
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
     OmniDrive,
@@ -52,7 +63,8 @@ from semantic_digital_twin.world_description.geometry import (
     Box,
     Scale,
     Cylinder,
-    Sphere, Color,
+    Sphere,
+    Color,
 )
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import (
@@ -417,10 +429,11 @@ def tracy_world():
     Tracy.from_world(world_with_tracy)
     return world_with_tracy
 
+
 @pytest.fixture(scope="session")
-def dualarm_world():
-    if not dualarm_installed():
-        pytest.skip("Dualarm not installed")
+def daisy_world():
+    if not daisy_installed():
+        pytest.skip("DAiSy not installed")
     urdf_dir = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "..",
@@ -428,11 +441,12 @@ def dualarm_world():
         "resources",
         "urdf",
     )
-    dualarm = os.path.join(urdf_dir, "dualarm.urdf")
-    dualarm_parser = URDFParser.from_file(file_path=dualarm)
-    world_with_dualarm = dualarm_parser.parse()
-    DualArm.from_world(world_with_dualarm)
-    return world_with_dualarm
+    daisy = os.path.join(urdf_dir, "daisy.urdf")
+    daisy_parser = URDFParser.from_file(file_path=daisy)
+    world_with_daisy = daisy_parser.parse()
+    DAiSy.from_world(world_with_daisy)
+    return world_with_daisy
+
 
 @pytest.fixture(scope="session")
 def stretch_world():
@@ -767,36 +781,45 @@ def kitchen_environment_fixture():
         fruit_table = Table.create_with_new_body_in_world(
             world=world,
             name=PrefixedName("fruit_table"),
-            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=1, y=1, z=0),
+            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=1, y=1, z=0
+            ),
             scale=Scale(2, 2, 1),
         )
 
         vegetable_table = Table.create_with_new_body_in_world(
             world=world,
             name=PrefixedName("vegetable_table"),
-            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=1, y=1, z=2),
+            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=1, y=1, z=2
+            ),
             scale=Scale(2, 2, 1),
         )
 
         empty_table = Table.create_with_new_body_in_world(
             world=world,
             name=PrefixedName("empty_table"),
-            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=1, y=1, z=4),
+            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=1, y=1, z=4
+            ),
             scale=Scale(2, 2, 1),
         )
 
         empty_table2 = Table.create_with_new_body_in_world(
             world=world,
             name=PrefixedName("empty_table2"),
-            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=1, y=1, z=6),
+            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=1, y=1, z=6
+            ),
             scale=Scale(2, 2, 1),
         )
-
 
         apple = Apple.create_with_new_body_in_world(
             world=world,
             name=PrefixedName("apple"),
-            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=1, y=1, z=0.55),
+            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=1, y=1, z=0.55
+            ),
             scale=Scale(0.10, 0.10, 0.10),
         )
         for color in apple.bodies[0].visual.shapes:
@@ -805,7 +828,9 @@ def kitchen_environment_fixture():
         orange = Orange.create_with_new_body_in_world(
             world=world,
             name=PrefixedName("orange"),
-            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=1, y=0.5, z=0.55),
+            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=1, y=0.5, z=0.55
+            ),
             scale=Scale(0.10, 0.10, 0.10),
         )
         for color in orange.bodies[0].visual.shapes:
@@ -814,7 +839,9 @@ def kitchen_environment_fixture():
         banana1 = Banana.create_with_new_body_in_world(
             world=world,
             name=PrefixedName("banana1"),
-            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=1, y=0.6, z=0.75),
+            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=1, y=0.6, z=0.75
+            ),
             scale=Scale(0.10, 0.10, 0.60),
         )
         for color in banana1.bodies[0].visual.shapes:
@@ -823,7 +850,9 @@ def kitchen_environment_fixture():
         carrot = Carrot.create_with_new_body_in_world(
             world=world,
             name=PrefixedName("carrot"),
-            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=1, y=1, z=2.6),
+            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=1, y=1, z=2.6
+            ),
             scale=Scale(0.05, 0.05, 0.20),
         )
         for color in carrot.bodies[0].visual.shapes:
@@ -832,7 +861,9 @@ def kitchen_environment_fixture():
         lettuce = Lettuce.create_with_new_body_in_world(
             world=world,
             name=PrefixedName("lettuce"),
-            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=1, y=1.5, z=2.55),
+            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=1, y=1.5, z=2.55
+            ),
             scale=Scale(0.15, 0.15, 0.10),
         )
         for color in lettuce.bodies[0].visual.shapes:
@@ -841,12 +872,13 @@ def kitchen_environment_fixture():
         banana = Banana.create_with_new_body_in_world(
             world=world,
             name=PrefixedName("banana"),
-            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=10, y=10, z=10),
+            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=10, y=10, z=10
+            ),
             scale=Scale(0.20, 0.05, 0.05),
         )
         for color in banana.bodies[0].visual.shapes:
             color.color = Color.YELLOW()
-
 
     fake_robot = Cylinder(width=0.45, height=1.5)
     shape_geometry = ShapeCollection([fake_robot])
@@ -862,7 +894,6 @@ def kitchen_environment_fixture():
         parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(),
     )
     all_elements_connections.append(root_C_fake_robot)
-
 
     with world.modify_world():
         for conn in all_elements_connections:

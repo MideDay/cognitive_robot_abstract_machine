@@ -31,7 +31,7 @@ from semantic_digital_twin.world_description.connections import (
 
 
 @dataclass(eq=False)
-class DualArm(AbstractRobot, SpecifiesLeftRightArm):
+class DAiSy(AbstractRobot, SpecifiesLeftRightArm):
     """
     Represents two UR5 Arms mounted on a table.
     The left arm is equipped with a WPG-300 parallel gripper.
@@ -49,7 +49,7 @@ class DualArm(AbstractRobot, SpecifiesLeftRightArm):
     @classmethod
     def _init_empty_robot(cls, world: World) -> Self:
         return cls(
-            name=PrefixedName(name="dualarm", prefix=world.name),
+            name=PrefixedName(name="daisy", prefix=world.name),
             root=world.get_body_by_name("table"),
             _world=world,
         )
