@@ -71,12 +71,12 @@ class ReachAction(ActionDescription):
             sequential(
                 children=[
                     MoveToolCenterPointMotion(
-                        target_pre_pose, self.arm, allow_gripper_collision=True
+                        target_pre_pose, self.arm, allow_gripper_collision=False
                     ),
                     MoveToolCenterPointMotion(
                         target_pose,
                         self.arm,
-                        allow_gripper_collision=True,
+                        allow_gripper_collision=False,
                         movement_type=MovementType.CARTESIAN,
                     ),
                 ]
