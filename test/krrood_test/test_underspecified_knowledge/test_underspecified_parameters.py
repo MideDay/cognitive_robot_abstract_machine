@@ -9,7 +9,7 @@ from krrood.entity_query_language.factories import (
 from krrood.parametrization.parameterizer import UnderspecifiedParameters
 from random_events.interval import singleton, reals
 
-from krrood_test.dataset.example_classes import (
+from ..dataset.example_classes import (
     KRROODPosition,
     TestEnum,
     EnumAction,
