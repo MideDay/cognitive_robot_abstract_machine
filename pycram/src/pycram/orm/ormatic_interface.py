@@ -16287,7 +16287,8 @@ class TiagoGripperDAO(
 
 
 class TiagoLeftHandDAO(
-    TiagoGripperDAO, DataAccessObject[semantic_digital_twin.robots.tiago.TiagoLeftHand]
+    TiagoGripperDAO,
+    DataAccessObject[semantic_digital_twin.robots.tiago.TiagoLeftGripper],
 ):
 
     __tablename__ = "TiagoLeftHandDAO"
@@ -16305,7 +16306,8 @@ class TiagoLeftHandDAO(
 
 
 class TiagoRightHandDAO(
-    TiagoGripperDAO, DataAccessObject[semantic_digital_twin.robots.tiago.TiagoRightHand]
+    TiagoGripperDAO,
+    DataAccessObject[semantic_digital_twin.robots.tiago.TiagoRightGripper],
 ):
 
     __tablename__ = "TiagoRightHandDAO"

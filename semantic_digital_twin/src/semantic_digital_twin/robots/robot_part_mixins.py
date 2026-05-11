@@ -108,7 +108,7 @@ class HasSensors(SubClassSafeGeneric[GenericSensor], ABC):
     Mixin class for robots or robot parts that have sensors
     """
 
-    sensors: list[GenericSensor] = field(default_factory=list)
+    sensors: list[GenericSensor] = field(default_factory=list, kw_only=True)
     """
     The list of sensors associated with the robot part.GenericFinger
     """
@@ -130,7 +130,7 @@ class HasEndEffector(SubClassSafeGeneric[GenericEndEffector], ABC):
     Mixin class for robots or robot parts that have an end effector as their direct child.
     """
 
-    end_effector: GenericEndEffector = field(default=None)
+    end_effector: GenericEndEffector = field(default=None, kw_only=True)
     """
     The end effector attached to the robot part.
     """

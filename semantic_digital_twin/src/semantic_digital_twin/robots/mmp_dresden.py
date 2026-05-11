@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from abc import ABC
+
 import numpy as np
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -12,11 +14,12 @@ from semantic_digital_twin.datastructures.definitions import (
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
-    HasCameras,
     HasOneArm,
-    HasParallelGripper,
     HasTorso,
     HasMobileBase,
+    HasTwoFingers,
+    HasEndEffector,
+    HasSensors,
 )
 from semantic_digital_twin.robots.robot_parts import (
     AbstractRobot,
@@ -24,9 +27,9 @@ from semantic_digital_twin.robots.robot_parts import (
     Camera,
     FieldOfView,
     Finger,
-    ParallelGripper,
     Torso,
     MobileBase,
+    EndEffector,
 )
 from semantic_digital_twin.spatial_types import Quaternion, Vector3
 from semantic_digital_twin.world_description.world_entity import (
@@ -35,7 +38,7 @@ from semantic_digital_twin.world_description.world_entity import (
 
 
 @dataclass(eq=False)
-class MMPDresdenFinger(Finger):
+class MMPDresdenFinger(Finger, ABC):
 
     def setup_hardware_interfaces(self):
         pass
@@ -85,7 +88,9 @@ class MMPDresdenIndexFinger(MMPDresdenFinger):
 
 
 @dataclass(eq=False)
-class MMPDresdenGripper(ParallelGripper):
+class MMPDresdenGripper(
+    EndEffector, HasTwoFingers[MMPDresdenThumb, MMPDresdenIndexFinger]
+):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -163,7 +168,7 @@ class MMPDresdenCamera(Camera):
 
 
 @dataclass(eq=False)
-class MMPDresdenArm(Arm, HasParallelGripper):
+class MMPDresdenArm(Arm, HasEndEffector[MMPDresdenGripper]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -210,7 +215,7 @@ class MMPDresdenArm(Arm, HasParallelGripper):
 
 
 @dataclass(eq=False)
-class MMPDresdenTorso(Torso, HasOneArm, HasCameras):
+class MMPDresdenTorso(Torso, HasOneArm[MMPDresdenArm], HasSensors[MMPDresdenCamera]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -241,11 +246,11 @@ class MMPDresdenTorso(Torso, HasOneArm, HasCameras):
         camera = MMPDresdenCamera.setup_default_configuration_in_world_below_robot_root(
             self.root
         )
-        self.add_camera(camera)
+        self.add_sensor(camera)
 
 
 @dataclass(eq=False)
-class MMPDresdenMobileBase(MobileBase, HasTorso):
+class MMPDresdenMobileBase(MobileBase, HasTorso[MMPDresdenTorso]):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -274,7 +279,7 @@ class MMPDresdenMobileBase(MobileBase, HasTorso):
 
 
 @dataclass(eq=False)
-class MMPDresden(AbstractRobot, HasMobileBase):
+class MMPDresden(AbstractRobot, HasMobileBase[MMPDresdenMobileBase]):
 
     @classmethod
     def get_ros_file_path(cls) -> str:

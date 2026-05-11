@@ -20,10 +20,12 @@ from semantic_digital_twin.datastructures.definitions import (
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
-    HasCameras,
     HasLeftRightArm,
-    HasNeck,
-    HasParallelGripper,
+    HasTwoFingers,
+    GenericLeftFinger,
+    GenericRightFinger,
+    HasEndEffector,
+    HasSensors,
 )
 from semantic_digital_twin.robots.robot_parts import (
     AbstractRobot,
@@ -31,8 +33,7 @@ from semantic_digital_twin.robots.robot_parts import (
     Camera,
     FieldOfView,
     Finger,
-    Neck,
-    ParallelGripper,
+    EndEffector,
 )
 from semantic_digital_twin.spatial_types import Quaternion, Vector3
 from semantic_digital_twin.world_description.world_entity import (
@@ -131,7 +132,9 @@ class TracyRightGripperRightFinger(TracyFinger):
 
 
 @dataclass(eq=False)
-class TracyGripper(ParallelGripper, ABC):
+class TracyGripper(
+    EndEffector, HasTwoFingers[GenericLeftFinger, GenericRightFinger], ABC
+):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -156,7 +159,9 @@ class TracyGripper(ParallelGripper, ABC):
 
 
 @dataclass(eq=False)
-class TracyLeftGripper(TracyGripper):
+class TracyLeftGripper(
+    TracyGripper[TracyLeftGripperLeftFinger, TracyLeftGripperRightFinger]
+):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -189,7 +194,9 @@ class TracyLeftGripper(TracyGripper):
 
 
 @dataclass(eq=False)
-class TracyRightGripper(TracyGripper):
+class TracyRightGripper(
+    TracyGripper[TracyRightGripperLeftFinger, TracyRightGripperRightFinger]
+):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -222,7 +229,7 @@ class TracyRightGripper(TracyGripper):
 
 
 @dataclass(eq=False)
-class TracyLeftArm(Arm, HasParallelGripper):
+class TracyLeftArm(Arm, HasEndEffector[TracyLeftGripper]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -258,7 +265,7 @@ class TracyLeftArm(Arm, HasParallelGripper):
 
 
 @dataclass(eq=False)
-class TracyRightArm(Arm, HasParallelGripper):
+class TracyRightArm(Arm, HasEndEffector[TracyRightGripper]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -320,7 +327,9 @@ class TracyCamera(Camera):
 
 
 @dataclass(eq=False)
-class Tracy(AbstractRobot, HasLeftRightArm, HasCameras):
+class Tracy(
+    AbstractRobot, HasLeftRightArm[TracyLeftArm, TracyRightArm], HasSensors[TracyCamera]
+):
 
     @classmethod
     def get_ros_file_path(cls) -> str:

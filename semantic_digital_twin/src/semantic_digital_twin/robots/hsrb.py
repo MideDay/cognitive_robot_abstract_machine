@@ -30,6 +30,8 @@ from semantic_digital_twin.robots.robot_part_mixins import (
     HasMobileBase,
     HasTwoFingers,
     HasSensors,
+    HasArms,
+    HasLeftRightArm,
 )
 from semantic_digital_twin.robots.robot_parts import (
     AbstractRobot,

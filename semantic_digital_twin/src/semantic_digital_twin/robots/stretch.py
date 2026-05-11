@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
-from typing import Self
+from typing import Self, Union
 
 from semantic_digital_twin.collision_checking.collision_rules import (
     AvoidExternalCollisions,
@@ -20,12 +20,13 @@ from semantic_digital_twin.datastructures.definitions import (
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
-    HasCameras,
     HasNeck,
     HasOneArm,
-    HasParallelGripper,
     HasTorso,
     HasMobileBase,
+    HasTwoFingers,
+    HasEndEffector,
+    HasSensors,
 )
 from semantic_digital_twin.robots.robot_parts import (
     AbstractRobot,
@@ -34,9 +35,9 @@ from semantic_digital_twin.robots.robot_parts import (
     FieldOfView,
     Finger,
     Neck,
-    ParallelGripper,
     Torso,
     MobileBase,
+    EndEffector,
 )
 from semantic_digital_twin.spatial_types import Quaternion, Vector3
 from semantic_digital_twin.world_description.world_entity import (
@@ -95,7 +96,7 @@ class StretchRightFinger(StretchFinger):
 
 
 @dataclass(eq=False)
-class StretchGripper(ParallelGripper):
+class StretchGripper(EndEffector, HasTwoFingers[StretchLeftFinger, StretchRightFinger]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -147,7 +148,7 @@ class StretchGripper(ParallelGripper):
 
 
 @dataclass(eq=False)
-class StretchArm(Arm, HasParallelGripper):
+class StretchArm(Arm, HasEndEffector[StretchGripper]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -296,7 +297,17 @@ class StretchCameraInfra2(Camera):
 
 
 @dataclass(eq=False)
-class StretchNeck(Neck, HasCameras):
+class StretchNeck(
+    Neck,
+    HasSensors[
+        Union[
+            StretchCameraColor,
+            StretchCameraDepth,
+            StretchCameraInfra1,
+            StretchCameraInfra2,
+        ]
+    ],
+):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -340,7 +351,7 @@ class StretchNeck(Neck, HasCameras):
 
 
 @dataclass(eq=False)
-class StretchTorso(Torso, HasNeck, HasOneArm):
+class StretchTorso(Torso, HasNeck[StretchNeck], HasOneArm[StretchArm]):
 
     def setup_neck_semantic_annotation(self):
         neck = StretchNeck.setup_default_configuration_in_world_below_robot_root(
@@ -397,7 +408,7 @@ class StretchTorso(Torso, HasNeck, HasOneArm):
 
 
 @dataclass(eq=False)
-class StretchMobileBase(MobileBase, HasTorso):
+class StretchMobileBase(MobileBase, HasTorso[StretchTorso]):
 
     def setup_hardware_interfaces(self):
         pass
@@ -426,7 +437,7 @@ class StretchMobileBase(MobileBase, HasTorso):
 
 
 @dataclass(eq=False)
-class Stretch(AbstractRobot, HasMobileBase):
+class Stretch(AbstractRobot, HasMobileBase[StretchMobileBase]):
 
     @classmethod
     def get_ros_file_path(cls) -> str:

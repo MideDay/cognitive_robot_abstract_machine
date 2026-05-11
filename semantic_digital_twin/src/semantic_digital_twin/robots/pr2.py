@@ -29,6 +29,8 @@ from semantic_digital_twin.robots.robot_part_mixins import (
     HasTwoFingers,
     HasSensors,
     HasEndEffector,
+    GenericLeftFinger,
+    GenericRightFinger,
 )
 from semantic_digital_twin.robots.robot_parts import (
     MobileBase,
@@ -74,6 +76,15 @@ class PR2KinectV1(Camera):
         )
         world.add_semantic_annotation(camera)
         return camera
+
+
+@dataclass(eq=False)
+class PR2Gripper(
+    EndEffector, HasTwoFingers[GenericLeftFinger, GenericRightFinger], ABC
+):
+
+    def setup_hardware_interfaces(self):
+        self._setup_hardware_interfaces_for_active_connections()
 
 
 @dataclass(eq=False)
@@ -182,7 +193,7 @@ class PR2LeftGripperRightFinger(Finger):
 
 @dataclass(eq=False)
 class PR2RightGripper(
-    EndEffector, HasTwoFingers[PR2RightGripperLeftFinger, PR2RightGripperRightFinger]
+    PR2Gripper[PR2RightGripperLeftFinger, PR2RightGripperRightFinger]
 ):
 
     def setup_joint_states(self):
@@ -233,9 +244,7 @@ class PR2RightGripper(
 
 
 @dataclass(eq=False)
-class PR2LeftGripper(
-    EndEffector, HasTwoFingers[PR2LeftGripperLeftFinger, PR2LeftGripperRightFinger]
-):
+class PR2LeftGripper(PR2Gripper[PR2LeftGripperLeftFinger, PR2LeftGripperRightFinger]):
 
     def setup_joint_states(self):
         left_gripper_joints = self.active_connections
@@ -253,9 +262,6 @@ class PR2LeftGripper(
 
         self.add_joint_state(left_gripper_close)
         self.add_joint_state(left_gripper_open)
-
-    def setup_hardware_interfaces(self):
-        self._setup_hardware_interfaces_for_active_connections()
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(

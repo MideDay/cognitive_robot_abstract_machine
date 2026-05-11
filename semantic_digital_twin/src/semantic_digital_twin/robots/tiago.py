@@ -21,12 +21,15 @@ from semantic_digital_twin.datastructures.definitions import (
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
-    HasCameras,
     HasLeftRightArm,
     HasMobileBase,
     HasNeck,
-    HasParallelGripper,
     HasTorso,
+    HasTwoFingers,
+    GenericLeftFinger,
+    GenericRightFinger,
+    HasEndEffector,
+    HasSensors,
 )
 from semantic_digital_twin.robots.robot_parts import (
     AbstractRobot,
@@ -36,8 +39,8 @@ from semantic_digital_twin.robots.robot_parts import (
     Finger,
     MobileBase,
     Neck,
-    ParallelGripper,
     Torso,
+    EndEffector,
 )
 from semantic_digital_twin.spatial_types import Quaternion, Vector3
 from semantic_digital_twin.world_description.world_entity import (
@@ -132,7 +135,9 @@ class TiagoRightIndexFinger(TiagoFinger):
 
 
 @dataclass(eq=False)
-class TiagoGripper(ParallelGripper, ABC):
+class TiagoGripper(
+    EndEffector, HasTwoFingers[GenericLeftFinger, GenericRightFinger], ABC
+):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -157,7 +162,7 @@ class TiagoGripper(ParallelGripper, ABC):
 
 
 @dataclass(eq=False)
-class TiagoLeftHand(TiagoGripper):
+class TiagoLeftGripper(TiagoGripper[TiagoLeftIndexFinger, TiagoLeftThumb]):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -188,7 +193,7 @@ class TiagoLeftHand(TiagoGripper):
 
 
 @dataclass(eq=False)
-class TiagoRightHand(TiagoGripper):
+class TiagoRightGripper(TiagoGripper[TiagoRightIndexFinger, TiagoRightThumb]):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -221,7 +226,7 @@ class TiagoRightHand(TiagoGripper):
 
 
 @dataclass(eq=False)
-class TiagoLeftArm(Arm, HasParallelGripper):
+class TiagoLeftArm(Arm, HasEndEffector[TiagoLeftGripper]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -252,15 +257,17 @@ class TiagoLeftArm(Arm, HasParallelGripper):
         return arm
 
     def setup_end_effector_semantic_annotation(self):
-        gripper = TiagoLeftHand.setup_default_configuration_in_world_below_robot_root(
-            self.root
+        gripper = (
+            TiagoLeftGripper.setup_default_configuration_in_world_below_robot_root(
+                self.root
+            )
         )
         self.add_end_effector(gripper)
         gripper.setup_finger_semantic_annotations()
 
 
 @dataclass(eq=False)
-class TiagoRightArm(Arm, HasParallelGripper):
+class TiagoRightArm(Arm, HasEndEffector[TiagoRightGripper]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -291,8 +298,10 @@ class TiagoRightArm(Arm, HasParallelGripper):
         return arm
 
     def setup_end_effector_semantic_annotation(self):
-        gripper = TiagoRightHand.setup_default_configuration_in_world_below_robot_root(
-            self.root
+        gripper = (
+            TiagoRightGripper.setup_default_configuration_in_world_below_robot_root(
+                self.root
+            )
         )
         self.add_end_effector(gripper)
         gripper.setup_finger_semantic_annotations()
@@ -328,7 +337,7 @@ class TiagoCamera(Camera):
 
 
 @dataclass(eq=False)
-class TiagoNeck(Neck, HasCameras):
+class TiagoNeck(Neck, HasSensors[TiagoCamera]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -356,7 +365,9 @@ class TiagoNeck(Neck, HasCameras):
 
 
 @dataclass(eq=False)
-class TiagoTorso(Torso, HasLeftRightArm, HasNeck):
+class TiagoTorso(
+    Torso, HasLeftRightArm[TiagoLeftArm, TiagoRightArm], HasNeck[TiagoNeck]
+):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -419,7 +430,7 @@ class TiagoTorso(Torso, HasLeftRightArm, HasNeck):
 
 
 @dataclass(eq=False)
-class TiagoMobileBase(MobileBase, HasTorso):
+class TiagoMobileBase(MobileBase, HasTorso[TiagoTorso]):
 
     def setup_hardware_interfaces(self):
         pass
@@ -450,7 +461,7 @@ class TiagoMobileBase(MobileBase, HasTorso):
 
 
 @dataclass(eq=False)
-class Tiago(AbstractRobot, HasMobileBase):
+class Tiago(AbstractRobot, HasMobileBase[TiagoMobileBase]):
 
     @classmethod
     def get_ros_file_path(cls) -> str:
@@ -583,7 +594,9 @@ class TiagoMujocoRightIndexFinger(TiagoMujocoFinger):
 
 
 @dataclass(eq=False)
-class TiagoMujocoGripper(ParallelGripper, ABC):
+class TiagoMujocoGripper(
+    EndEffector, HasTwoFingers[GenericLeftFinger, GenericRightFinger], ABC
+):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -605,7 +618,9 @@ class TiagoMujocoGripper(ParallelGripper, ABC):
 
 
 @dataclass(eq=False)
-class TiagoMujocoLeftGripper(TiagoMujocoGripper):
+class TiagoMujocoLeftGripper(
+    TiagoMujocoGripper[TiagoMujocoLeftIndexFinger, TiagoMujocoLeftThumb]
+):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -634,7 +649,9 @@ class TiagoMujocoLeftGripper(TiagoMujocoGripper):
 
 
 @dataclass(eq=False)
-class TiagoMujocoRightGripper(TiagoMujocoGripper):
+class TiagoMujocoRightGripper(
+    TiagoMujocoGripper[TiagoMujocoRightIndexFinger, TiagoMujocoRightThumb]
+):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -663,7 +680,7 @@ class TiagoMujocoRightGripper(TiagoMujocoGripper):
 
 
 @dataclass(eq=False)
-class TiagoMujocoLeftArm(Arm, HasParallelGripper):
+class TiagoMujocoLeftArm(Arm, HasEndEffector[TiagoMujocoLeftGripper]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -702,7 +719,7 @@ class TiagoMujocoLeftArm(Arm, HasParallelGripper):
 
 
 @dataclass(eq=False)
-class TiagoMujocoRightArm(Arm, HasParallelGripper):
+class TiagoMujocoRightArm(Arm, HasEndEffector[TiagoMujocoRightGripper]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -741,7 +758,7 @@ class TiagoMujocoRightArm(Arm, HasParallelGripper):
 
 
 @dataclass(eq=False)
-class TiagoMujocoNeck(Neck, HasCameras):
+class TiagoMujocoNeck(Neck, HasSensors[TiagoCamera]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -769,7 +786,11 @@ class TiagoMujocoNeck(Neck, HasCameras):
 
 
 @dataclass(eq=False)
-class TiagoMujocoTorso(Torso, HasLeftRightArm, HasNeck):
+class TiagoMujocoTorso(
+    Torso,
+    HasLeftRightArm[TiagoMujocoLeftArm, TiagoMujocoRightArm],
+    HasNeck[TiagoMujocoNeck],
+):
 
     def setup_neck_semantic_annotation(self):
         neck = TiagoMujocoNeck.setup_default_configuration_in_world_below_robot_root(
@@ -833,7 +854,7 @@ class TiagoMujocoTorso(Torso, HasLeftRightArm, HasNeck):
 
 
 @dataclass(eq=False)
-class TiagoMujocoMobileBase(MobileBase, HasTorso):
+class TiagoMujocoMobileBase(MobileBase, HasTorso[TiagoMujocoTorso]):
 
     def setup_hardware_interfaces(self):
         pass
@@ -864,11 +885,15 @@ class TiagoMujocoMobileBase(MobileBase, HasTorso):
 
 
 @dataclass(eq=False)
-class TiagoMujoco(AbstractRobot, HasMobileBase):
+class TiagoMujoco(AbstractRobot, HasMobileBase[TiagoMujocoMobileBase]):
     """
     Class that describes the Take It And Go Robot (TIAGo). This version is based on the MuJoCo model, which contains
     less bodies and connections than the URDF version, including missing some crucial links like the camera etc.
     """
+
+    @classmethod
+    def get_ros_file_path(cls) -> str:
+        raise NotImplementedError(f"Filepath unknown, please update")
 
     @classmethod
     def _get_root_body_name(cls) -> str:

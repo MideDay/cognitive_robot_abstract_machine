@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
-from typing import Self
+from typing import Self, Union
 
 from semantic_digital_twin.collision_checking.collision_matrix import (
     MaxAvoidedCollisionsOverride,
@@ -23,12 +23,14 @@ from semantic_digital_twin.datastructures.definitions import (
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
-    HasCameras,
-    HasHumanoidHand,
     HasLeftRightArm,
     HasNeck,
     HasTorso,
     HasMobileBase,
+    HasFingers,
+    GenericFinger,
+    HasEndEffector,
+    HasSensors,
 )
 from semantic_digital_twin.robots.robot_parts import (
     AbstractRobot,
@@ -36,10 +38,10 @@ from semantic_digital_twin.robots.robot_parts import (
     Camera,
     FieldOfView,
     Finger,
-    HumanoidHand,
     Neck,
     Torso,
     MobileBase,
+    EndEffector,
 )
 from semantic_digital_twin.spatial_types import Quaternion, Vector3
 from semantic_digital_twin.world_description.world_entity import (
@@ -164,7 +166,7 @@ class UnitreeG1RightMiddleFinger(UnitreeG1Finger):
 
 
 @dataclass(eq=False)
-class UnitreeG1Hand(HumanoidHand, ABC):
+class UnitreeG1Hand(EndEffector, HasFingers[GenericFinger], ABC):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -189,7 +191,11 @@ class UnitreeG1Hand(HumanoidHand, ABC):
 
 
 @dataclass(eq=False)
-class UnitreeG1LeftHand(UnitreeG1Hand):
+class UnitreeG1LeftHand(
+    UnitreeG1Hand[
+        Union[UnitreeG1LeftThumb, UnitreeG1LeftIndexFinger, UnitreeG1LeftMiddleFinger]
+    ]
+):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -225,7 +231,13 @@ class UnitreeG1LeftHand(UnitreeG1Hand):
 
 
 @dataclass(eq=False)
-class UnitreeG1RightHand(UnitreeG1Hand):
+class UnitreeG1RightHand(
+    UnitreeG1Hand[
+        Union[
+            UnitreeG1RightThumb, UnitreeG1RightIndexFinger, UnitreeG1RightMiddleFinger
+        ]
+    ]
+):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -261,7 +273,7 @@ class UnitreeG1RightHand(UnitreeG1Hand):
 
 
 @dataclass(eq=False)
-class UnitreeG1LeftArm(Arm, HasHumanoidHand):
+class UnitreeG1LeftArm(Arm, HasEndEffector[UnitreeG1LeftHand]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -299,7 +311,7 @@ class UnitreeG1LeftArm(Arm, HasHumanoidHand):
 
 
 @dataclass(eq=False)
-class UnitreeG1RightArm(Arm, HasHumanoidHand):
+class UnitreeG1RightArm(Arm, HasEndEffector[UnitreeG1RightHand]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -364,7 +376,7 @@ class D435(Camera):
 
 
 @dataclass(eq=False)
-class UnitreeG1Neck(Neck, HasCameras):
+class UnitreeG1Neck(Neck, HasSensors[D435]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -390,7 +402,9 @@ class UnitreeG1Neck(Neck, HasCameras):
 
 
 @dataclass(eq=False)
-class UnitreeG1Torso(Torso, HasLeftRightArm, HasNeck):
+class UnitreeG1Torso(
+    Torso, HasLeftRightArm[UnitreeG1LeftArm, UnitreeG1RightArm], HasNeck[UnitreeG1Neck]
+):
 
     def setup_arm_semantic_annotations(self):
         left_arm = (
@@ -457,7 +471,9 @@ class UnitreeG1MobileBase(MobileBase):
 
 
 @dataclass(eq=False)
-class UnitreeG1(AbstractRobot, HasMobileBase, HasTorso):
+class UnitreeG1(
+    AbstractRobot, HasMobileBase[UnitreeG1MobileBase], HasTorso[UnitreeG1Torso]
+):
 
     @classmethod
     def get_ros_file_path(cls) -> str:
