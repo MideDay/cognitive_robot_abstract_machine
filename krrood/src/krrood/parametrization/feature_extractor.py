@@ -11,6 +11,7 @@ import sqlalchemy
 from sqlalchemy.orm import MANYTOONE, ONETOMANY
 from typing_extensions import TYPE_CHECKING
 
+from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.mapped_variable import MappedVariable
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import variable
@@ -29,7 +30,7 @@ class FeatureExtractor:
     A feature extractor provides additional knowledge about the class.
     """
 
-    features: List[MappedVariable]
+    features: List[SymbolicExpression]
     """
     The features extracted from the class/instances.
     """
