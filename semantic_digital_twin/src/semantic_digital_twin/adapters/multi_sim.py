@@ -298,11 +298,9 @@ class KinematicStructureEntityConverter(EntityConverter, ABC):
         """
 
         kinematic_structure_entity_props = EntityConverter._convert(self, entity)
-        t = (
-            entity.parent_connection.parent_T_connection_expression
-            @ entity.parent_connection.connection_T_child_expression
+        [px, py, pz, qx, qy, qz, qw] = (
+            entity.parent_connection.origin_as_position_quaternion().evaluate()[0]
         )
-        px, py, pz, qw, qx, qy, qz = cas_pose_to_list(t)
         kinematic_structure_entity_pos = [px, py, pz]
         kinematic_structure_entity_quat = [qw, qx, qy, qz]
         kinematic_structure_entity_props.update(
