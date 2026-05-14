@@ -5,7 +5,6 @@ from numpy.ma.testutils import (
 )  # You could replace this with numpy's regular assert for better compatibility
 
 from krrood.entity_query_language.factories import entity, variable, in_, inference, an
-from krrood.patterns.role.predicates import has_role, isinstance_or_role
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
 )
@@ -288,23 +287,24 @@ def test_minimal_robot_annotation(pr2_world_state_reset):
 
 def test_room_roles():
     room = Room(floor=Floor(root=Body(name=PrefixedName("room_floor"))))
-    kitchen = Kitchen(room=room)
+    kitchen = Kitchen.from_role_taker(room)
 
     # Test ability to access Room properties
     assert room.floor is kitchen.floor
 
     # Test correct caching of roles
-    assert Kitchen in room.roles
-    assert room.roles[Kitchen] == kitchen
-    assert has_role(room, Kitchen)
-    assert not isinstance_or_role(room, Kitchen)
-    assert isinstance_or_role(kitchen, Room)
+    assert Role.roles_for(room, Kitchen)[0] == kitchen
+    assert Role.has_role(room, Kitchen)
+    assert not isinstance(room, Kitchen)
+    assert isinstance(kitchen, Room)
 
     # Test correct caching of roles
-    living_room = LivingRoom(room=room)
-    assert LivingRoom in room.roles
-    assert room.roles[LivingRoom] == living_room
-    assert len(room.roles) == 2
-    assert has_role(room, LivingRoom)
-    assert not isinstance_or_role(room, LivingRoom)
-    assert isinstance_or_role(living_room, Room)
+    living_room = LivingRoom.from_role_taker(room)
+    assert Role.roles_for(room, LivingRoom)[0] == living_room
+    assert len(Role.roles_for(room)) == 2
+    assert Role.has_role(room, LivingRoom)
+    assert not isinstance(room, LivingRoom)
+    assert isinstance(living_room, Room)
+
+    assert living_room == kitchen
+    assert hash(living_room) == hash(kitchen)

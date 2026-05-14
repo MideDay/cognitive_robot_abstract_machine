@@ -485,12 +485,12 @@ class Room(SemanticAnnotation):
 
 
 @dataclass(eq=False)
-class Kitchen(Role[Room], RoleForRoom):
+class Kitchen(Role[Room], Room):
     """
     A kitchen is a room that has kitchen utilities and machines.
     """
 
-    room: Room
+    room: Room = field(kw_only=True)
     """
     The kitchen's room.
     """
@@ -501,12 +501,12 @@ class Kitchen(Role[Room], RoleForRoom):
 
 
 @dataclass(eq=False)
-class Bedroom(Role[Room], RoleForRoom, DelegatorForRoom):
+class Bedroom(Role[Room], Room):
     """
     A bedroom is a room that is used for sleeping.
     """
 
-    room: Room
+    room: Room = field(kw_only=True)
     """
     The bedroom's room.
     """
@@ -517,12 +517,12 @@ class Bedroom(Role[Room], RoleForRoom, DelegatorForRoom):
 
 
 @dataclass(eq=False)
-class Bathroom(Role[Room], RoleForRoom, DelegatorForRoom):
+class Bathroom(Role[Room], Room):
     """
     A bathroom is a room that is used for personal hygiene activities.
     """
 
-    room: Room
+    room: Room = field(kw_only=True)
     """
     The bathroom's room.
     """
@@ -533,12 +533,12 @@ class Bathroom(Role[Room], RoleForRoom, DelegatorForRoom):
 
 
 @dataclass(eq=False)
-class LivingRoom(Role[Room], RoleForRoom, DelegatorForRoom):
+class LivingRoom(Role[Room], Room):
     """
     A living room is a room that is used for social activities and relaxation.
     """
 
-    room: Room
+    room: Room = field(kw_only=True)
     """
     The living room's room.
     """
@@ -866,15 +866,6 @@ class Milk(Food, IsPerceivable):
 
 
 @dataclass(eq=False)
-class SaltContainer(HasRootBody, IsPerceivable):
-    """
-    A container of salt.
-    """
-
-    ...
-
-
-@dataclass(eq=False)
 class Produce(Food):
     """
     In American English, produce generally refers to fresh fruits and vegetables intended to be eaten by humans.
@@ -940,9 +931,33 @@ class Orange(Fruit):
 
 
 @dataclass(eq=False)
-class Salt(Food):
+class SaltOrPepper(Food):
+    """
+    A super class for salt and pepper.
+    """
+
+
+@dataclass(eq=False)
+class Salt(SaltOrPepper):
     """
     A pack or container of salt (e.g., salt shaker or salt can).
+    """
+
+
+@dataclass(eq=False)
+class SaltContainer(
+    HasStorageSpace[Salt],
+    IsPerceivable,
+):
+    """
+    A container of salt.
+    """
+
+
+@dataclass(eq=False)
+class Pepper(SaltOrPepper):
+    """
+    A powder like plant-based substance that is used as a spice.
     """
 
 

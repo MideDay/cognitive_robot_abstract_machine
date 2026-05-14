@@ -73,7 +73,7 @@ TPersonInRoleAndOntology = TypeVar(
 
 
 @dataclass(eq=False)
-class CEOAsFirstRole(Role[TPersonInRoleAndOntology], Symbol):
+class CEOAsFirstRole(Role[TPersonInRoleAndOntology], PersonInRoleAndOntology, Symbol):
     person: TPersonInRoleAndOntology = field(kw_only=True)
     head_of: RecognizedGroup = None
 
@@ -102,7 +102,7 @@ class DirectDiamondShapedInheritanceWhereOneIsRole(
 
 @dataclass(eq=False)
 class InDirectDiamondShapedInheritanceWhereOneIsRole(
-    RecognizedGroup, Role[TPersonInRoleAndOntology]
+    RecognizedGroup, Role[TPersonInRoleAndOntology], PersonInRoleAndOntology
 ):
     person: TPersonInRoleAndOntology = field(kw_only=True)
 
@@ -112,7 +112,9 @@ class InDirectDiamondShapedInheritanceWhereOneIsRole(
 
 
 @dataclass(eq=False)
-class ProfessorAsFirstRole(Role[TPersonInRoleAndOntology], Symbol):
+class ProfessorAsFirstRole(
+    Role[TPersonInRoleAndOntology], PersonInRoleAndOntology, Symbol
+):
     person: TPersonInRoleAndOntology = field(kw_only=True)
     teacher_of: List[Course] = field(default_factory=list, kw_only=True)
 
@@ -131,7 +133,7 @@ TCEOAsFirstRole = TypeVar("TCEOAsFirstRole", bound=CEOAsFirstRole)
 
 
 @dataclass(eq=False)
-class RepresentativeAsSecondRole(Role[TCEOAsFirstRole], Symbol):
+class RepresentativeAsSecondRole(CEOAsFirstRole, Role[TCEOAsFirstRole], Symbol):
     ceo: TCEOAsFirstRole = field(kw_only=True)
     representative_of: RecognizedGroup = field(default=None, kw_only=True)
 
@@ -146,7 +148,9 @@ TRepresentativeAsSecondRole = TypeVar(
 
 
 @dataclass(eq=False)
-class DelegateAsThirdRole(Role[TRepresentativeAsSecondRole], Symbol):
+class DelegateAsThirdRole(
+    RepresentativeAsSecondRole, Role[TRepresentativeAsSecondRole], Symbol
+):
     representative: TRepresentativeAsSecondRole = field(kw_only=True)
 
     delegate_of: RecognizedGroup = field(kw_only=True, default=None)
@@ -157,7 +161,9 @@ class DelegateAsThirdRole(Role[TRepresentativeAsSecondRole], Symbol):
 
 
 @dataclass(eq=False)
-class RoleForTakerInAnotherModule(Role[RoleTakerInAnotherModule]):
+class RoleForTakerInAnotherModule(
+    RoleTakerInAnotherModule, Role[RoleTakerInAnotherModule]
+):
     taker: RoleTakerInAnotherModule = field(kw_only=True)
     introduced_attribute: str = field(default="", kw_only=True)
     same_module_annotated_introduced_attribute: DelegateAsThirdRole = field(

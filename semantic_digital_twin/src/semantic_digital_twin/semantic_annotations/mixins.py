@@ -89,13 +89,20 @@ class IsPerceivable:
     """
 
 
+TKinematicStructureEntity = TypeVar(
+    "TKinematicStructureEntity", bound=KinematicStructureEntity
+)
+
+
 @dataclass(eq=False)
-class HasRootKinematicStructureEntity(SemanticAnnotation, ABC):
+class HasRootKinematicStructureEntity(
+    SemanticAnnotation, SubClassSafeGeneric[TKinematicStructureEntity], ABC
+):
     """
     Base class for shared method for HasRootBody and HasRootRegion.
     """
 
-    root: KinematicStructureEntity = field(kw_only=True)
+    root: TKinematicStructureEntity = field(kw_only=True)
     """
     The root kinematic structure entity of the semantic annotation.
     """
@@ -293,8 +300,11 @@ class HasRootKinematicStructureEntity(SemanticAnnotation, ABC):
         return self.root.global_transform
 
 
+TBody = TypeVar("TBody", bound=Body)
+
+
 @dataclass(eq=False)
-class HasRootBody(HasRootKinematicStructureEntity, ABC):
+class HasRootBody(HasRootKinematicStructureEntity[TBody], ABC):
     """
     Abstract base class for all household objects. Each semantic annotation refers to a single Body.
     Each subclass automatically derives a MatchRule from its own class name and
@@ -302,13 +312,8 @@ class HasRootBody(HasRootKinematicStructureEntity, ABC):
     naturally more specific than their bases.
     """
 
-    root: Body = field(kw_only=True)
-    """
-    The root body of the semantic annotation.
-    """
-
     @property
-    def bodies(self) -> Iterable[Body]:
+    def bodies(self) -> List[Body]:
         """
         The bodies that are part of the semantic annotation.
         """
@@ -361,15 +366,13 @@ class HasRootBody(HasRootKinematicStructureEntity, ABC):
         )
 
 
+TRegion = TypeVar("TRegion", bound=Region)
+
+
 @dataclass(eq=False)
-class HasRootRegion(HasRootKinematicStructureEntity, ABC):
+class HasRootRegion(HasRootKinematicStructureEntity[TRegion], ABC):
     """
     A mixin class for semantic annotations that have a region.
-    """
-
-    root: Region = field(kw_only=True)
-    """
-    The root region of the semantic annotation.
     """
 
     @property
@@ -518,7 +521,7 @@ class HasSlider(HasRootKinematicStructureEntity, ABC):
 
 
 @dataclass(eq=False)
-class HasDrawers(HasRootKinematicStructureEntity, ABC):
+class HasDrawers(HasRootBody, ABC):
     """
     A mixin class for semantic annotations that have drawers.
     """
@@ -544,7 +547,7 @@ class HasDrawers(HasRootKinematicStructureEntity, ABC):
 
 
 @dataclass(eq=False)
-class HasDoors(HasRootKinematicStructureEntity, ABC):
+class HasDoors(HasRootBody, ABC):
     """
     A mixin class for semantic annotations that have doors.
     """
@@ -596,14 +599,20 @@ class HasHandle(HasRootBody, ABC):
         self.handle = handle
 
 
+THasRootBody = TypeVar("THasRootBody", bound=HasRootBody)
+"""
+A type variable for HasRootBody.
+"""
+
+
 @dataclass(eq=False)
-class HasStorageSpace(HasRootBody, ABC):
+class HasStorageSpace(HasRootBody, SubClassSafeGeneric[THasRootBody], ABC):
     """
     A mixin class for semantic annotations that represent storage spaces. Used to afterthefact add object for example
     to a table, and have those objects move with the table when it is moved.
     """
 
-    objects: List[HasRootBody] = field(default_factory=list, hash=False, kw_only=True)
+    objects: List[THasRootBody] = field(default_factory=list, hash=False, kw_only=True)
     """
     The objects stored in the semantic annotation.
     """

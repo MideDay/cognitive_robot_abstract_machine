@@ -11,11 +11,10 @@ from krrood.class_diagrams.class_diagram import (
     AssociationThroughRoleTaker,
 )
 from krrood.class_diagrams.utils import classes_of_module, T
-from krrood.patterns.role.predicates import isinstance_or_role
 from krrood.patterns.role.role import Role
 from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
 from ..dataset.role_and_ontology import university_ontology_like_classes
-from ..dataset.role_and_ontology._ground_truth_transformed_university_ontology_like_classes_without_descriptors import (
+from ..dataset.role_and_ontology.university_ontology_like_classes_without_descriptors import (
     PersonInRoleAndOntology,
     CEOAsFirstRole,
     Company,
@@ -46,22 +45,21 @@ def test_is_instance_or_role():
     person = PersonInRoleAndOntology(name="Bass")
     ceo = CEOAsFirstRole(person=person)
     representative = RepresentativeAsSecondRole(ceo=ceo)
-    assert isinstance_or_role(ceo, PersonInRoleAndOntology)
-    assert isinstance_or_role(ceo, CEOAsFirstRole)
-    assert isinstance_or_role(representative, RepresentativeAsSecondRole)
-    assert isinstance_or_role(representative, CEOAsFirstRole)
-    assert isinstance_or_role(representative, PersonInRoleAndOntology)
-    assert isinstance_or_role(person, PersonInRoleAndOntology)
-    assert isinstance_or_role(person, CEOAsFirstRole) is False
-    assert isinstance_or_role(person, RepresentativeAsSecondRole) is False
+    assert isinstance(ceo, PersonInRoleAndOntology)
+    assert isinstance(ceo, CEOAsFirstRole)
+    assert isinstance(representative, RepresentativeAsSecondRole)
+    assert isinstance(representative, CEOAsFirstRole)
+    assert isinstance(representative, PersonInRoleAndOntology)
+    assert isinstance(person, PersonInRoleAndOntology)
+    assert isinstance(person, CEOAsFirstRole) is False
+    assert isinstance(person, RepresentativeAsSecondRole) is False
 
 
 def test_role_native_attr_accessible_from_roles_dict():
     person = PersonInRoleAndOntology(name="Bass")
     ceo = CEOAsFirstRole(person=person, head_of=Company(name="BassCo"))
-
-    assert person.roles[CEOAsFirstRole] is ceo
-    assert person.roles[CEOAsFirstRole].head_of == Company(name="BassCo")
+    assert Role.roles_for(person, CEOAsFirstRole)[0] is ceo
+    assert Role.roles_for(person, CEOAsFirstRole)[0].head_of == Company(name="BassCo")
 
 
 def test_getting_and_setting_attribute_between_sibling_roles():
@@ -79,8 +77,11 @@ def test_getting_and_setting_attribute_between_sibling_roles():
     assert ceo.head_of.name == "BassCo"
 
     # sibling role attrs are accessible via the roles dict on the shared taker
-    assert person.roles[CEOAsFirstRole].head_of.name == "BassCo"
-    assert person.roles[ProfessorAsFirstRole].teacher_of[0].name == "BassCourse"
+    assert Role.roles_for(person, CEOAsFirstRole)[0].head_of.name == "BassCo"
+    assert (
+        Role.roles_for(person, ProfessorAsFirstRole)[0].teacher_of[0].name
+        == "BassCourse"
+    )
 
 
 def test_accessing_attribute_of_role_from_role_taker_when_role_does_not_exist_and_the_attribute_has_default():

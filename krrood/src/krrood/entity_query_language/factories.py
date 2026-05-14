@@ -12,6 +12,7 @@ from typing_extensions import Union, Iterable, List
 from krrood.entity_query_language.core.base_expressions import (
     SymbolicExpression,
     TruthValueOperator,
+    OperationResult,
 )
 from krrood.entity_query_language.core.mapped_variable import (
     FlatVariable,
@@ -62,7 +63,6 @@ from krrood.entity_query_language.rules.conclusion_selector import (
 )
 from krrood.entity_query_language.utils import is_iterable
 from krrood.symbol_graph.symbol_graph import Symbol, SymbolGraph
-from krrood.patterns.role.predicates import *  # type: ignore
 
 ConditionType = Union[SymbolicExpression, bool, Predicate, TruthValueOperator]
 """
