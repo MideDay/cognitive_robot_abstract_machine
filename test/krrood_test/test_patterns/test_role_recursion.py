@@ -1,6 +1,7 @@
 import pytest
 
 from krrood.class_diagrams.class_diagram import ClassDiagram
+from krrood.patterns.role import Role
 from ..dataset.role_and_ontology.classes_for_testing_role_recursion_error import (
     PersonForRoleRecursion,
     StudentForRoleRecursion,
@@ -29,8 +30,8 @@ def test_role_attribute_resolution():
     assert t.employee_id == "T456"
 
     # Sibling role attrs are accessed via the shared taker's roles dict.
-    assert p.roles[TeacherForRoleRecursion].employee_id == "T456"
-    assert p.roles[StudentForRoleRecursion].student_id == "S123"
+    assert Role.roles_for(p, TeacherForRoleRecursion)[0].employee_id == "T456"
+    assert Role.roles_for(p, StudentForRoleRecursion)[0].student_id == "S123"
 
     # Non-existent attribute should raise AttributeError, not RecursionError.
     with pytest.raises(AttributeError):
@@ -57,8 +58,8 @@ def test_role_recursion_with_chained_roles():
     assert top.base_attr == "base"
 
     # Roles dict tracks each role in the chain.
-    assert i.roles[TopForRoleRecursion] is top
-    assert b.roles[IntermediateForRoleRecursion] is i
+    assert Role.roles_for(i, TopForRoleRecursion)[0] is top
+    assert Role.roles_for(b, IntermediateForRoleRecursion)[0] is i
 
     with pytest.raises(AttributeError):
         top.none
