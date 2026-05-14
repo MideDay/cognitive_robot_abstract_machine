@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from krrood.entity_query_language.factories import variable_from
-from krrood.patterns.role.role import Role, HasRoles
+from krrood.patterns.role.role import Role
 
 # ---------------------------------------------------------------------------
 # Simple two-role / one-taker scenario
@@ -12,7 +12,7 @@ from krrood.patterns.role.role import Role, HasRoles
 
 
 @dataclass(eq=False)
-class PersonForRoleRecursion(HasRoles):
+class PersonForRoleRecursion:
     name: str
 
     def __hash__(self):
@@ -69,7 +69,7 @@ class TeacherForRoleRecursion(
 
 
 @dataclass
-class BaseForRoleRecursion(HasRoles):
+class BaseForRoleRecursion:
     base_attr: str = "base"
 
 

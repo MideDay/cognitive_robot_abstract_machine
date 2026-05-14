@@ -166,7 +166,7 @@ def test_get_roles_of_type():
         Role.get_taker_roles_of_type(person, ProfessorAsFirstRole)[0],
         ProfessorAsFirstRole,
     )
-    assert Role.get_taker_roles_of_type(person, PersonInRoleAndOntology) == []
+    assert len(Role.get_taker_roles_of_type(person, PersonInRoleAndOntology)) == 3
 
 
 def test_role_that_inherits_from_class_that_role_taker_inherits_from_that_has_default_attributes():
