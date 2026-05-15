@@ -5,10 +5,6 @@ from typing import Type
 
 import pytest
 
-from dataset.role_and_ontology.university_ontology_like_classes_without_descriptors import (
-    BaseWithInit,
-    RoleWithOtherBasesThatHaveTheirOwnInit,
-)
 from krrood.class_diagrams import ClassDiagram
 from krrood.class_diagrams.class_diagram import (
     HasRoleTaker,
@@ -27,6 +23,7 @@ from ..dataset.role_and_ontology.university_ontology_like_classes_without_descri
     RepresentativeAsSecondRole,
     DelegateAsThirdRole,
     DirectDiamondShapedInheritanceWhereOneIsRole,
+    RoleWithOtherBasesThatHaveTheirOwnInit,
 )
 
 
