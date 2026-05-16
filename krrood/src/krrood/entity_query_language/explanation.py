@@ -8,6 +8,7 @@ from types import ModuleType
 from typing import Any, List, Optional, Type, Callable, Union
 from uuid import UUID
 
+from ordered_set import OrderedSet
 from typing_extensions import TYPE_CHECKING
 
 from krrood.entity_query_language.operators.core_logical_operators import LogicalOperator
@@ -160,9 +161,9 @@ class InferenceExplanation:
     """
     The root of the query that was used to create the instance.
     """
-    satisfied_condition_ids: Optional[frozenset] = None
+    satisfied_condition_ids: Optional[OrderedSet[UUID]] = None
     """
-    A frozenset of UUIDs of condition expressions that were satisfied (truth value = True)
+    An ordered set of UUIDs of condition expressions that were satisfied (truth value = True)
     during the evaluation that produced this instance. None if no condition information is available.
     """
     operation_result: Optional[OperationResult] = None

@@ -45,7 +45,7 @@ class Not(LogicalOperator, UnaryExpression):
 
     def _evaluate__(
         self,
-        sources: Bindings,
+        sources: OperationResult,
     ) -> Iterable[OperationResult]:
 
         for v in self._child_._evaluate_(sources, parent=self):
@@ -59,11 +59,11 @@ class LogicalBinaryOperator(LogicalOperator, BinaryExpression, ABC):
     Abstract base class for logical operators that take two operands (i.e. have two children) only.
     """
 
-    def evaluate_right(self, sources: Bindings) -> Iterable[OperationResult]:
+    def evaluate_right(self, sources: OperationResult) -> Iterable[OperationResult]:
         """
         Evaluate the right operand.
 
-        :param sources: The current bindings to use during evaluation.
+        :param sources: The current OperationResult to use during evaluation.
         :return: The new bindings after evaluating the right operand.
         """
         for right_value in self.right._evaluate_(sources, parent=self):
@@ -81,7 +81,7 @@ class AND(LogicalBinaryOperator):
 
     def _evaluate__(
         self,
-        sources: Bindings,
+        sources: OperationResult,
     ) -> Iterable[OperationResult]:
 
         for left_value in self.left._evaluate_(sources, parent=self):
@@ -91,7 +91,7 @@ class AND(LogicalBinaryOperator):
                     left_value.bindings, self._is_false_, self, left_value
                 )
             else:
-                yield from self.evaluate_right(left_value.bindings)
+                yield from self.evaluate_right(left_value)
 
 
 @dataclass(eq=False, repr=False)
@@ -102,17 +102,17 @@ class OR(LogicalBinaryOperator):
 
     def _evaluate__(
         self,
-        sources: Bindings,
+        sources: OperationResult,
     ) -> Iterable[OperationResult]:
         """
         Evaluate the left operand, if it is False, then evaluate the right operand.
 
-        :param sources: The current bindings to use for evaluation.
+        :param sources: The current OperationResult to use for evaluation.
         :return: The new bindings after evaluating the left operand (and possibly right operand).
         """
         for left_value in self.left._evaluate_(sources, parent=self):
             if left_value.is_false:
-                yield from self.evaluate_right(left_value.bindings)
+                yield from self.evaluate_right(left_value)
             else:
                 self._is_false_ = False
                 yield OperationResult(

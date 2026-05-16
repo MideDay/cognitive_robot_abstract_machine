@@ -114,14 +114,14 @@ class Variable(CanHaveDomainSource[T]):
 
     def _evaluate__(
         self,
-        sources: Bindings,
+        sources: OperationResult,
     ) -> Iterable[OperationResult]:
         """
         Fetch values from the domain values and yield an OperationResult for each.
         """
 
         for v in self._re_enterable_domain_generator_:
-            bindings = {**sources, self._id_: v}
+            bindings = sources.bindings | {self._id_: v}
             yield self._build_operation_result_and_update_truth_value_(bindings)
 
     def _replace_child_field_(
@@ -229,12 +229,12 @@ class InstantiatedVariable(
 
     def _evaluate__(
         self,
-        sources: Bindings,
+        sources: OperationResult,
     ) -> Iterable[OperationResult]:
         yield from self._instantiate_using_child_vars_and_yield_results_(sources)
 
     def _instantiate_using_child_vars_and_yield_results_(
-        self, sources: Bindings
+        self, sources: OperationResult
     ) -> Iterator[OperationResult]:
         """
         Create new instances of the variable type and using as keyword arguments the child variables values.
@@ -285,7 +285,7 @@ class ExternallySetVariable(CanHaveDomainSource[T]):
     ):
         raise ValueError(f"class {self.__class__} does not have children")
 
-    def _evaluate__(self, sources: Bindings) -> Iterable[OperationResult]:
+    def _evaluate__(self, sources: OperationResult) -> Iterable[OperationResult]:
         """
         As this variable is externally set, it does not produce any results on its own, it just yields from an empty
          list to indicate that it has no results. It's important to note that this function will only be called when

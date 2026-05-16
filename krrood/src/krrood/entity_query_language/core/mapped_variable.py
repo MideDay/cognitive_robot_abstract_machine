@@ -144,7 +144,7 @@ class MappedVariable(UnaryExpression, CanBehaveLikeAVariable[T], ABC):
 
     def _evaluate__(
             self,
-            sources: Bindings,
+            sources: OperationResult,
     ) -> Iterable[OperationResult]:
         """
         Apply the mapping to the child's values.
@@ -159,7 +159,7 @@ class MappedVariable(UnaryExpression, CanBehaveLikeAVariable[T], ABC):
         )
 
     @abstractmethod
-    def _apply_mapping_(self, value: Any, sources: Optional[Bindings] = None) -> Iterable[Any]:
+    def _apply_mapping_(self, value: Any, sources: Optional[OperationResult] = None) -> Iterable[Any]:
         """
         Apply the mapping to a value from the child variable.
 
@@ -235,7 +235,7 @@ class Attribute(MappedVariable):
         """
         self._type_ = get_field_type_endpoint(self._owner_class_, self._attribute_name_)
 
-    def _apply_mapping_(self, value: Any, sources: Optional[Bindings] = None) -> Iterable[Any]:
+    def _apply_mapping_(self, value: Any, sources: Optional[OperationResult] = None) -> Iterable[Any]:
         yield getattr(value, self._attribute_name_)
 
     @property
@@ -257,8 +257,7 @@ class Index(MappedVariable):
     The key to index with.
     """
 
-    def _apply_mapping_(self, value: Any, sources: Optional[Bindings] = None) -> Iterable[Any]:
-        sources = sources or {}
+    def _apply_mapping_(self, value: Any, sources: Optional[OperationResult] = None) -> Iterable[Any]:
         try:
             # Need to verify that this solution is general and not a hack.
             if isinstance(self._key_, SymbolicExpression) and not (
@@ -293,7 +292,7 @@ class Call(MappedVariable):
     The keyword arguments to call the method with.
     """
 
-    def _apply_mapping_(self, value: Any, sources: Optional[Bindings] = None) -> Iterable[Any]:
+    def _apply_mapping_(self, value: Any, sources: Optional[OperationResult] = None) -> Iterable[Any]:
         if len(self._args_) > 0 or len(self._kwargs_) > 0:
             yield value(*self._args_, **self._kwargs_)
         else:
@@ -316,7 +315,7 @@ class FlatVariable(MappedVariable):
     similar to UNNEST in SQL.
     """
 
-    def _apply_mapping_(self, value: Iterable[Any], sources: Optional[Bindings] = None) -> Iterable[Any]:
+    def _apply_mapping_(self, value: Iterable[Any], sources: Optional[OperationResult] = None) -> Iterable[Any]:
         yield from value
 
     @cached_property

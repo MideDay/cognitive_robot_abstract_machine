@@ -67,7 +67,7 @@ class Where(Filter, UnaryExpression):
     def condition(self) -> SymbolicExpression:
         return self._child_
 
-    def _evaluate__(self, sources: Bindings) -> Iterator[OperationResult]:
+    def _evaluate__(self, sources: OperationResult) -> Iterator[OperationResult]:
         yield from (
             result
             for result in self._child_._evaluate_(sources, parent=self)
@@ -102,7 +102,7 @@ class Having(Filter, BinaryExpression):
 
     def _evaluate__(
         self,
-        sources: Bindings,
+        sources: OperationResult,
     ) -> Iterable[OperationResult]:
         yield from (
             OperationResult(
@@ -112,7 +112,7 @@ class Having(Filter, BinaryExpression):
             )
             for grouping_result in self.grouped_by._evaluate_(sources, parent=self)
             for annotated_result in self.condition._evaluate_(
-                grouping_result.bindings, parent=self
+                grouping_result, parent=self
             )
             if annotated_result.is_true
         )
@@ -152,7 +152,7 @@ class OrderedBy(BinaryExpression, DerivedExpression):
         """
         return self.right
 
-    def _evaluate__(self, sources: Bindings) -> Iterator[OperationResult]:
+    def _evaluate__(self, sources: OperationResult) -> Iterator[OperationResult]:
         results = list(self.left._evaluate_(sources, parent=self))
         yield from sorted(
             results,
@@ -167,7 +167,7 @@ class OrderedBy(BinaryExpression, DerivedExpression):
         var = self.variable
         var_id = var._id_
         if var_id not in result.all_bindings:
-            variable_value = next(var._evaluate_(result.all_bindings, self)).value
+            variable_value = next(var._evaluate_(OperationResult(result.all_bindings), self)).value
         else:
             variable_value = result.all_bindings[var_id]
         if self.key:
@@ -202,7 +202,7 @@ class GroupedBy(MultiArityExpressionThatPerformsACartesianProduct):
     The variables to group the results by their values.
     """
 
-    def _evaluate__(self, sources: Bindings = None) -> Iterator[OperationResult]:
+    def _evaluate__(self, sources: Optional[OperationResult] = None) -> Iterator[OperationResult]:
         """
         Generate results grouped by the specified variables in the grouped_by clause.
 
@@ -227,7 +227,7 @@ class GroupedBy(MultiArityExpressionThatPerformsACartesianProduct):
         yield from groups.values()
 
     def get_groups_and_group_key_count(
-        self, sources: Bindings
+        self, sources: Optional[OperationResult]
     ) -> Tuple[GroupBindings, Dict[GroupKey, int]]:
         """
         Create a dictionary of groups and a dictionary of group keys to their corresponding counts starting from the

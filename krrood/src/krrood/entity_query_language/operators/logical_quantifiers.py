@@ -53,18 +53,18 @@ class ForAll(QuantifiedConditional):
 
     def _evaluate__(
         self,
-        sources: Bindings,
+        sources: OperationResult,
     ) -> Iterable[OperationResult]:
         solution_set = None
 
         for var_val in self.variable._evaluate_(sources, parent=self):
             if solution_set is None:
-                solution_set = self.get_all_candidate_solutions(var_val.bindings)
+                solution_set = self.get_all_candidate_solutions(var_val)
             else:
                 solution_set = [
                     sol
                     for sol in solution_set
-                    if self.evaluate_condition({**sol, **var_val.bindings})
+                    if self.evaluate_condition(OperationResult({**sol, **var_val.bindings}))
                 ]
             if not solution_set:
                 solution_set = []
@@ -72,13 +72,13 @@ class ForAll(QuantifiedConditional):
 
         # Yield the remaining bindings (non-universal) merged with the incoming sources
         yield from [
-            OperationResult({**sources, **sol}, False, self) for sol in solution_set
+            OperationResult(sources.bindings | sol, False, self) for sol in solution_set
         ]
 
-    def get_all_candidate_solutions(self, sources: Bindings):
+    def get_all_candidate_solutions(self, var_val: OperationResult):
         values_that_satisfy_condition = []
         # Evaluate the condition under this particular universal value
-        for condition_val in self.condition._evaluate_(sources, parent=self):
+        for condition_val in self.condition._evaluate_(var_val, parent=self):
             if condition_val.is_false:
                 continue
             condition_val_bindings = {
@@ -89,7 +89,7 @@ class ForAll(QuantifiedConditional):
             values_that_satisfy_condition.append(condition_val_bindings)
         return values_that_satisfy_condition
 
-    def evaluate_condition(self, sources: Bindings) -> bool:
+    def evaluate_condition(self, sources: OperationResult) -> bool:
         for condition_val in self.condition._evaluate_(sources, parent=self):
             return condition_val.is_true
         return False
@@ -108,7 +108,7 @@ class Exists(QuantifiedConditional):
 
     def _evaluate__(
         self,
-        sources: Bindings,
+        sources: OperationResult,
     ) -> Iterable[OperationResult]:
         for val in self.condition._evaluate_(sources, parent=self):
             if val.is_true and self.variable._id_ in val:
@@ -118,4 +118,4 @@ class Exists(QuantifiedConditional):
         # Negation as failure, if it doesn't exist a variable value that satisfies the condition,
         # then it is a failure, and we yield the original sources with is_false=True as the truth value.
         self._is_false_ = True
-        yield OperationResult(sources, is_false=True, operand=self)
+        yield OperationResult(sources.bindings, is_false=True, operand=self)

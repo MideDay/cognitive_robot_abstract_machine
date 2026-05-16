@@ -108,7 +108,7 @@ class Refinement(LogicalBinaryOperator, ConclusionSelector):
 
     def _evaluate__(
         self,
-        sources: Optional[Bindings] = None,
+        sources: Optional[OperationResult] = None,
     ) -> Iterable[OperationResult]:
         """
         Evaluate the ExceptIf condition and yield the results.
@@ -117,21 +117,21 @@ class Refinement(LogicalBinaryOperator, ConclusionSelector):
             if left_value.is_false:
                 yield from self.get_operation_result_and_clear_conclusion(left_value)
                 continue
-            yield from self.evaluate_right(left_value.bindings)
+            yield from self.evaluate_right(left_value)
             if not self.right_yielded:
                 # If the right branch didn't yield any True values, propagate the left branch's conclusions.
                 yield from self.get_operation_result_and_clear_conclusion(left_value)
 
-    def evaluate_right(self, bindings: Bindings) -> Iterable[OperationResult]:
+    def evaluate_right(self, left_value: OperationResult) -> Iterable[OperationResult]:
         """
         Evaluate the right branch of the ExceptIf condition and yield the results. In addition, update the right_yielded
          flag and the conclusion if the right branch is True.
 
-        :param bindings: The current bindings from the left evaluation to evaluate the right branch with.
+        :param left_value: The OperationResult from the left evaluation to evaluate the right branch with.
         :return: The results of evaluating the right branch.
         """
         self.right_yielded = False
-        for right_value in self.right._evaluate_(bindings, parent=self):
+        for right_value in self.right._evaluate_(left_value, parent=self):
             if right_value.is_true:
                 self.right_yielded = True
             yield from self.get_operation_result_and_clear_conclusion(right_value)
@@ -176,7 +176,7 @@ class Alternative(OR, ConclusionSelector):
 
     def _evaluate__(
         self,
-        sources: Bindings,
+        sources: OperationResult,
     ) -> Iterable[OperationResult]:
         for output in OR._evaluate__(self, sources):
             if output.is_true:
@@ -216,7 +216,7 @@ class Next(EQLUnion, ConclusionSelector):
 
     def _evaluate__(
         self,
-        sources: Bindings,
+        sources: OperationResult,
     ) -> Iterable[OperationResult]:
         for output in EQLUnion._evaluate__(self, sources):
             if output.is_true:

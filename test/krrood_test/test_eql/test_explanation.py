@@ -10,7 +10,7 @@ from krrood.entity_query_language.factories import (
 )
 from krrood.entity_query_language.explanation import (
     explain_inference,
-    register_inference,
+    register_inference, monitored,
 )
 from krrood.entity_query_language.query.query import Query
 from krrood.rustworkx_utils import GraphVisualizer
@@ -202,9 +202,9 @@ def test_variable_stack_tracking():
 
     v = variable_from([1, 2, 3])
 
-    assert hasattr(v, "_creation_stack")
-    assert isinstance(v._creation_stack, list)
-    filenames = [f.filename for f in v._creation_stack]
+    assert monitored.is_monitored(v)
+    assert isinstance(monitored.get_stack(v), list)
+    filenames = [f.filename for f in monitored.get_stack(v)]
     assert any("test_explanation.py" in f for f in filenames)
 
 

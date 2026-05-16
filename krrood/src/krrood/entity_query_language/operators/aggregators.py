@@ -89,13 +89,14 @@ class Aggregator(UnaryExpression, CanBehaveLikeAVariable[T], ABC):
 
     def _evaluate__(
         self,
-        sources: Bindings,
+        sources: OperationResult,
     ) -> Iterator[OperationResult]:
         yield from (
             OperationResult(
-                sources | aggregation_result,
+                sources.bindings | aggregation_result,
                 False,
                 self,
+                child_result,
             )
             for child_result in self._child_._evaluate_(sources, parent=self)
             for aggregation_result in self._apply_aggregation_function_and_get_bindings_(

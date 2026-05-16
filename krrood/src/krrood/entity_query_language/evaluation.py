@@ -17,7 +17,6 @@ from typing_extensions import Any, Dict, List, Optional
 from typing_extensions import TYPE_CHECKING
 
 from krrood.entity_query_language.enums import EvaluationContextKey
-
 if TYPE_CHECKING:
     from krrood.entity_query_language.core.base_expressions import (
         Bindings,
@@ -227,7 +226,7 @@ class SatisfiedConditionTracker(EvaluationObserver):
         # This prevents children of a failed quantifier (e.g. AND inside a
         # short-circuited Exists) from being marked satisfied based on stale
         # _is_false_ state from a single evaluation pass.
-        final_satisfied = set()
+        final_satisfied = OrderedSet()
         for expr_id in satisfied:
             expr = expression._get_expression_by_id_(expr_id)
             current = expr

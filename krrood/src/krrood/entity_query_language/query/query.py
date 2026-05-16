@@ -395,7 +395,7 @@ class Query(
 
     def _evaluate__(
         self,
-        sources: Bindings,
+        sources: OperationResult,
     ) -> Iterable[OperationResult]:
         """
         Evaluate the query by constraining values, updating conclusions,
@@ -486,7 +486,7 @@ class Query(
         for i, id_ in enumerate(self._distinct_on_ids_):
             if id_ in res:
                 continue
-            var_value = self._distinct_on[i]._evaluate_(copy(res), parent=self)
+            var_value = self._distinct_on[i]._evaluate_(OperationResult(copy(res)), parent=self)
             res[id_] = next(var_value).value
 
     @cached_property

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from uuid import UUID
 
+from ordered_set import OrderedSet
 from typing_extensions import ClassVar, Optional, Dict, Any
 
 from krrood.entity_query_language.rules.conclusion import Conclusion
@@ -65,7 +67,7 @@ def _fade_color(color: str, alpha: float) -> str:
     return f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
 
 
-def _is_faded_gate(node, satisfied_condition_ids: frozenset) -> bool:
+def _is_faded_gate(node, satisfied_condition_ids: OrderedSet[UUID]) -> bool:
     """Return True if *node* is an unsatisfied condition participant.
 
     Such nodes act as "gates" that the BFS in
@@ -89,7 +91,7 @@ class QueryGraph:
     """
     An expression representing the query.
     """
-    satisfied_condition_ids: Optional[frozenset] = None
+    satisfied_condition_ids: Optional[OrderedSet[UUID]] = None
     """
     Optional frozenset of satisfied condition UUIDs for coloring condition nodes.
     When provided, unsatisfied condition nodes are colored grey, while satisfied
@@ -282,7 +284,7 @@ class ColorLegend(RXUtilsColorLegend):
     def from_expression(
         cls,
         expression: SymbolicExpression,
-        satisfied_condition_ids: Optional[frozenset] = None,
+        satisfied_condition_ids: Optional[OrderedSet[UUID]] = None,
     ) -> ColorLegend:
         name = expression.__class__.__name__
         color = "white"

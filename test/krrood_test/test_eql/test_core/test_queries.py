@@ -50,6 +50,7 @@ from krrood.entity_query_language.query.quantifiers import (
 from krrood.entity_query_language.utils import (
     cartesian_product_while_passing_the_bindings_around,
 )
+from krrood.entity_query_language.core.base_expressions import OperationResult
 from ...dataset.example_classes import (
     KRROODVectorsWithProperty,
 )
@@ -1148,7 +1149,7 @@ def test_chain_evaluate_variables():
     var1 = variable(int, [1, 2])
     var2 = variable(int, [3, 4])
     values = []
-    for val in cartesian_product_while_passing_the_bindings_around((var1, var2), {}):
+    for val in cartesian_product_while_passing_the_bindings_around((var1, var2), None):
         values.append(tuple(val.bindings.values()))
     assert values == [(1, 3), (1, 4), (2, 3), (2, 4)]
 

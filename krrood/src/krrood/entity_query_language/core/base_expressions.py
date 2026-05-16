@@ -257,7 +257,7 @@ class SymbolicExpression(ABC):
 
     def _evaluate_(
         self,
-        sources: Optional[Bindings | OperationResult] = None,
+        sources: Optional[OperationResult] = None,
         parent: Optional[SymbolicExpression] = None,
     ):
         """
@@ -270,7 +270,7 @@ class SymbolicExpression(ABC):
         afterwards. This allows evaluation code to reliably inspect the current
         parent expression without having to manage this state manually.
 
-        :param sources: The current bindings of variables.
+        :param sources: The current OperationResult carrying bindings of variables, or None.
         :return: An Iterator method whose body automatically sets and restores ``self._eval_parent_`` around the
         underlying evaluation logic.
         """
@@ -288,22 +288,26 @@ class SymbolicExpression(ABC):
             set_evaluation_context(evaluation_context)
         try:
             evaluation_context.on_evaluate_enter(expression=self, sources=sources)
-            # Normalize sources: extract bindings if passed as an OperationResult
-            previous_result = None
-            if isinstance(sources, OperationResult):
+            # Normalize sources: always work with an OperationResult
+            previous_result = sources
+            if sources is not None:
                 bindings = copy(sources.bindings)
-                previous_result = sources
             else:
-                bindings = copy(sources) if sources is not None else {}
+                bindings = {}
+                sources = OperationResult({})  # empty sentinel for _evaluate__()
             if self._id_ in bindings:
                 result = OperationResult(bindings, self._is_false_, self, previous_result)
+                if previous_result is not None:
+                    result.source_operation_result = previous_result
                 evaluation_context.on_result_yielded(expression=self, result=result)
                 yield result
             else:
                 for result in map(
                     self._evaluate_conclusions_and_update_bindings_,
-                    self._evaluate__(bindings),
+                    self._evaluate__(sources),
                 ):
+                    if previous_result is not None:
+                        result.source_operation_result = previous_result
                     evaluation_context.on_result_yielded(expression=self, result=result)
                     yield result
         finally:
@@ -326,7 +330,7 @@ class SymbolicExpression(ABC):
             return current_result
         for conclusion in self._conclusions_:
             current_result.bindings = next(
-                conclusion._evaluate_(current_result.bindings, parent=self)
+                conclusion._evaluate_(current_result, parent=self)
             ).bindings
 
         ctx = get_evaluation_context()
@@ -340,13 +344,13 @@ class SymbolicExpression(ABC):
     @abstractmethod
     def _evaluate__(
         self,
-        sources: Bindings,
+        sources: OperationResult,
     ) -> Iterator[OperationResult]:
         """
         Evaluate the symbolic expression and set the operands bindings in the result according to the evaluation logic
         of this expression.
 
-        :param sources: The current bindings of variables.
+        :param sources: The current OperationResult carrying bindings of variables.
         :return: An Iterator of OperationResult instances containing the bindings resulting from the evaluation of this
         expression.
         """
@@ -659,11 +663,11 @@ class OperationResult:
     """
     The bindings resulting from the operation, mapping variable IDs to their values.
     """
-    is_false: bool
+    is_false: bool = False
     """
     Whether the operation resulted in a false value (i.e., The operation condition was not satisfied)
     """
-    operand: SymbolicExpression
+    operand: Optional[SymbolicExpression] = None
     """
     The operand that produced the result.
     """
@@ -683,22 +687,38 @@ class OperationResult:
     this result. Populated by the EvaluationTracker observer. Unlike satisfied_condition_ids, this
     includes all evaluated expressions regardless of truth value.
     """
+    source_operation_result: Optional[OperationResult] = None
+    """
+    The OperationResult that was passed as input to the _evaluate_() call that produced this result.
+    Set whenever _evaluate_() receives an OperationResult as sources, preserving the evaluation
+    boundary in the chain. Distinct from previous_operation_result, which tracks the child
+    sub-expression chain; this tracks the external stage that fed into this evaluation.
+    """
 
     @property
     def all_bindings(self) -> Bindings:
         """
         :return: All the bindings from all the evaluated operations until this one, including this one.
+        Traverses the full previous_operation_result chain AND source_operation_result at each node
+        (graph traversal with cycle detection).
         """
-        if (
-            self.previous_operation_result is None
-            or self.previous_operation_result.bindings is self.bindings
-        ):
-            return self.bindings
-        return self.previous_operation_result.bindings | self.bindings
+        combined: Bindings = {}
+        seen: set = set()
+
+        def collect(node: Optional[OperationResult]) -> None:
+            if node is None or id(node) in seen:
+                return
+            seen.add(id(node))
+            collect(node.previous_operation_result)
+            collect(node.source_operation_result)
+            combined.update(node.bindings)  # shallower nodes (closer to self) win
+
+        collect(self)
+        return combined
 
     @property
     def has_value(self) -> bool:
-        return self.operand._id_ in self.bindings
+        return self.operand is not None and self.operand._id_ in self.bindings
 
     @property
     def is_true(self) -> bool:
@@ -711,6 +731,8 @@ class OperationResult:
 
         :raises: KeyError if the operand is not found in the bindings.
         """
+        if self.operand is None:
+            raise ValueError("Cannot get value: operand is None")
         return self.operand._process_result_(self)
 
     def __contains__(self, item):

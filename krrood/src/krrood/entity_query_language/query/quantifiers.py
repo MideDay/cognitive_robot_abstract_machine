@@ -189,7 +189,7 @@ class ResultQuantifier(
 
     def _evaluate__(
         self,
-        sources: Bindings,
+        sources: OperationResult,
     ) -> Iterable[T]:
 
         result_count = 0
@@ -250,7 +250,7 @@ class The(ResultQuantifier):
 
     def _evaluate__(
         self,
-        sources: Bindings,
+        sources: OperationResult,
     ) -> Iterable[TypingUnion[T, Dict[TypingUnion[T, SymbolicExpression], T]]]:
         """
         Evaluates the query object descriptor with the given bindings and yields the results.
