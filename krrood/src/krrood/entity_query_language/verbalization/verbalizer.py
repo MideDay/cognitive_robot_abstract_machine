@@ -334,6 +334,17 @@ class EQLVerbalizer(metaclass=SingletonMeta):
         inner = " of the ".join(reversed(parts))
         return f"the {inner} of {root_text}"
 
+    def _render_path_fragment_(self, parts: list[str], root_frag: VerbFragment) -> VerbFragment:
+        """Build an attribute-chain fragment: each attr name gets ATTRIBUTE role, root keeps its own roles."""
+        if not parts:
+            return root_frag
+        reversed_parts = list(reversed(parts))
+        frag_parts: list[VerbFragment] = [_word("the"), _role(reversed_parts[0], SemanticRole.ATTRIBUTE)]
+        for attr in reversed_parts[1:]:
+            frag_parts.extend([_word("of the"), _role(attr, SemanticRole.ATTRIBUTE)])
+        frag_parts.extend([_word("of"), root_frag])
+        return PhraseFragment(parts=frag_parts, separator=" ")
+
     def _verbalize_chain_root_(self, leaf, ctx: VerbalizationContext) -> str:
         inner = leaf
         while isinstance(inner, ResultQuantifier):
@@ -365,9 +376,8 @@ class EQLVerbalizer(metaclass=SingletonMeta):
                 _role(verb, SemanticRole.OPERATOR),
                 _role(attr_name, SemanticRole.ATTRIBUTE),
             )
-        path_str = self._render_path_(self._build_path_parts_(chain), root_text)
-        # Render the whole path as ATTRIBUTE role — it represents an attribute access chain
-        return _role(path_str, SemanticRole.ATTRIBUTE)
+        root_frag = self._verbalize_chain_root_fragment_(leaf, ctx)
+        return self._render_path_fragment_(self._build_path_parts_(chain), root_frag)
 
     def _verbalize_navigation_chain_(self, nav_chain: list, root_text: str) -> str:
         if not nav_chain:

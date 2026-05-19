@@ -85,7 +85,7 @@ class HierarchicalRenderer(FragmentRenderer):
             - whose container is …
     """
 
-    indent: IndentSize = field(default=IndentSize.TWO_SPACES)
+    indent_size: IndentSize = field(default=IndentSize.TWO_SPACES)
     """
     The size of the indentation for each level of nesting.
     """
@@ -99,13 +99,18 @@ class HierarchicalRenderer(FragmentRenderer):
             case BlockFragment(header=header, items=items):
                 lines: list[str] = []
                 if header is not None:
-                    lines.append(self.indent.value * depth + self._inline(header))
+                    lines.append(self.formatted_indent * depth + self._inline(header))
                     depth = depth + 1
                 for item in items:
                     lines.append(self._render_item(item, depth))
                 return self._formatter.newline.join(lines)
             case _:
-                return self.indent.value * depth + self._inline(fragment)
+                return self.formatted_indent * depth + self._inline(fragment)
+
+    @property
+    def formatted_indent(self) -> str:
+        """The indentation string, with spaces replaced by the formatter's space character."""
+        return self.indent_size.value.replace(' ', self._formatter.space)
 
     def _render_item(self, fragment: VerbFragment, depth: int) -> str:
         """Render one item, prepending the bullet at its indentation level."""
@@ -113,7 +118,7 @@ class HierarchicalRenderer(FragmentRenderer):
             case BlockFragment():
                 return self.render(fragment, depth)
             case _:
-                prefix = self.indent.value * depth + self.bullet.value + self._formatter.space
+                prefix = self.formatted_indent * depth + self.bullet.value + self._formatter.space
                 return prefix + self._inline(fragment)
 
     def _inline(self, fragment: VerbFragment) -> str:

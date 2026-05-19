@@ -366,7 +366,7 @@ def test_hierarchical_renderer_block_has_header_line():
 
 
 def test_hierarchical_renderer_items_are_indented():
-    r = HierarchicalRenderer(PlainFormatter(), indent=IndentSize.TWO_SPACES, bullet=BulletStyle.DASH)
+    r = HierarchicalRenderer(PlainFormatter(), indent_size=IndentSize.TWO_SPACES, bullet=BulletStyle.DASH)
     block = BlockFragment(
         header=RoleFragment("Find", SemanticRole.KEYWORD),
         items=[WordFragment("a Robot"), WordFragment("b Something")],
@@ -379,7 +379,7 @@ def test_hierarchical_renderer_items_are_indented():
 
 
 def test_hierarchical_renderer_nested_block_deepens_indent():
-    r = HierarchicalRenderer(PlainFormatter(), indent=IndentSize.TWO_SPACES, bullet=BulletStyle.DASH)
+    r = HierarchicalRenderer(PlainFormatter(), indent_size=IndentSize.TWO_SPACES, bullet=BulletStyle.DASH)
     inner = BlockFragment(
         header=RoleFragment("such that", SemanticRole.KEYWORD),
         items=[WordFragment("battery > 50")],
@@ -419,7 +419,7 @@ def test_hierarchical_bullet_style_asterisk_produces_asterisk():
 
 
 def test_hierarchical_indent_four_spaces_indents_items_by_four():
-    r = HierarchicalRenderer(PlainFormatter(), indent=IndentSize.FOUR_SPACES)
+    r = HierarchicalRenderer(PlainFormatter(), indent_size=IndentSize.FOUR_SPACES)
     block = BlockFragment(
         header=WordFragment("H"),
         items=[WordFragment("item")],
@@ -550,6 +550,13 @@ def test_rule_condition_attribute_carries_attribute_role(doors_and_drawers_world
     assert any("child" in t for t in attr_texts)
 
 
+def test_attribute_chain_owner_carries_variable_role(doors_and_drawers_world):
+    frag = _drawer_rule_fragment(doors_and_drawers_world)
+    variable_texts = _collect_role_texts(frag, SemanticRole.VARIABLE)
+    assert any("PrismaticConnection" in t for t in variable_texts)
+    assert any("FixedConnection" in t for t in variable_texts)
+
+
 def test_rule_if_antecedent_is_block_fragment(doors_and_drawers_world):
     frag = _drawer_rule_fragment(doors_and_drawers_world)
     if_block = _find_block_with_keyword(frag, "If")
@@ -606,13 +613,17 @@ def test_pipeline_html_hierarchical_has_br():
 def test_pipeline_html_hierarchical_has_br_between_items_on_rule(doors_and_drawers_world):
     drawer_fragment = _drawer_rule_fragment(doors_and_drawers_world)
     text = VerbalizationPipeline.html(hierarchical=True).verbalize_fragment(drawer_fragment)
-    print("\n" + text)
+    print_ = False
+    if print_:
+        print("\n" + text)
     assert "<br>" in text
 
 
 def test_pipeline_ansi_hierarchical_has_newlines_on_rule(doors_and_drawers_world):
     drawer_fragment = _drawer_rule_fragment(doors_and_drawers_world)
     text = VerbalizationPipeline.ansi(hierarchical=True).verbalize_fragment(drawer_fragment)
-    print("\n" + text)
+    print_ = False
+    if print_:
+        print("\n" + text)
     assert "\n" in text
     assert "<br>" not in text
