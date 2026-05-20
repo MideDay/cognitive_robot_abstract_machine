@@ -4,11 +4,19 @@ import datetime
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
+from enum import Enum, auto
 from typing import Any, Dict, List, TYPE_CHECKING
 
 import inflect
 
 _engine = inflect.engine()
+
+
+class ArticleSelection(Enum):
+    """Signal from VerbalizationContext to verbalizer: which article form to use."""
+    NONE       = auto()  # numbered variable — no article
+    DEFINITE   = auto()  # subsequent mention → "the"
+    INDEFINITE = auto()  # first mention → "a" / "an"
 
 
 def _article(type_name: str) -> str:
@@ -17,13 +25,11 @@ def _article(type_name: str) -> str:
 
 def _build_disambiguation_map(expr) -> Dict[uuid.UUID, str]:
     """
-    Pre-scan *expr* and return a mapping of ``variable._id_`` → display label.
+    Pre-scan *expr* and return a mapping of variable._id_ → display label.
 
-    Types that appear only once keep the plain type name (no numbering).
-    Types that appear two or more times get ``"TypeName 1"``, ``"TypeName 2"``, …
-    labels assigned in the order their variables are first encountered in the tree.
-
-    ``Literal`` nodes are excluded — they are constants, not named variables.
+    Types appearing once keep the plain type name; types appearing two or more
+    times get "TypeName 1", "TypeName 2", … labels in encounter order.
+    Literal nodes are excluded.
     """
     from krrood.entity_query_language.core.variable import Variable, Literal
     from krrood.entity_query_language.query.query import Query
@@ -54,11 +60,11 @@ def _build_disambiguation_map(expr) -> Dict[uuid.UUID, str]:
 @dataclass
 class VerbalizationContext:
     """
-    Carries per-verbalization state: coreference tracking and chain-flattening utilities.
+    Carries per-verbalization state: coreference tracking and chain-flattening.
 
-    Pass a single instance through an entire ``EQLVerbalizer.verbalize()`` call so that
-    the same variable object is rendered as "a Robot" on first mention and "the Robot" on
-    every subsequent mention.
+    Pass a single instance through an entire EQLVerbalizer.verbalize() call so
+    that the same variable is rendered as "a Robot" on first mention and "the
+    Robot" on every subsequent mention.
     """
 
     seen: dict = field(default_factory=dict)
@@ -105,32 +111,31 @@ class VerbalizationContext:
             self.deferred_constraints[-1].append(text)
 
     def noun_for(self, var) -> str:
-        """
-        Return the noun phrase for *var*, applying disambiguation numbering when needed.
+        article, label = self.noun_for_parts(var)
+        if article == ArticleSelection.NONE:
+            return label
+        if article == ArticleSelection.DEFINITE:
+            return f"the {label}"
+        return f"{_article(label)} {label}"
 
-        * Single-type variable — first mention: ``"a Robot"`` / ``"an Employee"``;
-          subsequent mentions: ``"the Robot"``.
-        * Numbered variable (same type as another in the same expression tree) —
-          every mention: the bare label ``"Employee 1"`` / ``"Employee 2"`` (no
-          article, since the number already disambiguates).
-        Also registers *var* in :attr:`seen`.
+    def noun_for_parts(self, var) -> "tuple[ArticleSelection, str]":
+        """
+        Return (ArticleSelection, label) for var.
+
+        ArticleSelection.NONE      — numbered variable; no article
+        ArticleSelection.DEFINITE  — subsequent mention of a single-type variable
+        ArticleSelection.INDEFINITE— first mention of a single-type variable
         """
         type_name = var._type_.__name__ if getattr(var, "_type_", None) else var.__class__.__name__
         label = self.disambiguation_map.get(var._id_, type_name)
         is_numbered = label != type_name
         if var._id_ in self.seen:
-            return label if is_numbered else f"the {label}"
+            return (ArticleSelection.NONE if is_numbered else ArticleSelection.DEFINITE), label
         self.seen[var._id_] = label
-        return label if is_numbered else f"{_article(label)} {label}"
+        return (ArticleSelection.NONE if is_numbered else ArticleSelection.INDEFINITE), label
 
     def flatten_same_type(self, expr, operator_type) -> List:
-        """
-        Recursively collect a homogeneous binary chain into a flat list.
-
-        ``AND(AND(a, b), c)`` with ``operator_type=AND`` → ``[a, b, c]``.
-        Stops at nodes of a different type, so ``AND(a, OR(b, c))`` yields
-        ``[a, OR(b, c)]`` — the inner ``OR`` is left intact.
-        """
+        """Recursively flatten a homogeneous binary chain into a flat list."""
         if not isinstance(expr, operator_type):
             return [expr]
         left = self.flatten_same_type(expr.left, operator_type)
