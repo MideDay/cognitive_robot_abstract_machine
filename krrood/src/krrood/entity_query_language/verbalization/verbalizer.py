@@ -346,14 +346,47 @@ class EQLVerbalizer(metaclass=SingletonMeta):
         return PhraseFragment(parts=frag_parts, separator=" ")
 
     def _verbalize_chain_root_(self, leaf, ctx: VerbalizationContext) -> str:
+        """
+        Return a plain-string noun phrase for the root of an attribute chain.
+
+        Unwraps any :class:`ResultQuantifier` wrappers, then delegates to
+        :meth:`_verbalize_entity_as_inline_noun_str_` for :class:`Entity` roots or
+        :meth:`verbalize` for plain variables.
+
+        .. note::
+            This method has the side-effect of registering *leaf* in ``ctx.seen`` via
+            :meth:`~VerbalizationContext.noun_for`.  Only call it when its return value
+            is actually consumed (i.e. the boolean-attribute path in
+            :meth:`_verbalize_bool_attribute_chain_`).
+
+        :param leaf: The root expression at the bottom of the MappedVariable chain.
+        :param ctx: The active verbalization context.
+        :return: A plain English noun phrase string for *leaf*.
+        """
         inner = leaf
         while isinstance(inner, ResultQuantifier):
             inner = inner._child_
         if isinstance(inner, Entity):
-            return self._verbalize_entity_as_inline_noun_str_(inner, ctx)
+            return _str(self._verbalize_entity_as_inline_noun_(inner, ctx))
         return self.verbalize(leaf, ctx)
 
     def _verbalize_chain_root_fragment_(self, leaf, ctx: VerbalizationContext) -> VerbFragment:
+        """
+        Return a :class:`VerbFragment` noun phrase for the root of an attribute chain.
+
+        Unwraps any :class:`ResultQuantifier` wrappers, then delegates to
+        :meth:`_verbalize_entity_as_inline_noun_` for :class:`Entity` roots or
+        :meth:`build` for plain variables.
+
+        This is the canonical entry point for the non-boolean attribute path in
+        :meth:`_verbalize_mapped_chain_`.  It must be the *first* call that touches
+        *leaf* via :meth:`~VerbalizationContext.noun_for` so that the indefinite article
+        (``"a"`` / ``"an"``) is used on first mention.
+
+        :param leaf: The root expression at the bottom of the MappedVariable chain.
+        :param ctx: The active verbalization context.
+        :return: A :class:`VerbFragment` noun phrase for *leaf*.
+        """
         inner = leaf
         while isinstance(inner, ResultQuantifier):
             inner = inner._child_
@@ -361,21 +394,73 @@ class EQLVerbalizer(metaclass=SingletonMeta):
             return self._verbalize_entity_as_inline_noun_(inner, ctx)
         return self.build(leaf, ctx)
 
+    def _verbalize_bool_attribute_chain_(
+        self,
+        chain: list,
+        leaf,
+        ctx: VerbalizationContext,
+        negated: bool,
+    ) -> VerbFragment:
+        """
+        Verbalize an attribute chain whose terminal attribute has type :class:`bool`.
+
+        Produces predicative sentences of the form ``"<navigation path> is <attr>"``
+        or ``"<navigation path> is not <attr>"`` rather than the possessive
+        ``"the <attr> of <root>"`` form used for non-boolean attributes.
+
+        :param chain: The full attribute chain (outermost node first) as returned by
+            :meth:`_walk_chain_`.  The last element is the terminal boolean
+            :class:`Attribute`.
+        :param leaf: The root expression at the bottom of the chain (the variable being
+            navigated from).
+        :param ctx: The active verbalization context.  *leaf* will be registered in
+            ``ctx.seen`` as a side-effect of this call.
+        :param negated: When ``True`` the copula is rendered as ``"is not"`` instead
+            of ``"is"``.
+        :return: A :class:`VerbFragment` of the form
+            ``"<nav-path> is [not] <attribute-name>"``.
+        """
+        root_text = self._verbalize_chain_root_(leaf, ctx)
+        nav_text = self._verbalize_navigation_chain_(chain[:-1], root_text)
+        verb = "is not" if negated else "is"
+        attr_name = chain[-1]._attribute_name_
+        return _phrase(
+            _word(nav_text),
+            _role(verb, SemanticRole.OPERATOR),
+            _role(attr_name, SemanticRole.ATTRIBUTE),
+        )
+
     def _verbalize_mapped_chain_(
         self, expr: MappedVariable, ctx: VerbalizationContext, negated: bool = False
     ) -> VerbFragment:
+        """
+        Verbalize a :class:`MappedVariable` attribute chain into a :class:`VerbFragment`.
+
+        Dispatches to one of two sub-paths depending on the terminal node type:
+
+        - **Boolean terminal** — delegates to :meth:`_verbalize_bool_attribute_chain_`,
+          which produces ``"<path> is [not] <attr>"``.
+        - **Non-boolean terminal** — calls :meth:`_verbalize_chain_root_fragment_` once
+          to obtain the root noun phrase (with the correct indefinite article on first
+          mention) and then wraps it with the possessive path via
+          :meth:`_render_path_fragment_`.
+
+        .. important::
+            :meth:`_verbalize_chain_root_` must **not** be called in the non-boolean
+            path.  It would register *leaf* in ``ctx.seen`` before
+            :meth:`_verbalize_chain_root_fragment_` runs, causing the root to receive
+            the definite article ``"the"`` on what is actually its first mention.
+
+        :param expr: The outermost :class:`MappedVariable` of the chain.
+        :param ctx: The active verbalization context.
+        :param negated: Passed through to :meth:`_verbalize_bool_attribute_chain_` when
+            the terminal attribute is boolean.
+        :return: A :class:`VerbFragment` representing the full chain.
+        """
         chain, leaf = self._walk_chain_(expr)
-        root_text = self._verbalize_chain_root_(leaf, ctx)
         terminal = chain[-1]
         if isinstance(terminal, Attribute) and terminal._type_ is bool:
-            nav_text = self._verbalize_navigation_chain_(chain[:-1], root_text)
-            verb = "is not" if negated else "is"
-            attr_name = terminal._attribute_name_
-            return _phrase(
-                _word(nav_text),
-                _role(verb, SemanticRole.OPERATOR),
-                _role(attr_name, SemanticRole.ATTRIBUTE),
-            )
+            return self._verbalize_bool_attribute_chain_(chain, leaf, ctx, negated)
         root_frag = self._verbalize_chain_root_fragment_(leaf, ctx)
         return self._render_path_fragment_(self._build_path_parts_(chain), root_frag)
 
@@ -833,9 +918,6 @@ class EQLVerbalizer(metaclass=SingletonMeta):
             cond = self.verbalize(where_expr.condition, ctx)
             return _phrase(article_noun, _role("where", SemanticRole.KEYWORD), _word(cond))
         return article_noun
-
-    def _verbalize_entity_as_inline_noun_str_(self, entity: Entity, ctx: VerbalizationContext) -> str:
-        return _str(self._verbalize_entity_as_inline_noun_(entity, ctx))
 
     def _verbalize_entity_as_inline_noun_(self, entity: Entity, ctx: VerbalizationContext) -> VerbFragment:
         if entity._id_ in ctx.seen:
