@@ -45,7 +45,7 @@ from krrood.entity_query_language.factories import (
     set_of,
 )
 from krrood.ormatic.data_access_objects.helper import to_dao
-from krrood.ormatic.eql_interface import eql_to_sql, eql_to_cte
+from krrood.ormatic.eql_interface import eql_to_sql
 from pycram.robot_plans.actions.core.pick_up import PickUpAction
 from pycram.orm.ormatic_interface import PickUpActionDAO, GraspDescriptionDAO
 
@@ -1174,14 +1174,14 @@ def test_cte_from_eql(session, database):
 
     b = variable(type_=Body, domain=[])
     inner_query = an(entity(b).where(b.size > 5))
-    inner_cte = eql_to_cte(inner_query, session, "large_bodies")
+    large_bodies = eql_to_sql(inner_query, session, as_common_table_expression="large_bodies")
 
     c = variable(type_=Container, domain=[])
     outer_translator = eql_to_sql(an(entity(c)), session)
 
     outer_translator.sql_query = (
         outer_translator.sql_query
-        .join(inner_cte, inner_cte.c.database_id == ContainerDAO.database_id)
+        .join(large_bodies, large_bodies.c.database_id == ContainerDAO.database_id)
     )
 
     expected_sql = (
