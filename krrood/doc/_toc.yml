@@ -30,6 +30,7 @@ parts:
         - file: eql/developer/execution_engine
         - file: eql/developer/graph_and_visualization
         - file: eql/developer/inference_explanation
+        - file: eql/developer/verbalization
 - caption: ORMatic
   chapters:
     - file: ormatic/intro

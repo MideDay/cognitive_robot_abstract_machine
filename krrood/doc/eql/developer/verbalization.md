@@ -1,4 +1,4 @@
-from krrood.entity_query_language.verbalization.vocabulary.english import Articles---
+---
 jupytext:
   text_representation:
     extension: .md
