@@ -10,15 +10,17 @@ from inspect import isclass
 from typing import List, Optional, Type, Tuple, Any
 from uuid import UUID
 
-from typing_extensions import Union, Iterable, List
+from typing_extensions import Union, Iterable, List, overload
 
 from krrood.entity_query_language.core.base_expressions import (
     SymbolicExpression,
-    TruthValueOperator, Selectable,
+    TruthValueOperator,
+    Selectable,
 )
 from krrood.entity_query_language.core.mapped_variable import (
     FlatVariable,
     CanBehaveLikeAVariable,
+    Attribute,
 )
 from krrood.entity_query_language.core.variable import (
     DomainType,
@@ -239,7 +241,7 @@ def in_(item: Any, container: Union[Iterable, CanBehaveLikeAVariable[T]]):
 
 def flat_variable(
     var: Union[CanBehaveLikeAVariable[T], Iterable[T]],
-) -> Union[CanBehaveLikeAVariable[T], T]:
+) -> Union[FlatVariable[T], T]:
     """
     Flatten a nested iterable domain into individual items while preserving the parent bindings.
     This returns a DomainMapping that, when evaluated, yields one solution per inner element
@@ -263,7 +265,7 @@ def and_(*conditions: ConditionType) -> ConditionType:
     return chained_logic(AND, *conditions)
 
 
-def or_(*conditions) -> ConditionType:
+def or_(*conditions: ConditionType) -> ConditionType:
     """
     Logical disjunction of conditions.
 
@@ -639,13 +641,19 @@ def node_descendants(node: SymbolicExpression) -> Iterable[SymbolicExpression]:
 
 
 @symbolic_function
-def node_type(node: CanBehaveLikeAVariable) -> Optional[Type]:
-    return node._type_
+def node_type(node: Selectable) -> Optional[Type]:
+    return getattr(node, "_type_", None)
 
 
 @symbolic_function
 def node_children(node: CanBehaveLikeAVariable) -> Iterable[SymbolicExpression]:
     return node._children_
+
+
+@symbolic_function
+def attribute_owner_class(node: Attribute) -> Type:
+    return node._owner_class_
+
 
 @symbolic_function
 def node_parents(node: SymbolicExpression) -> Iterable[SymbolicExpression]:

@@ -122,7 +122,9 @@ class Variable(CanHaveDomainSource[T]):
 
         for v in self._re_enterable_domain_generator_:
             bindings = sources.bindings | {self._id_: v}
-            yield self._build_operation_result_and_update_truth_value_(bindings, sources)
+            yield self._build_operation_result_and_update_truth_value_(
+                bindings, sources
+            )
 
     def _replace_child_field_(
         self, old_child: SymbolicExpression, new_child: SymbolicExpression
@@ -246,7 +248,8 @@ class InstantiatedVariable(
                 for id_, v in child_result.bindings.items()
                 if id_ in self._child_var_id_name_map_
             }
-            instance = self._type_(**kwargs)
+            construct = getattr(self._type_, "_construct_normally_", self._type_)
+            instance = construct(**kwargs)
 
             bindings = {self._id_: instance} | child_result.bindings
             result = self._build_operation_result_and_update_truth_value_(
@@ -257,7 +260,6 @@ class InstantiatedVariable(
 
     def _replace_child_field_(
         self, old_child: SymbolicExpression, new_child: SymbolicExpression
-
     ):
         MultiArityExpressionThatPerformsACartesianProduct._replace_child_field_(
             self, old_child, new_child

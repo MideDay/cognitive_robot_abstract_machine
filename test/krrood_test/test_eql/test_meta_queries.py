@@ -23,24 +23,38 @@ Cabinet rule (InferredCabinetsWorld):
     rule           = entity(inference(Cabinet)(...)).where(prismatic_conn.child == drawer.container)
   Conditions: prismatic_conn.child == drawer.container
 """
+
 import pytest
 
-from krrood.entity_query_language.explanation.explanation import InferenceExplanation, explain_inference
+from krrood.entity_query_language.explanation.explanation import (
+    InferenceExplanation,
+    explain_inference,
+)
 from krrood.entity_query_language.factories import (
-    entity, variable, match_variable, inference,
+    entity,
+    variable,
+    match_variable,
+    inference,
 )
 from krrood.entity_query_language.operators.comparator import Comparator
-from krrood.entity_query_language.operators.core_logical_operators import LogicalOperator
-from ..dataset.semantic_world_like_classes import (
-    Handle, Container, Body,
-    Drawer, Cabinet,
-    Connection, FixedConnection, PrismaticConnection,
+from krrood.entity_query_language.operators.core_logical_operators import (
+    LogicalOperator,
 )
-
+from ..dataset.semantic_world_like_classes import (
+    Handle,
+    Container,
+    Body,
+    Drawer,
+    Cabinet,
+    Connection,
+    FixedConnection,
+    PrismaticConnection,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def drawer_explanation(doors_and_drawers_world) -> InferenceExplanation:
@@ -50,7 +64,9 @@ def drawer_explanation(doors_and_drawers_world) -> InferenceExplanation:
     fixed_conn = match_variable(FixedConnection, world.connections)(
         parent=prismatic_conn.child, child=handle
     )
-    drawers = inference(Drawer)(container=fixed_conn.parent, handle=fixed_conn.child).tolist()
+    drawers = inference(Drawer)(
+        container=fixed_conn.parent, handle=fixed_conn.child
+    ).tolist()
     assert drawers, "Drawer rule produced no results – check the world fixture"
     explanation = explain_inference(drawers[0])
     assert explanation is not None
@@ -78,18 +94,37 @@ def cabinet_explanation(inferred_cabinets_world) -> InferenceExplanation:
 # get_satisfied_condition_expressions_for_the_instance
 # ---------------------------------------------------------------------------
 
+
 def test_drawer_satisfied_conditions_returns_comparators(drawer_explanation):
     # The method returns ALL satisfied condition expressions, including LogicalOperator
     # wrappers (AND nodes) produced by match_variable and the inference root.
     # The Drawer rule has 2 comparators plus 2 AND nodes from the condition tree.
-    conditions = drawer_explanation.get_satisfied_condition_expressions_for_the_instance().tolist()
+    conditions = (
+        drawer_explanation.get_satisfied_condition_expressions_for_the_instance().tolist()
+    )
     assert len(conditions) >= 2
     assert all(isinstance(c, (Comparator, LogicalOperator)) for c in conditions)
     assert sum(1 for c in conditions if isinstance(c, Comparator)) >= 2
 
 
 def test_cabinet_satisfied_conditions_returns_comparator(cabinet_explanation):
-    conditions = cabinet_explanation.get_satisfied_condition_expressions_for_the_instance().tolist()
+    conditions = (
+        cabinet_explanation.get_satisfied_condition_expressions_for_the_instance().tolist()
+    )
+    assert len(conditions) == 1
+    assert isinstance(conditions[0], Comparator)
+
+
+def test_get_comparator_type_conditions(drawer_explanation):
+    conditions = drawer_explanation.get_satisfied_comparator_conditions().tolist()
+    assert len(conditions) == 2
+    assert all(isinstance(c, Comparator) for c in conditions)
+
+
+def test_get_comparators_between_attributes(drawer_explanation):
+    conditions = (
+        drawer_explanation.get_satisfied_comparator_conditions_between_attributes().tolist()
+    )
     assert len(conditions) == 1
     assert isinstance(conditions[0], Comparator)
 
@@ -97,6 +132,7 @@ def test_cabinet_satisfied_conditions_returns_comparator(cabinet_explanation):
 # ---------------------------------------------------------------------------
 # get_variable_nodes_of_given_type
 # ---------------------------------------------------------------------------
+
 
 def test_drawer_connection_variable_nodes_count(drawer_explanation):
     nodes = drawer_explanation.get_variable_nodes_of_given_type(Connection).tolist()
@@ -128,13 +164,18 @@ def test_cabinet_drawer_variable_nodes_count(cabinet_explanation):
 # get_values_of_variable_nodes_of_given_type
 # ---------------------------------------------------------------------------
 
+
 def test_drawer_handle_value_matches_instance(drawer_explanation):
-    handles = drawer_explanation.get_values_of_variable_nodes_of_given_type(Handle).tolist()
+    handles = drawer_explanation.get_values_of_variable_nodes_of_given_type(
+        Handle
+    ).tolist()
     assert len(handles) == 1
 
 
 def test_cabinet_drawer_values_are_in_cabinet(cabinet_explanation):
-    drawers = cabinet_explanation.get_values_of_variable_nodes_of_given_type(Drawer).tolist()
+    drawers = cabinet_explanation.get_values_of_variable_nodes_of_given_type(
+        Drawer
+    ).tolist()
     assert len(drawers) >= 1
     cabinet = cabinet_explanation.instance
     # grouped_by aggregates the drawer instances into a single list binding, so each
@@ -150,26 +191,34 @@ def test_cabinet_drawer_values_are_in_cabinet(cabinet_explanation):
 # get_conditions_that_relate_the_variables_of_type
 # ---------------------------------------------------------------------------
 
+
 def test_drawer_conditions_relating_connections(drawer_explanation):
-    # Because node_descendants of fixed_conn.child == handle still traverses into
-    # fixed_conn's child nodes (which include prismatic_conn), BOTH comparators have
-    # two distinct Connection-typed descendants (fixed_conn + prismatic_conn).
-    conditions = drawer_explanation.get_conditions_that_relate_the_variables_of_type(Connection).tolist()
-    assert len(conditions) == 2
+    conditions = drawer_explanation.get_conditions_that_relate_the_variables_of_type(
+        Connection
+    ).tolist()
+    assert len(conditions) == 1
     assert all(isinstance(c, Comparator) for c in conditions)
+    assert conditions[0].left._owner_class_ is FixedConnection
+    assert conditions[0].left._attribute_name_ == "parent"
+    assert conditions[0].right._owner_class_ is PrismaticConnection
+    assert conditions[0].right._attribute_name_ == "child"
 
 
 def test_drawer_conditions_relating_bodies(drawer_explanation):
     # Both conditions have two Body-typed Attribute descendants:
     #   fixed_conn.parent (Body) and prismatic_conn.child (Body) in condition 1
     #   fixed_conn.child  (Body) and handle (Handle < Body)       in condition 2
-    conditions = drawer_explanation.get_conditions_that_relate_the_variables_of_type(Body).tolist()
+    conditions = drawer_explanation.get_conditions_that_relate_the_variables_of_type(
+        Body
+    ).tolist()
     assert len(conditions) == 2
 
 
 def test_cabinet_conditions_relating_bodies(cabinet_explanation):
     # prismatic_conn.child (Body) and drawer.container (Container < Body) are in the same condition.
-    conditions = cabinet_explanation.get_conditions_that_relate_the_variables_of_type(Body).tolist()
+    conditions = cabinet_explanation.get_conditions_that_relate_the_variables_of_type(
+        Body
+    ).tolist()
     assert len(conditions) == 1
     assert isinstance(conditions[0], Comparator)
 
@@ -177,13 +226,16 @@ def test_cabinet_conditions_relating_bodies(cabinet_explanation):
 def test_cabinet_no_conditions_relating_connections(cabinet_explanation):
     # There is only one Connection variable (prismatic_conn) in the cabinet rule,
     # so no condition can relate two distinct Connection nodes.
-    conditions = cabinet_explanation.get_conditions_that_relate_the_variables_of_type(Connection).tolist()
+    conditions = cabinet_explanation.get_conditions_that_relate_the_variables_of_type(
+        Connection
+    ).tolist()
     assert len(conditions) == 0
 
 
 # ---------------------------------------------------------------------------
 # get_conditions_that_relate_variables_of_types (new method)
 # ---------------------------------------------------------------------------
+
 
 def test_drawer_relates_fixed_connection_to_prismatic(drawer_explanation):
     # Both comparators have fixed_conn + prismatic_conn in their descendant trees

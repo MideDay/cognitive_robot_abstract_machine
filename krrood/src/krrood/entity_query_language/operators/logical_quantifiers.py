@@ -64,7 +64,9 @@ class ForAll(QuantifiedConditional):
                 solution_set = [
                     sol
                     for sol in solution_set
-                    if self.evaluate_condition(OperationResult({**sol, **var_val.bindings}))
+                    if self.evaluate_condition(
+                        OperationResult({**sol, **var_val.bindings})
+                    )
                 ]
             if not solution_set:
                 solution_set = []
@@ -78,7 +80,9 @@ class ForAll(QuantifiedConditional):
     def get_all_candidate_solutions(self, var_val: OperationResult):
         values_that_satisfy_condition = []
         # Evaluate the condition under this particular universal value
-        for condition_val in self._evaluate_child_as_condition_(self.condition, var_val):
+        for condition_val in self._evaluate_child_as_condition_(
+            self.condition, var_val
+        ):
             if condition_val.is_false:
                 continue
             condition_val_bindings = {
@@ -90,7 +94,9 @@ class ForAll(QuantifiedConditional):
         return values_that_satisfy_condition
 
     def evaluate_condition(self, sources: OperationResult) -> bool:
-        for condition_val in self._evaluate_child_as_condition_(self.condition, sources):
+        for condition_val in self._evaluate_child_as_condition_(
+            self.condition, sources
+        ):
             return condition_val.is_true
         return False
 
@@ -110,10 +116,19 @@ class Exists(QuantifiedConditional):
         self,
         sources: OperationResult,
     ) -> Iterable[OperationResult]:
-        for val in self._evaluate_child_as_condition_(self.condition, sources):
-            if val.is_true and self.variable._id_ in val:
-                yield OperationResult(val.bindings, is_false=False, operand=self)
-                return
+        for val in self._evaluate_child_as_condition_(self.variable, sources):
+            if val.is_false or self.variable._id_ not in val.bindings:
+                continue
+            val = val.update(sources.bindings)
+            for cond_val in self._evaluate_child_as_condition_(self.condition, val):
+                if cond_val.is_true:
+                    yield OperationResult(
+                        sources.bindings,
+                        is_false=False,
+                        operand=self,
+                        previous_operation_result=val,
+                    )
+                    return
 
         # Negation as failure: no variable value satisfied the condition.
         yield OperationResult(sources.bindings, is_false=True, operand=self)

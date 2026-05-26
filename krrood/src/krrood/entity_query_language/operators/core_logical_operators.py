@@ -68,9 +68,7 @@ class LogicalBinaryOperator(LogicalOperator, BinaryExpression, ABC):
         """
         for right_value in self._evaluate_child_as_condition_(self.right, sources):
             is_false = right_value.is_false
-            yield OperationResult(
-                right_value.bindings, is_false, self, right_value
-            )
+            yield OperationResult(right_value.bindings, is_false, self, right_value)
 
 
 @dataclass(eq=False, repr=False)
@@ -84,14 +82,17 @@ class AND(LogicalBinaryOperator):
         sources: OperationResult,
     ) -> Iterable[OperationResult]:
 
+        yielded: bool = False
         for left_value in self._evaluate_child_as_condition_(self.left, sources):
             is_false = left_value.is_false
+            yielded = True
             if is_false:
-                yield OperationResult(
-                    left_value.bindings, is_false, self, left_value
-                )
+                yield OperationResult(left_value.bindings, is_false, self, left_value)
             else:
                 yield from self.evaluate_right(left_value)
+        if not yielded:
+            # Negation as failure: no variable value satisfied the condition. So the whole condition is False.
+            yield OperationResult(sources.bindings, False, self, sources)
 
 
 @dataclass(eq=False, repr=False)
@@ -110,20 +111,23 @@ class OR(LogicalBinaryOperator):
         :param sources: The current OperationResult to use for evaluation.
         :return: The new bindings after evaluating the left operand (and possibly right operand).
         """
+        yielded: bool = False
         for left_value in self._evaluate_child_as_condition_(self.left, sources):
+            yielded = True
             if left_value.is_false:
                 yield from self.evaluate_right(left_value)
             else:
-                yield OperationResult(
-                    left_value.bindings, False, self, left_value
-                )
+                yield OperationResult(left_value.bindings, False, self, left_value)
+        if not yielded:
+            # Negation as failure: no variable value satisfied the condition. So the whole condition is False.
+            yield OperationResult(sources.bindings, False, self, sources)
 
 
 def chained_logic(
     operator: Type[LogicalBinaryOperator], *conditions: ConditionType
 ) -> LogicalOperator:
     """
-    A chian of logic operation over multiple conditions, e.g. cond1 | cond2 | cond3.
+    A chain of logic operation over multiple conditions, e.g. cond1 | cond2 | cond3.
 
     :param operator: The symbolic operator to apply between the conditions.
     :param conditions: The conditions to be chained.
