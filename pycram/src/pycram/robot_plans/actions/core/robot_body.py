@@ -1,25 +1,18 @@
 from __future__ import annotations
 
-import datetime
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Tuple, List, Optional, Any
 
-import numpy as np
 from typing_extensions import Optional, Dict, Any
 
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.variable import Variable
-from semantic_digital_twin.datastructures.definitions import (
-    TorsoState,
-    GripperState,
-    StaticJointState,
-)
+from pycram.datastructures.dataclasses import Context
+from pycram.robot_plans import MoveManipulatorMotion
 from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.robots.abstract_robot import Manipulator
 from semantic_digital_twin.spatial_types.spatial_types import Pose
-from ... import MoveManipulatorMotion
-from ....datastructures.dataclasses import Context
 from pycram.datastructures.enums import AxisIdentifier, Arms
 
 from pycram.datastructures.trajectory import PoseTrajectory
@@ -34,7 +27,6 @@ from semantic_digital_twin.datastructures.definitions import (
     GripperState,
     StaticJointState,
 )
-from ....plans.failures import ManipulatorDidNotReachTarget
 
 
 @dataclass

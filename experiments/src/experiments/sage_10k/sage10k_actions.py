@@ -69,7 +69,7 @@ class Sage10kOpenDoor(ActionDescription):
         )
 
         reach_query = underspecified(MoveToReach)(
-            target_pose_robot=underspecified(Pose2D)(
+            target_pose_offset_robot=underspecified(Pose2D)(
                 x=..., y=..., yaw=..., reference_frame=None
             ),
             hip_rotation=0.0,

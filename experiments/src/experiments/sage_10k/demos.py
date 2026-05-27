@@ -56,7 +56,8 @@ class Sage10kAbstractDemo:
 
     world: Optional[World] = field(init=False, default=None)
     """
-    The world to execute the demo in. Only available after """
+    The world to execute the demo in. Only available after calling `create_world()`.
+    """
 
     def create_world(self):
         """

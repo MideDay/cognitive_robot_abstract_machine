@@ -109,7 +109,7 @@ import pycram.robot_plans.motions.gripper
 import pycram.robot_plans.motions.misc
 import pycram.robot_plans.motions.navigation
 import pycram.robot_plans.motions.robot_body
-import pycram.robot_plans.training_environment
+import pycram.training_environments.training_environment
 import pycram.view_manager
 import semantic_digital_twin.adapters.sage_10k_dataset.loader
 import semantic_digital_twin.adapters.sage_10k_dataset.schema
@@ -6380,7 +6380,7 @@ class MoveManipulatorActionDAO(
 
 class MoveManipulatorMotionDAO(
     BaseMotionDAO,
-    DataAccessObject[pycram.robot_plans.motions.misc.MoveManipulatorMotion],
+    DataAccessObject[pycram.robot_plans.motions.gripper.MoveManipulatorMotion],
 ):
 
     __tablename__ = "MoveManipulatorMotionDAO"
@@ -12995,7 +12995,10 @@ class ForceImpactMonitorDAO(
 
 
 class TrainingEnvironmentDAO(
-    Base, DataAccessObject[pycram.robot_plans.training_environment.TrainingEnvironment]
+    Base,
+    DataAccessObject[
+        pycram.training_environments.training_environment.TrainingEnvironment
+    ],
 ):
 
     __tablename__ = "TrainingEnvironmentDAO"
@@ -13028,7 +13031,7 @@ class TrainingEnvironmentDAO(
 class MoveToReachTrainingEnvironmentDAO(
     TrainingEnvironmentDAO,
     DataAccessObject[
-        pycram.robot_plans.training_environment.MoveToReachTrainingEnvironment
+        pycram.training_environments.training_environment.MoveToReachTrainingEnvironment
     ],
 ):
 

@@ -164,7 +164,9 @@ def immutable_multiple_robot_apartment(
 ) -> Generator[Tuple[World, AbstractRobot, Context]]:
     world, view = setup_multi_robot_apartment
     state = deepcopy(world.state._data)
+    full_body_controlled = view.full_body_controlled
     yield world, view, Context(world, view)
+    view.full_body_controlled = full_body_controlled
     world.state._data[:] = state
     world.notify_state_change()
 
@@ -631,28 +633,22 @@ def test_transport(mutable_multiple_robot_apartment):
     plan.plan.validate()
 
 
-def test_move_to_reach(immutable_multiple_robot_apartment, rclpy_node):
+def test_move_to_reach(immutable_multiple_robot_apartment):
     world, robot, context = immutable_multiple_robot_apartment
 
     move_to_reach = MoveToReach(
-        target_pose_robot=Pose2D(y=-0.3),
+        target_pose_offset_robot=Pose2D(0.2, -0.55),
         target_pose_manipulator=Pose.from_xyz_rpy(
-            x=0.7, y=-1, z=0.9, reference_frame=world.root
+            x=0.7, y=-1.3, z=0.9, reference_frame=world.root
         ),
         hip_rotation=0.0,
         grasp_description=GraspDescription(
-            approach_direction=ApproachDirection.LEFT,
+            approach_direction=ApproachDirection.FRONT,
             vertical_alignment=VerticalAlignment.NoAlignment,
             rotate_gripper=False,
             manipulator=world.get_semantic_annotations_by_type(Manipulator)[0],
         ),
     )
-    # VizMarkerPublisher(_world=world, node=rclpy_node).with_tf_publisher()
-    # PosePublisher(
-    #     pose=Pose.from_xyz_rpy(x=0.7, y=-1, z=0.9, reference_frame=world.root),
-    #     _world=world,
-    #     node=rclpy_node,
-    # ).with_tf_publisher()
 
     plan = execute_single(move_to_reach, context=context)
     with simulated_robot:

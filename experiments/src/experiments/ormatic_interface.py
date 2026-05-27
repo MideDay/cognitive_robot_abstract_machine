@@ -190,6 +190,7 @@ from krrood.ormatic.data_access_objects.dao import (
     AssociationDataAccessObject,
 )
 from krrood.ormatic.custom_types import TypeType
+from pycram.robot_plans.motions import gripper
 
 
 class Base(DeclarativeBase):
@@ -6382,7 +6383,7 @@ class MoveManipulatorActionDAO(
 
 class MoveManipulatorMotionDAO(
     BaseMotionDAO,
-    DataAccessObject[pycram.robot_plans.motions.misc.MoveManipulatorMotion],
+    DataAccessObject[gripper.MoveManipulatorMotion],
 ):
 
     __tablename__ = "MoveManipulatorMotionDAO"

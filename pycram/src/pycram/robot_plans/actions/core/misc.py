@@ -98,7 +98,7 @@ class MoveToReach(ActionDescription):
     Let the robot move to a position facing the target and reach with a manipulator.
     """
 
-    target_pose_robot: Pose2D
+    target_pose_offset_robot: Pose2D
     """
     The pose where the robot should stand with regard to the manipulator target pose. 2D since z-axis is not relevant.
     """
@@ -150,7 +150,7 @@ class MoveToReach(ActionDescription):
         """
         reference_T_target = self.target_pose_manipulator.to_homogeneous_matrix()
         target_V_robot = -Vector3(
-            x=self.target_pose_robot.x, y=self.target_pose_robot.y
+            x=self.target_pose_offset_robot.x, y=self.target_pose_offset_robot.y
         )
         target_V_robot.scale(1.0)
         world_z = Vector3.Z()
@@ -160,8 +160,8 @@ class MoveToReach(ActionDescription):
 
         target_T_robot = HomogeneousTransformationMatrix.from_point_rotation_matrix(
             point=Point3(
-                x=self.target_pose_robot.x,
-                y=self.target_pose_robot.y,
+                x=self.target_pose_offset_robot.x,
+                y=self.target_pose_offset_robot.y,
                 z=-self.target_pose_manipulator.z,
             ),
             rotation_matrix=target_R_robot_pointing_to_target,

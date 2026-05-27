@@ -1,5 +1,6 @@
 import time
 from dataclasses import dataclass, field
+from typing import Union
 
 import numpy as np
 import rclpy
@@ -21,12 +22,13 @@ from semantic_digital_twin.callbacks.callback import (
 )
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
+    Pose,
 )
 
 
 @dataclass
 class PosePublisher(ModelChangeCallback):
-    pose: HomogeneousTransformationMatrix = field(kw_only=True)
+    pose: Union[HomogeneousTransformationMatrix, Pose] = field(kw_only=True)
     """
     The pose to publish.
     """

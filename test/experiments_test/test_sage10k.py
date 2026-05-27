@@ -129,7 +129,7 @@ def test_translate_free_space_to_where_condition(wall_door_handle_world):
     # Create a variable for the robot
 
     query = underspecified(MoveToReach)(
-        target_pose_robot=underspecified(Pose2D)(
+        target_pose_offset_robot=underspecified(Pose2D)(
             x=..., y=..., yaw=..., reference_frame=None
         ),
     )

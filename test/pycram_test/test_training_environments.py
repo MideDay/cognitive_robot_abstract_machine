@@ -5,7 +5,9 @@ from krrood.ormatic.data_access_objects.helper import to_dao
 from pycram.datastructures.enums import TaskStatus
 from pycram.robot_plans.motions import *  # type: ignore
 from pycram.orm.ormatic_interface import *  # type: ignore
-from pycram.robot_plans.training_environment import MoveToReachTrainingEnvironment
+from pycram.training_environments.training_environment import (
+    MoveToReachTrainingEnvironment,
+)
 
 
 def test_move_to_reach(pycram_testing_session):
