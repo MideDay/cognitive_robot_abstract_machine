@@ -88,8 +88,6 @@ class DetectAction(ActionDescription):
         self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None
     ):
         return
-        # if not result:
-        #     raise PerceptionObjectNotFound(self.object_designator, self.technique, self.region)
 
 
 @dataclass

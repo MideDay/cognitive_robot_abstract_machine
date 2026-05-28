@@ -122,12 +122,8 @@ class TrainingEnvironment(ABC):
             pub.with_tf_publisher()
 
         with simulated_robot:
-            try:
-                plan.perform()
-            except (PlanFailure, StopIteration):
-                ...
-            finally:
-                self.executed_plans.append(plan)
+            plan.perform()
+            self.executed_plans.append(plan)
 
         number_of_executed_variants = len(plan.root.children)
 
