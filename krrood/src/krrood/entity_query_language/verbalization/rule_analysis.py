@@ -43,19 +43,22 @@ class AntecedentInfo:
     """
     Descriptor for one antecedent variable in the IF clause.
 
-    :ivar root: The underlying :class:`~krrood.entity_query_language.core.variable.Variable`
-        or :class:`~krrood.entity_query_language.query.query.Entity` (unwrapped from any
-        :class:`~krrood.entity_query_language.query.quantifiers.ResultQuantifier` wrapper).
-    :ivar type_name: Human-readable Python type name of *root* (e.g. ``"Robot"``).
-    :ivar aggregation_status: Whether this antecedent is a group key, aggregated, or neither.
-    :ivar conditions: All WHERE conditions attributable to this antecedent (its own
-        WHERE clause merged with matched outer WHERE conditions).
     """
 
-    root: Any                      # Variable or Entity (unwrapped from ResultQuantifier)
+    root: Any
+    """The underlying :class:`~krrood.entity_query_language.core.variable.Variable`
+    or :class:`~krrood.entity_query_language.query.query.Entity` (unwrapped from any
+    :class:`~krrood.entity_query_language.query.quantifiers.ResultQuantifier` wrapper)."""
+
     type_name: str
+    """Human-readable Python type name of *root* (e.g. ``"Robot"``)."""
+
     aggregation_status: AggregationStatus
+    """Whether this antecedent is a group key, aggregated, or neither."""
+
     conditions: List[Any] = field(default_factory=list)
+    """All WHERE conditions attributable to this antecedent (its own WHERE clause
+    merged with matched outer WHERE conditions)."""
 
 
 @dataclass
@@ -63,17 +66,19 @@ class ConsequentBinding:
     """
     Descriptor for one field binding in the THEN clause.
 
-    :ivar field_name: Python attribute name on the consequent type (e.g. ``"tasks"``).
-    :ivar value_expr: EQL expression providing the value for *field_name*.
-    :ivar is_plural_field: ``True`` when *field_name* is already plural
-        (detected via ``inflect.singular_noun``).
-    :ivar aggregation_status: Whether the value is a group key, aggregated, or neither.
     """
 
     field_name: str
-    value_expr: Any                # SymbolicExpression
+    """Python attribute name on the consequent type (e.g. ``"tasks"``)."""
+
+    value_expr: Any
+    """EQL expression providing the value for *field_name*."""
+
     is_plural_field: bool
+    """``True`` when *field_name* is already plural (detected via ``inflect.singular_noun``)."""
+
     aggregation_status: AggregationStatus
+    """Whether the value is a group key, aggregated, or neither."""
 
 
 @dataclass
@@ -84,23 +89,27 @@ class RuleStructure:
     Produced by :meth:`RuleAnalyzer.analyze` and consumed by
     :class:`~krrood.entity_query_language.verbalization.rules.inference_rule.InferenceRuleRule`.
 
-    :ivar primary_antecedents: Antecedents with at least one condition — appear
-        as items in the IF block.
-    :ivar secondary_antecedents: Antecedents with no conditions — only registered
-        in :attr:`~krrood.entity_query_language.verbalization.context.VerbalizationContext.seen`
-        for coreference.
-    :ivar consequent_type: Python type name of the inferred variable (e.g. ``"Drawer"``).
-    :ivar consequent_bindings: Ordered list of field bindings for the THEN clause.
-    :ivar unmatched_conditions: Outer WHERE conditions not attributable to any antecedent.
-    :ivar group_key_ids: Frozen set of ``_id_`` values of the GROUP BY key variables.
     """
 
-    primary_antecedents: List[AntecedentInfo]    # have conditions → appear in IF clause
-    secondary_antecedents: List[AntecedentInfo]  # no conditions → only register in ctx.seen
+    primary_antecedents: List[AntecedentInfo]
+    """Antecedents with at least one condition — appear as items in the IF block."""
+
+    secondary_antecedents: List[AntecedentInfo]
+    """Antecedents with no conditions — only registered in
+    :attr:`~krrood.entity_query_language.verbalization.context.VerbalizationContext.seen`
+    for coreference."""
+
     consequent_type: str
+    """Python type name of the inferred variable (e.g. ``"Drawer"``)."""
+
     consequent_bindings: List[ConsequentBinding]
-    unmatched_conditions: List[Any]              # outer WHERE not attributable to any antecedent
+    """Ordered list of field bindings for the THEN clause."""
+
+    unmatched_conditions: List[Any]
+    """Outer WHERE conditions not attributable to any antecedent."""
+
     group_key_ids: FrozenSet[uuid.UUID]
+    """Frozen set of ``_id_`` values of the GROUP BY key variables."""
 
 
 # ── Module-level helpers (pure domain-analysis utilities) ─────────────────────
@@ -149,7 +158,7 @@ class RuleAnalyzer:
         entity.build()
         return isinstance(entity.selected_variable, InstantiatedVariable)
 
-    def analyze(self, entity) -> "RuleStructure":
+    def analyze(self, entity) -> RuleStructure:
         """
         Decompose *entity* into a :class:`RuleStructure`.
 
@@ -296,6 +305,7 @@ class RuleAnalyzer:
 
     @staticmethod
     def _flatten_and(expr) -> List[Any]:
+        """Recursively flatten a nested AND tree into a flat list of conjuncts."""
         if isinstance(expr, AND):
             return RuleAnalyzer._flatten_and(expr.left) + RuleAnalyzer._flatten_and(expr.right)
         return [expr]

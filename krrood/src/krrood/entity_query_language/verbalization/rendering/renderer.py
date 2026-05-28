@@ -1,3 +1,16 @@
+"""
+Fragment renderers — convert a :class:`~krrood.entity_query_language.verbalization.fragments.base.VerbFragment`
+tree into a string.
+
+* :class:`ParagraphRenderer` — flattens everything into one prose line.
+* :class:`HierarchicalRenderer` — indented bullet list, one bullet per block item.
+
+Both accept a :class:`~krrood.entity_query_language.verbalization.rendering.formatter.Formatter`
+for colour / spacing control and an optional
+:class:`~krrood.entity_query_language.verbalization.rendering.source_link_resolver.SourceLinkResolver`
+for hyperlinks.
+"""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -42,7 +55,7 @@ class FragmentRenderer(ABC):
     """
 
     _formatter: Formatter = field(default_factory=PlainFormatter)
-    _link_resolver: Optional["SourceLinkResolver"] = field(default=None)
+    _link_resolver: Optional[SourceLinkResolver] = field(default=None)
 
     @abstractmethod
     def render(self, fragment: VerbFragment) -> str:

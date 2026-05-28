@@ -3,17 +3,36 @@ Utilities for walking MappedVariable chains, building path parts, and
 pluralising chain expressions.
 
 These are pure utilities shared by multiple verbalizer subsystems.  They must
-not import from the subsystem files to avoid circular dependencies.
+not import from the subsystem files (``verbalizer.py``, ``context.py``,
+``rules/*.py``) to avoid circular dependencies.  Imports from EQL core and
+from the ``fragments/``, ``vocabulary/`` layers are safe because those are
+lower in the dependency graph.
 """
 from __future__ import annotations
 
+import datetime as _dt
 from typing import Callable, Optional, TYPE_CHECKING
 
+from krrood.entity_query_language.core.mapped_variable import (
+    Attribute,
+    Call,
+    FlatVariable,
+    Index,
+    MappedVariable,
+)
+from krrood.entity_query_language.core.variable import Literal, Variable
+from krrood.entity_query_language.verbalization.fragments.base import (
+    PhraseFragment,
+    RoleFragment,
+)
+from krrood.entity_query_language.verbalization.fragments.roles import SemanticRole
+from krrood.entity_query_language.verbalization.fragments.source_ref import SourceRef
+from krrood.entity_query_language.verbalization.utils import _ensure_plural, inflect_engine
+from krrood.entity_query_language.verbalization.vocabulary.english import Prepositions
+
 if TYPE_CHECKING:
-    from krrood.entity_query_language.core.mapped_variable import MappedVariable
     from krrood.entity_query_language.verbalization.context import VerbalizationContext
     from krrood.entity_query_language.verbalization.fragments.base import VerbFragment
-    from krrood.entity_query_language.verbalization.fragments.source_ref import SourceRef
 
 
 def walk_chain(expr) -> tuple[list, object]:
@@ -34,8 +53,6 @@ def walk_chain(expr) -> tuple[list, object]:
         (root-adjacent first, terminal last) and *root* is the chain base.
     :rtype: tuple[list, object]
     """
-    from krrood.entity_query_language.core.mapped_variable import MappedVariable
-
     if isinstance(expr, MappedVariable):
         return list(expr._access_path_), expr._chain_root_
     return [], expr
@@ -54,11 +71,6 @@ def is_temporal(expr) -> bool:
     :returns: ``True`` when the expression is datetime-typed.
     :rtype: bool
     """
-    import datetime as _dt
-
-    from krrood.entity_query_language.core.mapped_variable import MappedVariable
-    from krrood.entity_query_language.core.variable import Literal, Variable
-
     if isinstance(expr, Literal):
         return isinstance(expr._value_, _dt.datetime)
     if isinstance(expr, Variable):
@@ -81,12 +93,10 @@ def chain_root(expr) -> object:
         when it is not a MappedVariable.
     :rtype: object
     """
-    from krrood.entity_query_language.core.mapped_variable import MappedVariable
-
     return expr._chain_root_ if isinstance(expr, MappedVariable) else expr
 
 
-def build_path_parts(chain: list) -> list[tuple[str, Optional["SourceRef"]]]:
+def build_path_parts(chain: list) -> list[tuple[str, Optional[SourceRef]]]:
     """
     Convert a walked chain (from :func:`walk_chain`) into ``(display_name, SourceRef | None)`` pairs.
 
@@ -106,9 +116,6 @@ def build_path_parts(chain: list) -> list[tuple[str, Optional["SourceRef"]]]:
         outermost attribute first.
     :rtype: list[tuple[str, SourceRef | None]]
     """
-    from krrood.entity_query_language.core.mapped_variable import Attribute, Index, Call, FlatVariable
-    from krrood.entity_query_language.verbalization.fragments.source_ref import SourceRef
-
     parts: list[tuple[str, Optional[SourceRef]]] = []
     i = 0
     while i < len(chain):
@@ -132,7 +139,7 @@ def build_path_parts(chain: list) -> list[tuple[str, Optional["SourceRef"]]]:
     return parts
 
 
-def verbalize_plural(expr, ctx: "VerbalizationContext", build_fn: Callable) -> "VerbFragment":
+def verbalize_plural(expr, ctx: VerbalizationContext, build_fn: Callable) -> VerbFragment:
     """
     Return a plural :class:`~krrood.entity_query_language.verbalization.fragments.base.VerbFragment`
     for *expr*.
@@ -155,13 +162,6 @@ def verbalize_plural(expr, ctx: "VerbalizationContext", build_fn: Callable) -> "
     :returns: Plural fragment for *expr*.
     :rtype: ~krrood.entity_query_language.verbalization.fragments.base.VerbFragment
     """
-    from krrood.entity_query_language.core.mapped_variable import Attribute, FlatVariable, MappedVariable
-    from krrood.entity_query_language.core.variable import Variable
-    from krrood.entity_query_language.verbalization.fragments.base import PhraseFragment, RoleFragment
-    from krrood.entity_query_language.verbalization.fragments.roles import SemanticRole
-    from krrood.entity_query_language.verbalization.utils import _ensure_plural, inflect_engine
-    from krrood.entity_query_language.verbalization.vocabulary.english import Prepositions
-
     if isinstance(expr, FlatVariable):
         return verbalize_plural(expr._child_, ctx, build_fn)
 

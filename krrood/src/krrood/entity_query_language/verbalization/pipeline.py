@@ -1,3 +1,17 @@
+"""
+Verbalization pipeline — combines verbalizer + renderer for formatted output.
+
+:class:`VerbalizationPipeline` is the high-level entry point for coloured,
+hierarchical, or hyperlinked output.  Factory class methods cover the most
+common configurations:
+
+* :meth:`~VerbalizationPipeline.plain` — prose, no colour.
+* :meth:`~VerbalizationPipeline.ansi` — ANSI true-colour terminal output.
+* :meth:`~VerbalizationPipeline.html` — HTML ``<span>`` colours for Jupyter.
+
+All accept an optional *link_resolver* for source hyperlinks.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -112,6 +126,7 @@ class VerbalizationPipeline:
         return self.verbalize_fragment(fragment)
 
     def _is_html_renderer(self) -> bool:
+        """Return ``True`` when this pipeline's renderer uses :class:`HTMLFormatter`."""
         return isinstance(getattr(self._renderer, "_formatter", None), HTMLFormatter)
 
     def verbalize_fragment(self, fragment: VerbFragment) -> str:
@@ -174,7 +189,7 @@ class VerbalizationPipeline:
     # ── Factories ──────────────────────────────────────────────────────────────
 
     @classmethod
-    def plain(cls) -> "VerbalizationPipeline":
+    def plain(cls) -> VerbalizationPipeline:
         """
         Create a plain-text, paragraph-prose pipeline with no colour markup.
 
@@ -190,7 +205,7 @@ class VerbalizationPipeline:
         cls,
         hierarchical: bool = False,
         link_resolver: Optional["SourceLinkResolver"] = None,
-    ) -> "VerbalizationPipeline":
+    ) -> VerbalizationPipeline:
         """
         Create an ANSI true-colour (24-bit) pipeline for terminal display.
 
@@ -228,7 +243,7 @@ class VerbalizationPipeline:
         cls,
         hierarchical: bool = False,
         link_resolver: Optional["SourceLinkResolver"] = None,
-    ) -> "VerbalizationPipeline":
+    ) -> VerbalizationPipeline:
         """
         Create an HTML ``<span>`` colour pipeline for Jupyter / inline-HTML rendering.
 

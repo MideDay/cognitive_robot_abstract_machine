@@ -27,8 +27,8 @@ if TYPE_CHECKING:
 
 
 def comparator_operator(
-    comparator: "Comparator",
-    ctx: "VerbalizationContext",
+    comparator: Comparator,
+    ctx: VerbalizationContext,
     *,
     negated: bool = False,
     compact: Optional[bool] = None,
@@ -78,9 +78,9 @@ def comparator_operator(
 
 
 def comparator_phrase(
-    comparator: "Comparator",
-    ctx: "VerbalizationContext",
-    delegate: "EQLVerbalizer",
+    comparator: Comparator,
+    ctx: VerbalizationContext,
+    delegate: EQLVerbalizer,
     *,
     negated: bool = False,
 ) -> VerbFragment:

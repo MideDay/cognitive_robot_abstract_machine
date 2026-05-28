@@ -1,3 +1,12 @@
+"""
+Verbalization rule for :class:`~krrood.entity_query_language.operators.comparator.Comparator`
+expressions — *"<left> <operator> <right>"*.
+
+Operator selection is delegated to
+:func:`~krrood.entity_query_language.verbalization.operator_phrase.comparator_phrase`,
+which handles calculation-equality, temporality, negation, and compactness declaratively.
+"""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -27,13 +36,13 @@ class ComparatorRule(VerbalizationRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` for Comparator expressions."""
         return isinstance(expr, Comparator)
 
     @classmethod
     def transform(
-        cls, expr: "Comparator", ctx: "VerbalizationContext", delegate: "EQLVerbalizer"
+        cls, expr: Comparator, ctx: VerbalizationContext, delegate: EQLVerbalizer
     ) -> VerbFragment:
         """Build *"<left> <operator> <right>"*."""
         return comparator_phrase(expr, ctx, delegate)

@@ -1,3 +1,12 @@
+"""
+Source-link resolution — maps Python class/attribute references to documentation URLs.
+
+:class:`SourceLinkResolver` is the protocol; :class:`AutoAPIResolver` resolves
+references to Sphinx AutoAPI-generated HTML pages.  ``AutoAPIResolver.for_package``
+auto-detects the base URL for a locally installed package whose docs are served
+by the JetBrains IDE built-in HTTP server.
+"""
+
 from __future__ import annotations
 
 import importlib
@@ -101,7 +110,7 @@ class AutoAPIResolver:
         return url
 
     @classmethod
-    def for_package(cls, package_name: str, port: int = 63342) -> "AutoAPIResolver":
+    def for_package(cls, package_name: str, port: int = 63342) -> AutoAPIResolver:
         """Build an :class:`AutoAPIResolver` for *package_name*'s locally built Sphinx docs.
 
         The base URL targets the JetBrains IDE built-in HTTP server using this algorithm:

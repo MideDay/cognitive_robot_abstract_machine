@@ -1,3 +1,19 @@
+"""
+Verbalization rules for logical operators — AND, OR, Not, and negated-variant
+special cases.
+
+The rule hierarchy:
+
+* :class:`LogicalRule` — abstract base for any
+  :class:`~krrood.entity_query_language.operators.core_logical_operators.LogicalOperator`.
+* :class:`AndRule` — Oxford-comma conjunction (*"a, b, and c"*).
+* :class:`RangeConjunctionRule` — range-folded *between* conjunction.
+* :class:`OrRule` — *"either a, b, or c"*.
+* :class:`NotRule` — generic *"not (child)"*.
+* :class:`NotComparatorRule` — inline *"is not greater than"*.
+* :class:`NotBoolAttrRule` — *"is not <attr>"* for boolean attributes.
+"""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -11,12 +27,15 @@ from krrood.entity_query_language.operators.core_logical_operators import (
     LogicalOperator,
     flatten_operands,
 )
+from krrood.entity_query_language.verbalization.chain_utils import walk_chain
 from krrood.entity_query_language.verbalization.fragments.base import (
     join_with,
     oxford_and,
     PhraseFragment,
     VerbFragment,
+    WordFragment,
 )
+from krrood.entity_query_language.verbalization.fragments.factory import phrase, word
 from krrood.entity_query_language.verbalization.operator_phrase import comparator_phrase
 from krrood.entity_query_language.verbalization.rules.chains import verbalize_chain
 from krrood.entity_query_language.verbalization.range_fold import (
@@ -36,21 +55,10 @@ if TYPE_CHECKING:
     from krrood.entity_query_language.verbalization.verbalizer import EQLVerbalizer
 
 
-def _word(text: str) -> VerbFragment:
-    from krrood.entity_query_language.verbalization.fragments.base import WordFragment
-
-    return WordFragment(text=text)
-
-
-def _phrase(*parts: VerbFragment, sep: str = " ") -> PhraseFragment:
-    return PhraseFragment(parts=list(parts), separator=sep)
-
-
 def _is_bool_attr_chain(expr) -> bool:
+    """Return ``True`` when *expr* is a MappedVariable chain ending in a bool-typed Attribute."""
     if not isinstance(expr, MappedVariable):
         return False
-    from krrood.entity_query_language.verbalization.chain_utils import walk_chain
-
     chain, _ = walk_chain(expr)
     return bool(chain) and isinstance(chain[-1], Attribute) and chain[-1]._type_ is bool
 
@@ -66,7 +74,7 @@ class LogicalRule(VerbalizationRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` for any :class:`~krrood.entity_query_language.operators.core_logical_operators.LogicalOperator`."""
         return isinstance(expr, LogicalOperator)
 
@@ -80,13 +88,13 @@ class AndRule(LogicalRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` for :class:`~krrood.entity_query_language.operators.core_logical_operators.AND` expressions."""
         return isinstance(expr, AND)
 
     @classmethod
     def transform(
-        cls, expr: "AND", ctx: "VerbalizationContext", delegate: "EQLVerbalizer"
+        cls, expr: AND, ctx: VerbalizationContext, delegate: EQLVerbalizer
     ) -> VerbFragment:
         """
         Flatten the AND chain and join with Oxford-comma *"and"*.
@@ -116,13 +124,13 @@ class RangeConjunctionRule(AndRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` for an ``AND`` containing a foldable lo/hi range pair."""
         return isinstance(expr, AND) and has_pair(flatten_operands(expr, AND))
 
     @classmethod
     def transform(
-        cls, expr: "AND", ctx: "VerbalizationContext", delegate: "EQLVerbalizer"
+        cls, expr: AND, ctx: VerbalizationContext, delegate: EQLVerbalizer
     ) -> VerbFragment:
         """
         Fold range pairs and join the resulting items Oxford-comma style.
@@ -159,13 +167,13 @@ class OrRule(LogicalRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` for :class:`~krrood.entity_query_language.operators.core_logical_operators.OR` expressions."""
         return isinstance(expr, OR)
 
     @classmethod
     def transform(
-        cls, expr: "OR", ctx: "VerbalizationContext", delegate: "EQLVerbalizer"
+        cls, expr: OR, ctx: VerbalizationContext, delegate: EQLVerbalizer
     ) -> VerbFragment:
         """
         Flatten the OR chain and produce *"either a, b, or c"*.
@@ -180,9 +188,9 @@ class OrRule(LogicalRule):
         if len(parts) == 1:
             return parts[0]
         head_with_comma = PhraseFragment(
-            parts=[join_with(parts[:-1], _word(", ")), _word(",")], separator=""
+            parts=[join_with(parts[:-1], word(", ")), word(",")], separator=""
         )
-        return _phrase(
+        return phrase(
             Logicals.EITHER.as_fragment(),
             head_with_comma,
             Conjunctions.OR.as_fragment(),
@@ -199,13 +207,13 @@ class NotRule(LogicalRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` for :class:`~krrood.entity_query_language.operators.core_logical_operators.Not` expressions."""
         return isinstance(expr, Not)
 
     @classmethod
     def transform(
-        cls, expr: "Not", ctx: "VerbalizationContext", delegate: "EQLVerbalizer"
+        cls, expr: Not, ctx: VerbalizationContext, delegate: EQLVerbalizer
     ) -> VerbFragment:
         """
         Build *"not (<child>)"*.
@@ -217,9 +225,9 @@ class NotRule(LogicalRule):
         :rtype: ~krrood.entity_query_language.verbalization.fragments.base.VerbFragment
         """
         child_frag = delegate.build(expr._child_, ctx)
-        return _phrase(
+        return phrase(
             Logicals.NOT.as_fragment(),
-            PhraseFragment(parts=[_word("("), child_frag, _word(")")], separator=""),
+            PhraseFragment(parts=[word("("), child_frag, word(")")], separator=""),
         )
 
 
@@ -234,13 +242,13 @@ class NotComparatorRule(NotRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` when the Not child is a Comparator."""
         return isinstance(expr, Not) and isinstance(expr._child_, Comparator)
 
     @classmethod
     def transform(
-        cls, expr: "Not", ctx: "VerbalizationContext", delegate: "EQLVerbalizer"
+        cls, expr: Not, ctx: VerbalizationContext, delegate: EQLVerbalizer
     ) -> VerbFragment:
         """
         Build *"<left> <negated_op> <right>"*.
@@ -267,13 +275,13 @@ class NotBoolAttrRule(NotRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` when the Not child is a bool-typed Attribute chain."""
         return isinstance(expr, Not) and _is_bool_attr_chain(expr._child_)
 
     @classmethod
     def transform(
-        cls, expr: "Not", ctx: "VerbalizationContext", delegate: "EQLVerbalizer"
+        cls, expr: Not, ctx: VerbalizationContext, delegate: EQLVerbalizer
     ) -> VerbFragment:
         """
         Render *"<nav> is not <attr>"* for the negated boolean attribute chain.

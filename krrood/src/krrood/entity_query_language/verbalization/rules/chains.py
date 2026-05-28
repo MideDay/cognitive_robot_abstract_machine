@@ -52,8 +52,8 @@ if TYPE_CHECKING:
 
 def verbalize_chain(
     expr: MappedVariable,
-    ctx: "VerbalizationContext",
-    delegate: "EQLVerbalizer",
+    ctx: VerbalizationContext,
+    delegate: EQLVerbalizer,
     *,
     negated: bool = False,
 ) -> VerbFragment:
@@ -77,7 +77,7 @@ def verbalize_chain(
 
 
 def verbalize_possessive_chain(
-    expr: MappedVariable, ctx: "VerbalizationContext", pronoun_frag: VerbFragment
+    expr: MappedVariable, ctx: VerbalizationContext, pronoun_frag: VerbFragment
 ) -> VerbFragment:
     """
     Render a chain rooted at the current coreference subject, replacing the trailing
@@ -135,7 +135,7 @@ def _render_possessive_path(
     return PhraseFragment(parts=frag_parts)
 
 
-def _chain_root_frag(leaf, ctx: "VerbalizationContext", delegate: "EQLVerbalizer") -> VerbFragment:
+def _chain_root_frag(leaf, ctx: VerbalizationContext, delegate: EQLVerbalizer) -> VerbFragment:
     """Noun phrase for the root of a chain; unwraps ResultQuantifier wrappers."""
     inner = leaf
     while isinstance(inner, ResultQuantifier):
@@ -162,7 +162,7 @@ def _navigation_chain(nav_chain: list, root_frag: VerbFragment) -> VerbFragment:
 
 
 def _bool_attribute_chain(
-    chain: list, leaf, ctx: "VerbalizationContext", delegate: "EQLVerbalizer", negated: bool
+    chain: list, leaf, ctx: VerbalizationContext, delegate: EQLVerbalizer, negated: bool
 ) -> VerbFragment:
     """Produces '<nav-path> is [not] <attr>' for boolean terminal attributes."""
     root_frag = _chain_root_frag(leaf, ctx, delegate)
@@ -189,16 +189,16 @@ class MappedVariableRule(VerbalizationRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` for any :class:`~krrood.entity_query_language.core.mapped_variable.MappedVariable`."""
         return isinstance(expr, MappedVariable)
 
     @classmethod
     def transform(
         cls,
-        expr: "MappedVariable",
-        ctx: "VerbalizationContext",
-        delegate: "EQLVerbalizer",
+        expr: MappedVariable,
+        ctx: VerbalizationContext,
+        delegate: EQLVerbalizer,
     ) -> VerbFragment:
         """Render the chain as a possessive or predicative fragment."""
         return verbalize_chain(expr, ctx, delegate)
@@ -217,7 +217,7 @@ class PronominalChainRule(MappedVariableRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` for a non-bool chain rooted at the current pronoun-eligible subject."""
         if not isinstance(expr, MappedVariable) or isinstance(expr, FlatVariable):
             return False
@@ -232,9 +232,9 @@ class PronominalChainRule(MappedVariableRule):
     @classmethod
     def transform(
         cls,
-        expr: "MappedVariable",
-        ctx: "VerbalizationContext",
-        delegate: "EQLVerbalizer",
+        expr: MappedVariable,
+        ctx: VerbalizationContext,
+        delegate: EQLVerbalizer,
     ) -> VerbFragment:
         """Render the chain with a leading *"its"* possessive pronoun."""
         _chain, root = walk_chain(expr)
@@ -253,16 +253,16 @@ class FlatVariableRule(MappedVariableRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` for :class:`~krrood.entity_query_language.core.mapped_variable.FlatVariable`."""
         return isinstance(expr, FlatVariable)
 
     @classmethod
     def transform(
         cls,
-        expr: "FlatVariable",
-        ctx: "VerbalizationContext",
-        delegate: "EQLVerbalizer",
+        expr: FlatVariable,
+        ctx: VerbalizationContext,
+        delegate: EQLVerbalizer,
     ) -> VerbFragment:
         """Unwrap to the child expression."""
         return delegate.build(expr._child_, ctx)

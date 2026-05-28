@@ -1,3 +1,17 @@
+"""
+Fragment tree data model for verbalized output.
+
+The fragment hierarchy forms the output IR that renderers traverse:
+
+* :class:`WordFragment` — plain text (no semantic role).
+* :class:`RoleFragment` — text with a :class:`SemanticRole` (drives colour / hyperlinks).
+* :class:`PhraseFragment` — inline sequence of fragments joined by a separator.
+* :class:`BlockFragment` — named structural block with header + bullet items.
+
+Joining utilities (:func:`join_with`, :func:`oxford_and`) produce
+:class:`PhraseFragment` trees from lists of fragments.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -28,13 +42,10 @@ class VerbFragment:
 
 @dataclass
 class WordFragment(VerbFragment):
-    """
-    Plain neutral text with no semantic role: articles, connectives, punctuation.
-
-    :ivar text: The raw text string (e.g. ``"the"``, ``"and"``, ``","``).
-    """
+    """Plain neutral text with no semantic role: articles, connectives, punctuation."""
 
     text: str
+    """The raw text string (e.g. ``"the"``, ``"and"``, ``","``)."""
 
 
 @dataclass
@@ -42,21 +53,22 @@ class RoleFragment(VerbFragment):
     """
     Text carrying a :class:`~krrood.entity_query_language.verbalization.fragments.roles.SemanticRole`
     — drives colour markup and optional source hyperlinking.
-
-    :ivar text: Display text (e.g. ``"Robot"``, ``"is greater than"``).
-    :ivar role: Semantic role determining the colour applied by the formatter.
-    :ivar source_ref: Optional reference to the Python class or attribute this
-        fragment represents; used by
-        :class:`~krrood.entity_query_language.verbalization.rendering.source_link_resolver.SourceLinkResolver`
-        to build hyperlinks.
     """
 
     text: str
+    """Display text (e.g. ``"Robot"``, ``"is greater than"``)."""
+
     role: SemanticRole
+    """Semantic role determining the colour applied by the formatter."""
+
     source_ref: Optional[SourceRef] = None
+    """Optional reference to the Python class or attribute this fragment represents;
+    used by
+    :class:`~krrood.entity_query_language.verbalization.rendering.source_link_resolver.SourceLinkResolver`
+    to build hyperlinks."""
 
     @classmethod
-    def for_variable(cls, label: str, expr) -> "RoleFragment":
+    def for_variable(cls, label: str, expr) -> RoleFragment:
         """
         Build a fragment for a
         :class:`~krrood.entity_query_language.core.variable.Variable`,
@@ -76,7 +88,7 @@ class RoleFragment(VerbFragment):
         )
 
     @classmethod
-    def for_attribute(cls, owner, attr_name: str, plural: bool = False) -> "RoleFragment":
+    def for_attribute(cls, owner, attr_name: str, plural: bool = False) -> RoleFragment:
         """
         Build a fragment for an attribute access, linked to its owner class.
 
@@ -96,7 +108,7 @@ class RoleFragment(VerbFragment):
         )
 
     @classmethod
-    def for_operator(cls, label: str) -> "RoleFragment":
+    def for_operator(cls, label: str) -> RoleFragment:
         """
         Build a fragment for an operator or copula (no source link).
 
@@ -110,15 +122,13 @@ class RoleFragment(VerbFragment):
 
 @dataclass
 class PhraseFragment(VerbFragment):
-    """
-    An inline sequence of fragments joined by a separator.
-
-    :ivar parts: Ordered list of child fragments.
-    :ivar separator: String inserted between adjacent parts (default: single space).
-    """
+    """An inline sequence of fragments joined by a separator."""
 
     parts: list[VerbFragment]
+    """Ordered list of child fragments."""
+
     separator: str = " "
+    """String inserted between adjacent parts."""
 
 
 @dataclass
@@ -130,13 +140,13 @@ class BlockFragment(VerbFragment):
       flattens header + items into a single comma-separated prose string.
     * :class:`~krrood.entity_query_language.verbalization.rendering.renderer.HierarchicalRenderer`
       renders the header on one line, then each item as a bullet at the next indent level.
-
-    :ivar header: Optional lead fragment (e.g. ``"Find Robot"`` or ``"If"``).
-    :ivar items: Ordered list of sub-item fragments.
     """
 
     header: Optional[VerbFragment]
+    """Optional lead fragment (e.g. ``"Find Robot"`` or ``"If"``)."""
+
     items: list[VerbFragment] = field(default_factory=list)
+    """Ordered list of sub-item fragments."""
 
 
 # ── Fragment joining utilities ─────────────────────────────────────────────────

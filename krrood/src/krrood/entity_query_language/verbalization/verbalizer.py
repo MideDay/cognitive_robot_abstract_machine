@@ -1,3 +1,15 @@
+"""
+EQL verbalizer — coordinator and one-shot convenience entry point.
+
+:class:`EQLVerbalizer` dispatches an EQL expression tree to the rule engine and
+returns a :class:`~krrood.entity_query_language.verbalization.fragments.base.VerbFragment`
+tree.  :func:`verbalize_expression` is the simplest entry point — it returns a plain
+English string with no colour markup.
+
+For coloured / hierarchical output use
+:class:`~krrood.entity_query_language.verbalization.pipeline.VerbalizationPipeline`.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -26,11 +38,10 @@ class EQLVerbalizer:
     For simple plain-text output use :func:`verbalize_expression`.
     For coloured / formatted output build a
     :class:`~krrood.entity_query_language.verbalization.pipeline.VerbalizationPipeline`.
-
-    :ivar _engine: Rule dispatcher; sorts rules by MRO depth before first call.
     """
 
     _engine: RuleEngine = field(init=False, repr=False)
+    """Rule dispatcher; sorts rules by MRO depth before first call."""
 
     def __post_init__(self) -> None:
         self._engine = RuleEngine(ALL_RULES)

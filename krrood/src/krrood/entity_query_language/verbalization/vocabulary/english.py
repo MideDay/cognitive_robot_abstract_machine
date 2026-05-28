@@ -264,7 +264,7 @@ class Articles(VocabEnum):
     THE_UNIQUE = PlainWord("the unique")
 
     @staticmethod
-    def indefinite(following_word: str) -> "WordFragment":
+    def indefinite(following_word: str) -> WordFragment:
         """
         Return a :class:`~krrood.entity_query_language.verbalization.fragments.base.WordFragment`
         containing *"a"* or *"an"* based on the phonological context of *following_word*.
@@ -307,7 +307,7 @@ class FallbackNouns(VocabEnum):
 
     ENTITY = FallbackNounWord("entity")
 
-    def plural_fragment(self) -> "WordFragment":
+    def plural_fragment(self) -> WordFragment:
         """
         Return a plural :class:`~krrood.entity_query_language.verbalization.fragments.base.WordFragment`.
 
@@ -450,7 +450,7 @@ class Operators(Enum):
         return self.value.select(negated=negated, compact=compact, temporal=temporal)
 
     @classmethod
-    def from_callable(cls, fn) -> "Operators":
+    def from_callable(cls, fn) -> Operators:
         """
         Map a Python ``operator`` module callable to the matching :class:`Operators` member.
 

@@ -1,3 +1,17 @@
+"""
+Format-specific colour and spacing markup for fragment rendering.
+
+:class:`Formatter` subclasses determine how colours, spaces, newlines,
+and hyperlinks are encoded:
+
+* :class:`PlainFormatter` — no colour, ASCII space/newline.
+* :class:`ANSIFormatter` — 24-bit ANSI escape sequences with optional OSC 8 links.
+* :class:`HTMLFormatter` — ``<span style=\"color:...\">`` tags and ``<a href=\"...\">`` links.
+
+Also defines :class:`BulletStyle` and :class:`IndentSize` enums used by
+:class:`~krrood.entity_query_language.verbalization.rendering.renderer.HierarchicalRenderer`.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -184,6 +198,7 @@ class ANSIFormatter(Formatter):
         return "\n"
 
     def _hex_to_rgb(self, color: str) -> tuple[int, int, int]:
+        """Convert a hex colour string (e.g. ``\"#ff7f0e\"``) or named colour to an ``(R, G, B)`` tuple."""
         if color.startswith("#"):
             h = color.lstrip("#")
             return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)

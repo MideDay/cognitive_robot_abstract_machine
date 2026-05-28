@@ -1,3 +1,13 @@
+"""
+Semantic roles for fragment colour markup and the EQL-type-to-role mapping.
+
+:class:`SemanticRole` tags a
+:class:`~krrood.entity_query_language.verbalization.fragments.base.RoleFragment`
+with a semantic category; :data:`ROLE_COLORS` maps each role to a hex colour.
+The colours match the ``QueryGraph.ColorLegend`` palette so that verbalization
+output is visually consistent with query graph visualizations.
+"""
+
 from __future__ import annotations
 
 from enum import Enum
@@ -59,6 +69,7 @@ ROLE_COLORS: dict[SemanticRole, Optional[str]] = {
 
 
 def _build_role_map() -> dict[type, SemanticRole]:
+    """Return the mapping of EQL expression types to their :class:`SemanticRole`."""
     return {
         LogicalOperator: SemanticRole.LOGICAL,
         Aggregator:      SemanticRole.AGGREGATION,

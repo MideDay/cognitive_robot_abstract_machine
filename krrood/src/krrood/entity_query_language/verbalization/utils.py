@@ -1,3 +1,12 @@
+"""
+Low-level string utilities for the verbalization subsystem.
+
+Pure helpers — fragment flattening, CamelCase splitting, English ordinals,
+and safe pluralisation.  No imports from sibling verbalization modules
+except for the fragment classes used by :func:`_str` (imported inline to
+avoid a circular dependency through ``fragments/base.py``).
+"""
+
 from __future__ import annotations
 
 import re
@@ -11,7 +20,7 @@ if TYPE_CHECKING:
     from krrood.entity_query_language.verbalization.fragments.base import VerbFragment
 
 
-def _str(fragment: "VerbFragment") -> str:
+def _str(fragment: VerbFragment) -> str:
     """
     Flatten a :class:`~krrood.entity_query_language.verbalization.fragments.base.VerbFragment`
     to a plain string (no colour markup) for internal comparisons and logging.

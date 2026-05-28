@@ -26,7 +26,7 @@ from krrood.entity_query_language.query.quantifiers import ResultQuantifier
 from krrood.entity_query_language.query.query import Entity
 
 
-def selected_aggregator(entity) -> Optional["Aggregator"]:
+def selected_aggregator(entity) -> Optional[Aggregator]:
     """
     Return the :class:`~krrood.entity_query_language.operators.aggregators.Aggregator`
     selected by *entity*, or ``None`` when *entity* is not an
@@ -115,7 +115,7 @@ def aggregation_leaf_attribute(entity):
     return aggregator._leaf_attribute_ if aggregator is not None else None
 
 
-def aggregation_source_root(entity) -> Optional["Variable"]:
+def aggregation_source_root(entity) -> Optional[Variable]:
     """
     Return the root :class:`~krrood.entity_query_language.core.variable.Variable`
     that an aggregation subquery aggregates over (e.g. the ``BankTransaction``

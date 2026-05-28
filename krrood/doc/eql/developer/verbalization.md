@@ -167,38 +167,169 @@ NotRule           (depth 1)   ← generic fallback
 └── NotBoolAttrRule   (depth 2)  ← tried first: Not(bool Attribute)
 ```
 
-### Adding a New Rule (the Only Extension Point)
+### How to Extend — A Worked Example
 
-To verbalize a new expression type or change an existing phrasing, write one
-`VerbalizationRule`, use `delegate.build(child, ctx)` for sub-expressions, and register
-it in {py:data}`~krrood.entity_query_language.verbalization.rules.registry.ALL_RULES`.
-That's it — there are no sub-verbalizer classes to modify.
+This walkthrough adds verbalization for a hypothetical ``Between`` operator
+(``between(x, lo, hi)``) that should render as *"x is between lo and hi"*.
 
-1. Create a class in the appropriate `rules/*.py` file (or a new file).
-2. Subclass {py:class}`~krrood.entity_query_language.verbalization.rule_engine.VerbalizationRule` (or an existing rule for deeper priority).
-3. Implement `applies(cls, expr, ctx) -> bool` and `transform(cls, expr, ctx, delegate) -> VerbFragment`.
-4. Register the class in {py:data}`~krrood.entity_query_language.verbalization.rules.registry.ALL_RULES`.
+#### Step 1 — Where Does the Code Go?
+
+Ask these questions in order:
+
+1. **Is this a new expression *family*?** (e.g. a new operator type that has no rule
+   module yet) → Create a new file in ``rules/`` and import it from
+   ``rules/registry.py`` (any import of the module triggers auto-registration).
+2. **Is it a variant of an existing expression?** (e.g. a more-specific case of
+   ``Comparator``, ``AND``, or ``InstantiatedVariable``) → Subclass the existing rule
+   in the same file.  The subclass rule will have deeper MRO and take priority
+   automatically.
+3. **Is it a new expression within an existing family?** → Add the rule class to the
+   existing ``rules/<family>.py`` file.
+
+For ``Between`` — a comparator-like range constraint — we create a rule in
+``rules/comparator.py`` (or its own file if we prefer).
+
+#### Step 2 — Write the Rule
+
+Subclass {py:class}`~krrood.entity_query_language.verbalization.rule_engine.VerbalizationRule`
+(or an existing intermediate rule for automatic higher priority) and implement
+``applies()`` and ``transform()``:
 
 ```python
-# rules/my_rule.py
 from krrood.entity_query_language.verbalization.rule_engine import VerbalizationRule
-from krrood.entity_query_language.verbalization.fragments.base import WordFragment
-from my_package.expressions import MyExpression
+from krrood.entity_query_language.verbalization.fragments.factory import phrase, word
+from krrood.entity_query_language.verbalization.vocabulary.english import RangePhrases
 
-class MyRule(VerbalizationRule):
-    """Verbalizes MyExpression as 'my custom phrase'."""
+class BetweenRule(VerbalizationRule):
+    """Verbalizes a Between operator as *"x is between lo and hi"*."""
 
     @classmethod
     def applies(cls, expr, ctx) -> bool:
-        return isinstance(expr, MyExpression)
+        return isinstance(expr, Between)
 
     @classmethod
     def transform(cls, expr, ctx, delegate):
-        child = delegate.build(expr.child, ctx)
-        return PhraseFragment([WordFragment(text="my custom phrase"), child])
+        left_frag = delegate.build(expr.left, ctx)
+        lo_frag = delegate.build(expr.lo, ctx)
+        hi_frag = delegate.build(expr.hi, ctx)
+        return phrase(
+            left_frag,
+            RangePhrases.IS_BETWEEN.as_fragment(),
+            phrase(lo_frag, word("and"), hi_frag),
+        )
 ```
 
-Then in `rules/registry.py`, add `MyRule` to `ALL_RULES`.
+#### Step 3 — Registration Is Automatic
+
+**That's it.**  Because concrete ``VerbalizationRule`` subclasses self-register
+via ``__init_subclass__``, importing the module that defines ``BetweenRule`` is
+enough.  If you created a new file, add an import line to
+{py:data}`~krrood.entity_query_language.verbalization.rules.registry.ALL_RULES`
+(the module import triggers registration).  If you added the rule to an existing
+file, nothing else is needed — the existing import already covers it.
+
+No hand-maintained list.  No registry update.  Just define the class and import
+its module.
+
+#### Step 4 — Use ``delegate.build(child, ctx)`` for Recursive Sub-Expressions
+
+``EQLVerbalizer`` is passed as the ``delegate`` parameter to every
+``transform()``.  Always call ``delegate.build(child, ctx)`` to render sub-expressions
+— this re-enters the full rule dispatch, so your rule's sub-expressions benefit from
+coreference tracking, binding overrides, pronoun resolution, and any future rules.
+
+Never call ``verbalize_expression(child)`` from within a rule — that creates a fresh
+context and breaks coreference chains across the expression tree.
+
+#### Step 5 — Use Fragment Constructors and Vocabulary Constants
+
+Prefer the factory functions from
+{py:mod}`~krrood.entity_query_language.verbalization.fragments.factory` for dynamic
+fragments, and vocabulary enum members (``.as_fragment()``) for fixed words:
+
+```python
+from krrood.entity_query_language.verbalization.fragments.factory import phrase, role, word
+from krrood.entity_query_language.verbalization.vocabulary.english import Keywords, Copulas
+
+# Fixed words → vocabulary constants (avoids typos, carries SemanticRole)
+header = Keywords.FIND.as_fragment()
+copula = Copulas.IS.as_fragment()
+
+# Dynamic text → factory functions
+label = role("Robot", SemanticRole.VARIABLE)
+join = word(",")
+inline = phrase(label, copula, value)
+```
+
+Key vocabulary enums and their ``.as_fragment()`` return type:
+
+| Enum | Example | Returns |
+|---|---|---|
+| {py:class}`~krrood.entity_query_language.verbalization.vocabulary.english.Keywords` | ``Keywords.FIND.as_fragment()`` | ``WordFragment`` (KEYWORD role) |
+| {py:class}`~krrood.entity_query_language.verbalization.vocabulary.english.Copulas` | ``Copulas.IS.as_fragment()`` | ``RoleFragment`` (OPERATOR role) |
+| {py:class}`~krrood.entity_query_language.verbalization.vocabulary.english.Operators` | ``Operators.from_callable(op.le).select(...).as_fragment()`` | ``RoleFragment`` (OPERATOR role) |
+| {py:class}`~krrood.entity_query_language.verbalization.vocabulary.english.Logicals` | ``Logicals.FOR_ALL.as_fragment()`` | ``WordFragment`` (LOGICAL role) |
+| {py:class}`~krrood.entity_query_language.verbalization.vocabulary.english.Aggregations` | ``Aggregations.COUNT.as_fragment()`` | ``RoleFragment`` (AGGREGATION role) |
+| {py:class}`~krrood.entity_query_language.verbalization.vocabulary.english.Articles` | ``Articles.THE.as_fragment()`` | ``WordFragment`` (PLAIN role) |
+| {py:class}`~krrood.entity_query_language.verbalization.vocabulary.english.Conjunctions` | ``Conjunctions.AND.as_fragment()`` | ``WordFragment`` (PLAIN role) |
+| {py:class}`~krrood.entity_query_language.verbalization.vocabulary.english.Prepositions` | ``Prepositions.OF.as_fragment()`` | ``WordFragment`` (PLAIN role) |
+
+For coloured / linked fragments that reference a Python class or attribute, use
+the class methods on {py:class}`~krrood.entity_query_language.verbalization.fragments.base.RoleFragment`:
+
+```python
+RoleFragment.for_variable("Robot", var)              # VARIABLE role + SourceRef to type
+RoleFragment.for_attribute("battery", Robot)         # ATTRIBUTE role + SourceRef to attr
+RoleFragment.for_operator("is greater than")         # OPERATOR role, no link
+```
+
+#### Step 6 — Understanding MRO Priority
+
+The rule engine sorts rule classes by MRO depth — the number of inheritance steps
+from ``VerbalizationRule``.  Greater depth = tried first.
+
+```
+VerbalizationRule            (depth 0, abstract — never tried)
+├── NotRule                  (depth 1 — generic negation fallback)
+│   ├── NotComparatorRule    (depth 2 — tried BEFORE NotRule)
+│   └── NotBoolAttrRule      (depth 2 — tried BEFORE NotRule)
+└── LogicalRule              (depth 1 — abstract)
+    └── AndRule              (depth 2)
+        └── RangeConjunctionRule (depth 3 — tried first)
+```
+
+**When to subclass an existing rule vs ``VerbalizationRule``:**
+
+| Situation | Base class | Why |
+|---|---|---|
+| New expression with no parent rule | ``VerbalizationRule`` | Fresh start |
+| More-specific case of an existing rule | The existing rule class (e.g. ``AndRule``) | Automatic MRO priority — no need to worry about ordering |
+| Sibling special cases (same depth) | The common parent (e.g. ``NotRule`` for two ``Not`` variants) | Both get depth+1, ordered by definition within the module |
+
+Sibling rules at the same MRO depth **must** have mutually exclusive
+``applies()`` preconditions — the engine's stable sort preserves definition order
+as a tiebreaker, but the correct answer is to make sure only one rule ever matches
+a given expression.
+
+#### Step 7 — Write a Test
+
+Add an entry to the parametrized test data in
+``test/krrood_test/test_eql/test_verbalization/test_verbalization.py``.
+The parametrize decorator feeds each ``(query, expected_text)`` pair to
+``verbalize_expression`` and asserts the output matches:
+
+```python
+# In the parametrize list:
+(Between(booking_date, date1, date2), "booking_date is between date1 and date2"),
+```
+
+Run the suite (ensure that you are in your local development virtual environment):
+
+```bash
+pytest test/krrood_test/test_eql/test_verbalization -x
+```
+
+All tests must stay green.
 
 ---
 
@@ -283,28 +414,33 @@ The resolver is passed to the renderer at construction time (via `VerbalizationP
 
 ## Rule Organisation
 
-Rules live in `krrood/entity_query_language/verbalization/rules/`.  Each file owns one
-expression family:
+Rules live in ``krrood/entity_query_language/verbalization/rules/``.  Each file owns one
+expression family.  When adding a new rule, check the table for the matching family.
 
-| Module | Expression types | Output form |
-|---|---|---|
-| `rules/query.py` | `Entity`, `SetOf`, `GroupedBy`, `OrderedBy`, `Filter`, `ResultQuantifier` | *"Find X such that …"*, noun phrases, clause assembly |
-| `rules/inference_rule.py` | `Entity` (selected var is `InstantiatedVariable`) | *"IF … THEN …"* blocks |
-| `rules/chains.py` | `MappedVariable` (Attribute, Index, Call, FlatVariable) | Possessive paths, bool predicates, pronominal chains |
-| `rules/logical.py` | `AND`, `OR`, `Not`, `RangeConjunction` | Oxford-comma lists, negation, range folding |
-| `rules/comparator.py` | `Comparator` | *"<left> <operator> <right>"* (via `operator_phrase.py`) |
-| `rules/aggregators.py` | `Aggregator` | *"the sum of …"*, *"the number of …"* |
-| `rules/quantifiers.py` | `ForAll`, `Exists` | *"for all …"*, *"there exists …"* |
-| `rules/variables.py` | `Variable`, `Literal`, `InstantiatedVariable` | Type names, literals, binding forms |
+| Module | Expression types | Output form | Add a rule here when … |
+|---|---|---|---|
+| ``rules/query.py`` | ``Entity``, ``SetOf``, ``GroupedBy``, ``OrderedBy``, ``Filter``, ``ResultQuantifier`` | *"Find X such that …"*, noun phrases, clause assembly | Adding a new query variant, select clause, or noun form |
+| ``rules/inference_rule.py`` | ``Entity`` (selected var is ``InstantiatedVariable``) | *"IF … THEN …"* blocks | Changing IF/THEN phrasing or antecedent rendering |
+| ``rules/chains.py`` | ``MappedVariable`` (Attribute, Index, Call, FlatVariable) | Possessive paths, bool predicates, pronominal chains | Adding a new chain node type or path rendering variant |
+| ``rules/logical.py`` | ``AND``, ``OR``, ``Not``, range-folded conjunctions | Oxford-comma lists, negation, range folding | Adding a new logical operator or a negated variant of an expression |
+| ``rules/comparator.py`` | ``Comparator`` | *"<left> <operator> <right>"* (via ``operator_phrase.py``) | Adding a new comparator variant (not a new operator — operator phrases live in vocabulary) |
+| ``rules/aggregators.py`` | ``Aggregator`` subtypes | *"the sum of …"*, *"the number of …"* | Adding a new aggregation function |
+| ``rules/quantifiers.py`` | ``ForAll``, ``Exists`` | *"for all …"*, *"there exists …"* | Adding a new logical quantifier |
+| ``rules/variables.py`` | ``Variable``, ``Literal``, ``InstantiatedVariable`` | Type names, literals, binding forms | Adding a new variable subtype or binding rendering variant |
 
-Rule bodies live directly in `transform()` methods or in module-level helpers within the
-same file.  For example, the query-body assembly (`_verbalize_query_body_`,
-`_grouped_by_clause`, etc.) and the noun forms (`as_noun`, `as_inline_noun`) are all
-module-level functions in `rules/query.py`, called directly by `EntityRule.transform`
-and `SetOfRule.transform`.
+**If your expression doesn't fit any existing family**, create a new file under
+``rules/`` and add an import line to
+{py:data}`~krrood.entity_query_language.verbalization.rules.registry.ALL_RULES`
+(the module import triggers auto-registration — no list to maintain).
 
-Chain rules (`rules/chains.py`) and inference rules (`rules/inference_rule.py`) import
-`as_inline_noun` from `rules/query.py` for the cases where an `Entity` appears as a
+Rule bodies live directly in ``transform()`` methods or in module-level helpers within the
+same file.  For example, the query-body assembly (``_verbalize_query_body_``,
+``_grouped_by_clause``, etc.) and the noun forms (``as_noun``, ``as_inline_noun``) are all
+module-level functions in ``rules/query.py``, called directly by ``EntityRule.transform``
+and ``SetOfRule.transform``.
+
+Chain rules (``rules/chains.py``) and inference rules (``rules/inference_rule.py``) import
+``as_inline_noun`` from ``rules/query.py`` for the cases where an ``Entity`` appears as a
 chain root or antecedent — a simple cross-module function call, not a delegate method.
 
 ---
@@ -376,6 +512,9 @@ pipeline = VerbalizationPipeline(ParagraphRenderer(MarkdownFormatter()))
 - {py:data}`~krrood.entity_query_language.verbalization.fragments.roles.ROLE_COLORS`
 - {py:func}`~krrood.entity_query_language.verbalization.fragments.roles.role_for`
 - {py:class}`~krrood.entity_query_language.verbalization.fragments.source_ref.SourceRef`
+- {py:func}`~krrood.entity_query_language.verbalization.fragments.factory.word`
+- {py:func}`~krrood.entity_query_language.verbalization.fragments.factory.phrase`
+- {py:func}`~krrood.entity_query_language.verbalization.fragments.factory.role`
 
 ### Rendering
 

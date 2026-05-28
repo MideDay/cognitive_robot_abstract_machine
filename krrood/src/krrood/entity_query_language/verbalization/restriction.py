@@ -16,10 +16,13 @@ query-body assembly in :mod:`~krrood.entity_query_language.verbalization.rules.q
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import List, Optional, TYPE_CHECKING
 
+from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.mapped_variable import Attribute, MappedVariable
 from krrood.entity_query_language.core.variable import Variable
+from krrood.entity_query_language.factories import ConditionType
 from krrood.entity_query_language.operators.aggregators import Aggregator
 from krrood.entity_query_language.operators.comparator import Comparator
 from krrood.entity_query_language.operators.core_logical_operators import (
@@ -90,13 +93,13 @@ class RestrictionRule(ABC):
 
     @classmethod
     @abstractmethod
-    def applies(cls, item, subject_var, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, item, subject_var, ctx: VerbalizationContext) -> bool:
         """Return ``True`` when *item* is a groupable restriction on *subject_var*."""
 
     @classmethod
     @abstractmethod
     def render(
-        cls, item, subject_var, ctx: "VerbalizationContext", delegate: "EQLVerbalizer"
+        cls, item, subject_var, ctx: VerbalizationContext, delegate: EQLVerbalizer
     ) -> VerbFragment:
         """Render *item* as a bare predicate fragment (e.g. *"booking_date is between X and Y"*)."""
 
@@ -105,7 +108,7 @@ class RangeRestrictionRule(RestrictionRule):
     """Matches a :class:`RangeFold` on a single-hop subject attribute → *"<attr> is between lo and hi"*."""
 
     @classmethod
-    def applies(cls, item, subject_var, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, item, subject_var, ctx: VerbalizationContext) -> bool:
         return (
             isinstance(item, RangeFold)
             and _single_hop_attr(item.chain_expr, subject_var) is not None
@@ -113,7 +116,7 @@ class RangeRestrictionRule(RestrictionRule):
 
     @classmethod
     def render(
-        cls, item, subject_var, ctx: "VerbalizationContext", delegate: "EQLVerbalizer"
+        cls, item, subject_var, ctx: VerbalizationContext, delegate: EQLVerbalizer
     ) -> VerbFragment:
         attr = _single_hop_attr(item.chain_expr, subject_var)
         left = RoleFragment.for_attribute(attr._owner_class_, attr._attribute_name_)
@@ -133,7 +136,7 @@ class AttributePredicateRestrictionRule(RestrictionRule):
     """
 
     @classmethod
-    def applies(cls, item, subject_var, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, item, subject_var, ctx: VerbalizationContext) -> bool:
         if not isinstance(item, Comparator):
             return False
         attr = _single_hop_attr(item.left, subject_var)
@@ -143,7 +146,7 @@ class AttributePredicateRestrictionRule(RestrictionRule):
 
     @classmethod
     def render(
-        cls, item, subject_var, ctx: "VerbalizationContext", delegate: "EQLVerbalizer"
+        cls, item, subject_var, ctx: VerbalizationContext, delegate: EQLVerbalizer
     ) -> VerbFragment:
         attr = _single_hop_attr(item.left, subject_var)
         attr_frag = RoleFragment.for_attribute(
@@ -176,12 +179,12 @@ class RestrictionSubjectRule(ABC):
 
     @classmethod
     @abstractmethod
-    def applies(cls, expr, selected_var, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, selected_var, ctx: VerbalizationContext) -> bool:
         """Return ``True`` when this rule can name the restriction subject of *expr*."""
 
     @classmethod
     @abstractmethod
-    def subject(cls, expr, selected_var, ctx: "VerbalizationContext"):
+    def subject(cls, expr, selected_var, ctx: VerbalizationContext):
         """Return the :class:`~krrood.entity_query_language.core.variable.Variable` the ``WHERE`` restricts."""
 
 
@@ -189,11 +192,11 @@ class SelectedVariableSubjectRule(RestrictionSubjectRule):
     """The selection itself is a plain :class:`~krrood.entity_query_language.core.variable.Variable` → it is its own subject."""
 
     @classmethod
-    def applies(cls, expr, selected_var, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, selected_var, ctx: VerbalizationContext) -> bool:
         return isinstance(selected_var, Variable)
 
     @classmethod
-    def subject(cls, expr, selected_var, ctx: "VerbalizationContext"):
+    def subject(cls, expr, selected_var, ctx: VerbalizationContext):
         return selected_var
 
 
@@ -211,14 +214,14 @@ class AggregationSourceSubjectRule(RestrictionSubjectRule):
     """
 
     @classmethod
-    def applies(cls, expr, selected_var, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, selected_var, ctx: VerbalizationContext) -> bool:
         return (
             isinstance(selected_var, Aggregator)
             and aggregation_source_root(expr) is not None
         )
 
     @classmethod
-    def subject(cls, expr, selected_var, ctx: "VerbalizationContext"):
+    def subject(cls, expr, selected_var, ctx: VerbalizationContext):
         return aggregation_source_root(expr)
 
 
@@ -228,7 +231,7 @@ RESTRICTION_SUBJECT_RULES: List[type] = [
 ]
 
 
-def restriction_subject(expr, selected_var, ctx: "VerbalizationContext"):
+def restriction_subject(expr, selected_var, ctx: VerbalizationContext):
     """
     Resolve the variable a selection's ``WHERE`` clause restricts (first match in
     :data:`RESTRICTION_SUBJECT_RULES` wins), or ``None`` when nothing groups.
@@ -247,21 +250,20 @@ def restriction_subject(expr, selected_var, ctx: "VerbalizationContext"):
 
 # ── Builder ─────────────────────────────────────────────────────────────────────
 
-
+@dataclass
 class RestrictionClauseBuilder:
     """
     Partition a subject's ``WHERE`` condition into a *"whose <grouped>"* modifier and a
     residual condition fragment.
-
-    :param delegate: The parent verbalizer for recursive sub-expression rendering.
+    """
+    _delegate: EQLVerbalizer
+    """
+    The parent verbalizer for recursive sub-expression rendering.
     """
 
-    def __init__(self, delegate: "EQLVerbalizer") -> None:
-        self._d = delegate
-
     def build(
-        self, subject_var, condition, ctx: "VerbalizationContext"
-    ) -> "tuple[Optional[VerbFragment], Optional[VerbFragment]]":
+        self, subject_var: Optional[Variable], condition: SymbolicExpression, ctx: VerbalizationContext
+    ) -> tuple[Optional[VerbFragment], Optional[VerbFragment]]:
         """
         :param subject_var: The subject the conditions restrict (its single-hop attribute
             predicates become *"whose"* modifiers); may be ``None`` (nothing groups).
@@ -282,7 +284,7 @@ class RestrictionClauseBuilder:
             if rule is None:
                 residual.append(item)
             else:
-                grouped.append(rule.render(item, subject_var, ctx, self._d))
+                grouped.append(rule.render(item, subject_var, ctx, self._delegate))
 
         whose_frag = None
         if grouped:
@@ -296,28 +298,28 @@ class RestrictionClauseBuilder:
         return whose_frag, residual_frag
 
     @staticmethod
-    def _match(item, subject_var, ctx: "VerbalizationContext") -> Optional[type]:
+    def _match(item, subject_var, ctx: VerbalizationContext) -> Optional[type]:
         for rule in RESTRICTION_RULES:
             if rule.applies(item, subject_var, ctx):
                 return rule
         return None
 
     def _render_residual(
-        self, items: List, ctx: "VerbalizationContext"
+        self, items: List, ctx: VerbalizationContext
     ) -> VerbFragment:
         parts: List[VerbFragment] = []
         for item in items:
             if isinstance(item, RangeFold):
                 parts.append(
                     build_between(
-                        self._d.build(item.chain_expr, ctx),
-                        self._d.build(item.lo_expr, ctx),
-                        self._d.build(item.hi_expr, ctx),
+                        self._delegate.build(item.chain_expr, ctx),
+                        self._delegate.build(item.lo_expr, ctx),
+                        self._delegate.build(item.hi_expr, ctx),
                         compact=ctx.compact_predicates,
                     )
                 )
             else:
-                parts.append(self._d.build(item, ctx))
+                parts.append(self._delegate.build(item, ctx))
         if len(parts) == 1:
             return parts[0]
         return oxford_and(parts, Conjunctions.AND.as_fragment())

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
@@ -23,11 +24,28 @@ class VerbalizationRule(ABC):
     integers are needed.
 
     All methods are class methods; rules are stateless.
+
+    **Auto-registration:** every concrete (non-abstract) subclass is automatically
+    registered via :meth:`__init_subclass__`.  No manual list maintenance is needed —
+    just define the class and it will be discovered by :class:`RuleEngine`.
     """
+
+    _registry: list[type[VerbalizationRule]] = []
+
+    def __init_subclass__(cls, **kwargs):
+        """Auto-register every concrete (non-abstract) rule subclass."""
+        super().__init_subclass__(**kwargs)
+        if not inspect.isabstract(cls):
+            VerbalizationRule._registry.append(cls)
+
+    @classmethod
+    def registered_rules(cls) -> list[type[VerbalizationRule]]:
+        """Return all auto-registered concrete rule classes in definition order."""
+        return list(cls._registry)
 
     @classmethod
     @abstractmethod
-    def applies(cls, expr: "SymbolicExpression", ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr: SymbolicExpression, ctx: VerbalizationContext) -> bool:
         """
         Return ``True`` if this rule can handle *expr*.
 
@@ -43,10 +61,10 @@ class VerbalizationRule(ABC):
     @abstractmethod
     def transform(
         cls,
-        expr: "SymbolicExpression",
-        ctx: "VerbalizationContext",
-        delegate: "EQLVerbalizer",
-    ) -> "VerbFragment":
+        expr: SymbolicExpression,
+        ctx: VerbalizationContext,
+        delegate: EQLVerbalizer,
+    ) -> VerbFragment:
         """
         Build and return the :class:`~krrood.entity_query_language.verbalization.fragments.base.VerbFragment`
         for *expr*.
@@ -63,6 +81,7 @@ class VerbalizationRule(ABC):
 
 
 def _inheritance_depth(cls: type) -> int:
+    """MRO depth from :class:`VerbalizationRule` — greater depth = more specific."""
     try:
         return cls.__mro__.index(VerbalizationRule)
     except ValueError:
@@ -83,14 +102,15 @@ class RuleEngine:
     """
 
     def __init__(self, rule_classes: list[type[VerbalizationRule]]) -> None:
+        """Sort *rule_classes* by MRO depth (descending) so subclasses shadow parents."""
         self._rules = sorted(rule_classes, key=_inheritance_depth, reverse=True)
 
     def build(
         self,
-        expr: "SymbolicExpression",
-        ctx: "VerbalizationContext",
-        delegate: "EQLVerbalizer",
-    ) -> "VerbFragment":
+        expr: SymbolicExpression,
+        ctx: VerbalizationContext,
+        delegate: EQLVerbalizer,
+    ) -> VerbFragment:
         """
         Dispatch *expr* to the first matching rule and return its fragment.
 

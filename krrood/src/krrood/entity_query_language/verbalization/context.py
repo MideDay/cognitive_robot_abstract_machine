@@ -1,3 +1,13 @@
+"""
+Verbalization context — coreference tracking, disambiguation, and constraint deferral.
+
+:class:`VerbalizationContext` is the mutable state threaded through a single
+:meth:`~krrood.entity_query_language.verbalization.verbalizer.EQLVerbalizer.verbalize`
+call.  It tracks which variables have been mentioned (so the second occurrence gets
+*"the"*), resolves type-name collisions (*"Robot 1"* / *"Robot 2"*), defers
+constraints for InstantiatedVariable rendering, and manages pronoun-eligible subjects.
+"""
+
 from __future__ import annotations
 
 import datetime
@@ -44,6 +54,7 @@ class ArticleSelection(Enum):
 
 
 def _article(type_name: str) -> str:
+    """Return ``"a"`` or ``"an"`` for *type_name* using the inflect engine."""
     return _engine.a(type_name).split()[0]
 
 
@@ -126,49 +137,51 @@ class VerbalizationContext:
     field-reference fragments are re-used instead of re-verbalized.
 
     Create via :meth:`from_expression` to pre-load the disambiguation map.
-
-    :ivar seen: Maps expression ``_id_`` → display label for every expression
-        already verbalized in this pass.
-    :ivar compact_predicates: When ``True``, comparators omit the copula *"is"*
-        (e.g. *"greater than"* instead of *"is greater than"*).  Set temporarily
-        by the HAVING clause renderer in
-        :mod:`~krrood.entity_query_language.verbalization.rules.query`
-        while rendering HAVING conditions.
-    :ivar constraint_exprs: Stack of deferred-expression frames.  Each frame
-        belongs to one nesting level of
-        :class:`~krrood.entity_query_language.core.variable.InstantiatedVariable`
-        verbalization.
-    :ivar disambiguation_map: Maps variable ``_id_`` → display label,
-        pre-computed before verbalization begins.  Single-type variables keep
-        the plain type name; colliding types get ``"TypeName 1"``, ``"TypeName 2"`` labels.
-    :ivar binding_overrides: Maps a child expression's ``_id_`` → a
-        ``VerbFragment`` that substitutes for it on subsequent encounters.
-        Populated by ``_verbalize_instantiated_natural`` and checked by
-        :meth:`~krrood.entity_query_language.verbalization.rule_engine.RuleEngine.build`
-        before any rule dispatches.
-    :ivar query_depth: Number of enclosing query/noun renderings currently on the
-        stack.  ``0`` means the next
-        :class:`~krrood.entity_query_language.query.query.Entity` is the top-level
-        request and is rendered in the imperative *"Find … such that …"* form;
-        ``> 0`` means the Entity is nested (a sub-query used as a value) and is
-        rendered as a noun phrase instead.
-    :ivar coref_subjects: Stack of subject variable ``_id_`` s (or ``None`` when the
-        enclosing clause has no single coreference subject, e.g. ``SetOf``).  A chain
-        rooted at the top-of-stack subject is eligible for pronominalisation — see
-        :meth:`pronoun_for`.  Pushed/popped by the entity and instantiated-variable
-        verbalizers around the clauses that describe a subject.
     """
 
     seen: dict = field(default_factory=dict)
+    """Maps expression ``_id_`` → display label for every expression already
+    verbalized in this pass."""
+
     compact_predicates: bool = False
-    constraint_exprs: List[List["SymbolicExpression"]] = field(default_factory=list)
+    """When ``True``, comparators omit the copula *"is"* (e.g. *"greater than"*
+    instead of *"is greater than"*).  Set temporarily by the HAVING clause
+    renderer in :mod:`~krrood.entity_query_language.verbalization.rules.query`."""
+
+    constraint_exprs: List[List[SymbolicExpression]] = field(default_factory=list)
+    """Stack of deferred-expression frames.  Each frame belongs to one nesting
+    level of
+    :class:`~krrood.entity_query_language.core.variable.InstantiatedVariable`
+    verbalization."""
+
     disambiguation_map: Dict[uuid.UUID, str] = field(default_factory=dict)
-    binding_overrides: Dict[uuid.UUID, "VerbFragment"] = field(default_factory=dict)
+    """Maps variable ``_id_`` → display label, pre-computed before verbalization
+    begins.  Single-type variables keep the plain type name; colliding types get
+    ``"TypeName 1"``, ``"TypeName 2"`` labels."""
+
+    binding_overrides: Dict[uuid.UUID, VerbFragment] = field(default_factory=dict)
+    """Maps a child expression's ``_id_`` → a ``VerbFragment`` that substitutes
+    for it on subsequent encounters.  Populated by
+    ``_verbalize_instantiated_natural`` and checked by
+    :meth:`~krrood.entity_query_language.verbalization.rule_engine.RuleEngine.build`
+    before any rule dispatches."""
+
     query_depth: int = 0
+    """Number of enclosing query/noun renderings currently on the stack.
+    ``0`` means the next :class:`~krrood.entity_query_language.query.query.Entity`
+    is the top-level request and is rendered in the imperative
+    *"Find … such that …"* form; ``> 0`` means the Entity is nested (a sub-query
+    used as a value) and is rendered as a noun phrase instead."""
+
     coref_subjects: List[uuid.UUID] = field(default_factory=list)
+    """Stack of subject variable ``_id_`` s (or ``None`` when the enclosing clause
+    has no single coreference subject, e.g. ``SetOf``).  A chain rooted at the
+    top-of-stack subject is eligible for pronominalisation — see
+    :meth:`pronoun_for`.  Pushed/popped by the entity and instantiated-variable
+    verbalizers around the clauses that describe a subject."""
 
     @classmethod
-    def from_expression(cls, expr) -> "VerbalizationContext":
+    def from_expression(cls, expr) -> VerbalizationContext:
         """
         Create a context pre-loaded with a disambiguation map for *expr*.
 
@@ -193,7 +206,7 @@ class VerbalizationContext:
         """
         self.constraint_exprs.append([])
 
-    def pop_constraint_frame(self) -> "List[SymbolicExpression]":
+    def pop_constraint_frame(self) -> List[SymbolicExpression]:
         """
         Close the current frame and return its deferred expressions.
 
@@ -205,7 +218,7 @@ class VerbalizationContext:
         """
         return self.constraint_exprs.pop() if self.constraint_exprs else []
 
-    def defer_constraint(self, expr: "SymbolicExpression") -> None:
+    def defer_constraint(self, expr: SymbolicExpression) -> None:
         """
         Defer *expr* into the top constraint frame.
 
@@ -243,7 +256,7 @@ class VerbalizationContext:
         """``_id_`` of the current coreference subject, or ``None`` when there is none."""
         return self.coref_subjects[-1] if self.coref_subjects else None
 
-    def seen_reference(self, expr) -> "Optional[VerbFragment]":
+    def seen_reference(self, expr) -> Optional[VerbFragment]:
         """
         Return *"the <label>"* when *expr* has already been verbalized in this pass,
         else ``None``.
@@ -265,7 +278,7 @@ class VerbalizationContext:
             ]
         )
 
-    def pronoun_for(self, root) -> "Optional[VerbFragment]":
+    def pronoun_for(self, root) -> Optional[VerbFragment]:
         """
         Return the possessive-pronoun fragment (*"its"*) for *root* when it is the
         current, unambiguous, already-introduced coreference subject; else ``None``.
@@ -292,7 +305,7 @@ class VerbalizationContext:
             return None
         return Pronouns.ITS.as_fragment()
 
-    def noun_for_parts(self, var) -> "tuple[ArticleSelection, str]":
+    def noun_for_parts(self, var) -> tuple[ArticleSelection, str]:
         """
         Return ``(ArticleSelection, label)`` for *var*.
 

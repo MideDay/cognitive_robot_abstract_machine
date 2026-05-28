@@ -1,3 +1,17 @@
+"""
+Verbalization rules for EQL variable expressions.
+
+* :class:`VariableRule` — *"a Robot"* / *"the Robot"* with article selection.
+* :class:`LiteralRule` — plain literal value rendering.
+* :class:`ExternallySetVariableRule` — opaque external variable.
+* :class:`InstantiatedVariableRule` — *"a TypeName where … such that …"*.
+* :class:`InstantiatedVerbalizableRule` — user-supplied verbalization template.
+
+The module-level helpers at the bottom implement the InstantiatedVariable
+natural-language rendering: binding building, copula selection, constraint
+deferral, and phrase assembly.
+"""
+
 from __future__ import annotations
 
 import uuid
@@ -10,6 +24,7 @@ from krrood.entity_query_language.verbalization.context import ArticleSelection
 from krrood.entity_query_language.verbalization.fragments.base import (
     oxford_and, PhraseFragment, RoleFragment, VerbFragment, WordFragment,
 )
+from krrood.entity_query_language.verbalization.fragments.factory import phrase, role, word
 from krrood.entity_query_language.verbalization.fragments.roles import SemanticRole
 from krrood.entity_query_language.verbalization.fragments.source_ref import SourceRef
 from krrood.entity_query_language.verbalization.rule_engine import VerbalizationRule
@@ -23,18 +38,6 @@ if TYPE_CHECKING:
     from krrood.entity_query_language.verbalization.verbalizer import EQLVerbalizer
 
 
-def _word(text: str) -> WordFragment:
-    return WordFragment(text=text)
-
-
-def _phrase(*parts: VerbFragment, sep: str = " ") -> PhraseFragment:
-    return PhraseFragment(parts=list(parts), separator=sep)
-
-
-def _role(text: str, role: SemanticRole, source_ref=None) -> RoleFragment:
-    return RoleFragment(text=text, role=role, source_ref=source_ref)
-
-
 class VariableRule(VerbalizationRule):
     """
     Verbalizes :class:`~krrood.entity_query_language.core.variable.Variable` expressions
@@ -45,12 +48,12 @@ class VariableRule(VerbalizationRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` for :class:`~krrood.entity_query_language.core.variable.Variable` expressions."""
         return isinstance(expr, Variable)
 
     @classmethod
-    def transform(cls, expr: "Variable", ctx: "VerbalizationContext", delegate: "EQLVerbalizer") -> VerbFragment:
+    def transform(cls, expr: Variable, ctx: VerbalizationContext, delegate: EQLVerbalizer) -> VerbFragment:
         """
         Build *"a/an TypeName"*, *"the TypeName"*, or just *"TypeName N"* based on context.
 
@@ -65,8 +68,8 @@ class VariableRule(VerbalizationRule):
         if article == ArticleSelection.NONE:
             return label_frag
         if article == ArticleSelection.DEFINITE:
-            return _phrase(Articles.THE.as_fragment(), label_frag)
-        return _phrase(Articles.indefinite(label), label_frag)
+            return phrase(Articles.THE.as_fragment(), label_frag)
+        return phrase(Articles.indefinite(label), label_frag)
 
 
 class LiteralRule(VariableRule):
@@ -79,12 +82,12 @@ class LiteralRule(VariableRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` for :class:`~krrood.entity_query_language.core.variable.Literal` expressions."""
         return isinstance(expr, Literal)
 
     @classmethod
-    def transform(cls, expr: "Literal", ctx: "VerbalizationContext", delegate: "EQLVerbalizer") -> VerbFragment:
+    def transform(cls, expr: Literal, ctx: VerbalizationContext, delegate: EQLVerbalizer) -> VerbFragment:
         """
         Build a LITERAL-role fragment from the Python value.
 
@@ -94,7 +97,7 @@ class LiteralRule(VariableRule):
         :returns: Literal value fragment.
         :rtype: ~krrood.entity_query_language.verbalization.fragments.base.VerbFragment
         """
-        return _role(ctx.type_name_of_value(expr._value_), SemanticRole.LITERAL)
+        return role(ctx.type_name_of_value(expr._value_), SemanticRole.LITERAL)
 
 
 class ExternallySetVariableRule(VerbalizationRule):
@@ -108,12 +111,12 @@ class ExternallySetVariableRule(VerbalizationRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` for :class:`~krrood.entity_query_language.core.variable.ExternallySetVariable`."""
         return isinstance(expr, ExternallySetVariable)
 
     @classmethod
-    def transform(cls, expr: "ExternallySetVariable", ctx: "VerbalizationContext", delegate: "EQLVerbalizer") -> VerbFragment:
+    def transform(cls, expr: ExternallySetVariable, ctx: VerbalizationContext, delegate: EQLVerbalizer) -> VerbFragment:
         """
         Build *"a/an TypeName"* without coreference tracking (external variables are opaque).
 
@@ -124,7 +127,7 @@ class ExternallySetVariableRule(VerbalizationRule):
         :rtype: ~krrood.entity_query_language.verbalization.fragments.base.VerbFragment
         """
         type_name = expr._type_.__name__ if getattr(expr, "_type_", None) else "variable"
-        return _phrase(Articles.indefinite(type_name), _role(type_name, SemanticRole.VARIABLE))
+        return phrase(Articles.indefinite(type_name), role(type_name, SemanticRole.VARIABLE))
 
 
 class InstantiatedVariableRule(VerbalizationRule):
@@ -137,12 +140,12 @@ class InstantiatedVariableRule(VerbalizationRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` for :class:`~krrood.entity_query_language.core.variable.InstantiatedVariable`."""
         return isinstance(expr, InstantiatedVariable)
 
     @classmethod
-    def transform(cls, expr: "InstantiatedVariable", ctx: "VerbalizationContext", delegate: "EQLVerbalizer") -> VerbFragment:
+    def transform(cls, expr: InstantiatedVariable, ctx: VerbalizationContext, delegate: EQLVerbalizer) -> VerbFragment:
         """
         Delegate to :func:`_verbalize_instantiated_natural`.
 
@@ -170,12 +173,12 @@ class InstantiatedVerbalizableRule(InstantiatedVariableRule):
     """
 
     @classmethod
-    def applies(cls, expr, ctx: "VerbalizationContext") -> bool:
+    def applies(cls, expr, ctx: VerbalizationContext) -> bool:
         """Return ``True`` when the InstantiatedVariable type provides a verbalization template."""
         return isinstance(expr, InstantiatedVariable) and _has_verbalization_template(expr)
 
     @classmethod
-    def transform(cls, expr: "InstantiatedVariable", ctx: "VerbalizationContext", delegate: "EQLVerbalizer") -> VerbFragment:
+    def transform(cls, expr: InstantiatedVariable, ctx: VerbalizationContext, delegate: EQLVerbalizer) -> VerbFragment:
         """
         Apply the verbalization template, substituting verbalized child values.
 
@@ -187,12 +190,13 @@ class InstantiatedVerbalizableRule(InstantiatedVariableRule):
         """
         template = expr._type_._verbalization_template_()
         kwargs = {name: delegate.verbalize(child, ctx) for name, child in expr._child_vars_.items()}
-        return _word(template.format(**kwargs))
+        return word(template.format(**kwargs))
 
 
 # ── Module-level helpers ───────────────────────────────────────────────────────
 
 def _has_verbalization_template(expr: InstantiatedVariable) -> bool:
+    """Return ``True`` when *expr*'s type implements :class:`~krrood.entity_query_language.predicate.Verbalizable` and supplies a template."""
     try:
         if isinstance(expr._type_, type) and issubclass(expr._type_, Verbalizable):
             expr._type_._verbalization_template_()
@@ -245,7 +249,7 @@ def _build_bindings(
     for field_name, child_expr in expr._child_vars_.items():
         field_ref = _make_field_ref_frag(field_name, type_name, expr._type_)
         copula, value = _copula_and_value(field_name, child_expr, ctx, delegate)
-        binding_frags.append(_phrase(field_ref, copula, value))
+        binding_frags.append(phrase(field_ref, copula, value))
         pending_overrides[child_expr._id_] = field_ref
     return binding_frags, pending_overrides
 
@@ -257,17 +261,17 @@ def _assemble_instantiated_phrase(
     constraint_frags: list[VerbFragment],
 ) -> VerbFragment:
     result_parts: list[VerbFragment] = [
-        _phrase(Articles.indefinite(type_name), RoleFragment.for_variable(type_name, expr))
+        phrase(Articles.indefinite(type_name), RoleFragment.for_variable(type_name, expr))
     ]
     if binding_frags:
         joined = oxford_and(binding_frags, Conjunctions.AND.as_fragment())
         result_parts.append(PhraseFragment(
-            parts=[_word(","), Keywords.WHERE.as_fragment(), joined]
+            parts=[word(","), Keywords.WHERE.as_fragment(), joined]
         ))
     if constraint_frags:
         joined_c = oxford_and(constraint_frags, Conjunctions.AND.as_fragment())
         result_parts.append(PhraseFragment(
-            parts=[_word(","), Keywords.SUCH_THAT.as_fragment(), joined_c]
+            parts=[word(","), Keywords.SUCH_THAT.as_fragment(), joined_c]
         ))
     return PhraseFragment(parts=result_parts, separator="")
 

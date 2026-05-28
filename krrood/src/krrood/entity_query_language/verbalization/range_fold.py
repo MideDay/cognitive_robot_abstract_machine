@@ -20,6 +20,9 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import List, Optional, TYPE_CHECKING, Union
 
+from krrood.entity_query_language.core.mapped_variable import Attribute, MappedVariable
+from krrood.entity_query_language.core.variable import Variable
+from krrood.entity_query_language.operators.comparator import Comparator
 from krrood.entity_query_language.verbalization.chain_utils import walk_chain
 from krrood.entity_query_language.verbalization.fragments.base import (
     oxford_and,
@@ -37,32 +40,26 @@ if TYPE_CHECKING:
 
 @dataclass
 class RangeFold:
-    """
-    A folded lower/upper bound pair on one attribute chain.
+    """A folded lower/upper bound pair on one attribute chain."""
 
-    :ivar chain_expr: The shared attribute chain (e.g. ``t.booking_date``).
-    :ivar lo_expr: The lower-bound value expression (the ``>=`` / ``>`` right operand).
-    :ivar hi_expr: The upper-bound value expression (the ``<=`` / ``<`` right operand).
-    """
+    chain_expr: SymbolicExpression
+    """The shared attribute chain (e.g. ``t.booking_date``)."""
 
-    chain_expr: "SymbolicExpression"
-    lo_expr: "SymbolicExpression"
-    hi_expr: "SymbolicExpression"
+    lo_expr: SymbolicExpression
+    """The lower-bound value expression (the ``>=`` / ``>`` right operand)."""
+
+    hi_expr: SymbolicExpression
+    """The upper-bound value expression (the ``<=`` / ``<`` right operand)."""
 
 
 class _Bound(Enum):
+    """Internal marker for the direction of a bound comparison in range folding."""
     LOWER = auto()
     UPPER = auto()
 
 
 def _chain_key(expr) -> Optional[tuple]:
     """Hashable identity of a pure attribute chain: ``(root_id, ((name, owner), …))`` or ``None``."""
-    from krrood.entity_query_language.core.mapped_variable import (
-        Attribute,
-        MappedVariable,
-    )
-    from krrood.entity_query_language.core.variable import Variable
-
     if not isinstance(expr, MappedVariable):
         return None
     chain, root = walk_chain(expr)
@@ -78,8 +75,6 @@ def _chain_key(expr) -> Optional[tuple]:
 
 def _classify(conjunct) -> Optional[tuple]:
     """Return ``(chain_key, _Bound)`` when *conjunct* is a bound comparison, else ``None``."""
-    from krrood.entity_query_language.operators.comparator import Comparator
-
     if not isinstance(conjunct, Comparator):
         return None
     key = _chain_key(conjunct.left)
@@ -92,7 +87,7 @@ def _classify(conjunct) -> Optional[tuple]:
     return None
 
 
-def fold_range_pairs(conjuncts: List) -> List[Union["SymbolicExpression", RangeFold]]:
+def fold_range_pairs(conjuncts: List) -> List[Union[SymbolicExpression, RangeFold]]:
     """
     Fold complementary lower/upper bound comparisons on the same chain into
     :class:`RangeFold` items, preserving the order of everything else.
@@ -107,7 +102,7 @@ def fold_range_pairs(conjuncts: List) -> List[Union["SymbolicExpression", RangeF
     """
     infos = [_classify(c) for c in conjuncts]
     used: set = set()
-    result: List[Union["SymbolicExpression", RangeFold]] = []
+    result: List[Union[SymbolicExpression, RangeFold]] = []
     for i, conjunct in enumerate(conjuncts):
         if i in used:
             continue
