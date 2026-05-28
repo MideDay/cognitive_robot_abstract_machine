@@ -18,4 +18,16 @@ from typing_extensions import Type
 
 from krrood.entity_query_language.verbalization.rule_engine import VerbalizationRule
 
+# Import all rule modules so __init_subclass__ registers them before we snapshot.
+from krrood.entity_query_language.verbalization.rules import (  # noqa: F401
+    aggregators,
+    chains,
+    comparator,
+    inference_rule,
+    logical,
+    quantifiers,
+    query,
+    variables,
+)
+
 ALL_RULES: List[Type[VerbalizationRule]] = VerbalizationRule.registered_rules()

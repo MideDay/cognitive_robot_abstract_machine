@@ -426,7 +426,7 @@ def _verbalize_query_body_(
             _having_clause(expression, context, verbalizer),
             _ordered_by_clause(expression, context, verbalizer),
         ]
-        if c is not None
+        if clause is not None
     ]
     return BlockFragment(header=header, items=clauses)
 

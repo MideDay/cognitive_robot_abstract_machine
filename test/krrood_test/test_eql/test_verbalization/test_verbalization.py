@@ -86,6 +86,41 @@ class BankTransaction:
     booking_date: datetime.datetime
 
 
+# ── Sanity / regression tests ──────────────────────────────────────────────────
+
+
+def test_all_rules_registry_is_populated():
+    """ALL_RULES must be non-empty after import — otherwise every expression
+    falls back to its repr string and verbalization is silently broken."""
+    from krrood.entity_query_language.verbalization.rules.registry import ALL_RULES
+
+    assert len(ALL_RULES) > 0, (
+        "ALL_RULES is empty — rule modules were not imported before the registry "
+        "snapshot. Ensure registry.py imports every rules/*.py module."
+    )
+
+
+def test_verbalization_produces_natural_language_not_repr():
+    """Smoke test: verbalizing a simple query must produce English prose,
+    not fall back to the expression's repr string like '(EntityType)'."""
+    @dataclass(unsafe_hash=True)
+    class _Smoke:
+        value: float
+
+    v = variable(_Smoke, domain=None)
+    query = an(entity(v).where(v.value > 10))
+    result = verbalize_expression(query)
+
+    assert isinstance(result, str), (
+        f"Expected str, got {type(result).__name__}: {result!r}"
+    )
+    assert result.startswith("Find "), (
+        f"Expected natural-language output starting with 'Find ', got: {result!r}"
+    )
+    assert "_Smoke" in result
+    assert "10" in result
+
+
 # ── Unit tests: leaves ─────────────────────────────────────────────────────────
 
 
@@ -1574,3 +1609,22 @@ def test_fold_range_pairs_ignores_unrelated_bounds():
     lower_bound = datetime.datetime(2026, 5, 15)
     # Two lower bounds on different chains do not form a range.
     assert has_pair([bank_transaction.booking_date >= lower_bound, bank_transaction.amount_details.amount > 5]) is False
+
+
+def test_pr_example():
+
+    @dataclass(unsafe_hash=True)
+    class BankTransaction:
+        amount: float
+        booking_date: datetime.datetime
+
+    bt = variable(BankTransaction, domain=None)
+    query = an(entity(bt).where(
+        bt.amount > 1000,
+        bt.booking_date >= datetime.datetime(2026, 5, 1),
+        bt.booking_date <= datetime.datetime(2026, 5, 30),
+    ))
+
+    assert verbalize_expression(
+        query) == ("Find a BankTransaction whose amount is greater than 1000, and booking_date is between May 1, 2026,"
+                   " and May 30, 2026")
