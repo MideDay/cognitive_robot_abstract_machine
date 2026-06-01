@@ -26,10 +26,13 @@ from typing_extensions import (
     Any,
     Iterable,
     TYPE_CHECKING,
+    get_args,
 )
 from typing_extensions import List
 from typing_extensions import Type, Set
 
+from krrood.adapters.json_serializer import list_like_classes
+from krrood.class_diagrams.attribute_introspector import DataclassOnlyIntrospector
 from krrood.utils import memoize, clear_memoization_cache
 from semantic_digital_twin.callbacks.callback import ModelChangeCallback
 from semantic_digital_twin.collision_checking.collision_manager import CollisionManager
@@ -759,8 +762,39 @@ class World(HasSimulatorProperties):
         :raises AddingAnExistingSemanticAnnotationError: If the semantic annotation already exists
         """
         self._raise_error_if_belongs_to_other_world(semantic_annotation)
-        if not self.is_semantic_annotation_in_world(semantic_annotation):
-            self._add_semantic_annotation(semantic_annotation)
+        if self.is_semantic_annotation_in_world(semantic_annotation):
+            return
+        self._add_semantic_annotation(semantic_annotation)
+
+    def add_semantic_annotation_recursively(
+        self, semantic_annotation: SemanticAnnotation
+    ) -> None:
+        """
+        Recursively adds a semantic annotation to the current list of semantic annotations if it doesn't already exist.
+        Recursively traverses the semantic annotation's fields and adds any nested semantic annotations as well.
+        Fields are added to the world first to ensure a valid modification history.
+
+        :param semantic_annotation: The semantic annotation instance to be added. Its name must be unique within
+            the current context.
+
+        :raises AddingAnExistingSemanticAnnotationError: If the semantic annotation already exists
+        """
+        self._raise_error_if_belongs_to_other_world(semantic_annotation)
+        if self.is_semantic_annotation_in_world(semantic_annotation):
+            return
+        introspector = DataclassOnlyIntrospector()
+
+        for field_ in introspector.discover(semantic_annotation.__class__):
+            value = getattr(semantic_annotation, field_.public_name)
+
+            if isinstance(value, list_like_classes):
+                for value_ in value:
+                    if not isinstance(value_, SemanticAnnotation):
+                        continue
+                    self.add_semantic_annotation_recursively(value_)
+            elif isinstance(value, SemanticAnnotation):
+                self.add_semantic_annotation_recursively(value)
+        self._add_semantic_annotation(semantic_annotation)
 
     def add_semantic_annotations(
         self,

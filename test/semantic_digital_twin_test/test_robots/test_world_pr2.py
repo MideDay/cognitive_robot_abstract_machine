@@ -410,14 +410,15 @@ def test_search_for_connections_of_type(pr2_world_state_reset: World):
 
 def test_pr2_semantic_annotation(pr2_world_state_reset):
     pr2 = pr2_world_state_reset.get_semantic_annotations_by_type(PR2)[0]
+    pr2.validate()
     # Ensure there are no loose bodies
     pr2_world_state_reset._notify_model_change()
 
     assert len(pr2.all_end_effectors) == 2
     assert len(pr2.all_arms) == 2
     assert len(pr2.all_sensors) == 1
-    assert pr2.torso.name.name == "torso"
-    assert len(pr2.torso.all_sensors) == 1
+    assert pr2.torso.name.name == "PR2Torso"
+    assert len(pr2.torso.neck.sensors) == 1
     assert pr2.left_arm and pr2.right_arm
     assert pr2.left_arm != pr2.right_arm
     assert pr2.all_sensors[0] == pr2.get_default_camera()

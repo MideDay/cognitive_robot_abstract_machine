@@ -43,33 +43,7 @@ GenericRightFinger = TypeVar("GenericRightFinger")
 
 @dataclass(eq=False)
 class RobotPartMixin(HasRootBody, ABC):
-
-    def __post_init__(self):
-        from semantic_digital_twin.robots.robot_parts import (
-            AbstractRobotPart,
-        )
-
-        super().__post_init__()
-        cls = type(self)
-        wrapped_class = WrappedClass(cls)
-        for wrapped_field in wrapped_class.fields:
-            if not wrapped_field.is_underspecified_generic:
-                continue
-
-            type_endpoint = wrapped_field.type_endpoint
-            if not issubclass(type_endpoint, AbstractRobotPart):
-                continue
-
-            instantiated_field = (
-                type_endpoint.setup_default_configuration_in_world_below_robot_root(
-                    self.root
-                )
-            )
-            setattr(
-                self,
-                wrapped_field.public_name,
-                instantiated_field,
-            )
+    pass
 
 
 @dataclass(eq=False)
@@ -99,12 +73,6 @@ class HasFingers(Generic[GenericFinger], AbstractSubClassSafeGeneric, ABC):
         if thumb in self.fingers:
             raise Exception(f"This finger is already part of the robot {self}.")
         self.thumb = thumb
-
-    @abstractmethod
-    def setup_finger_semantic_annotations(self):
-        """
-        Sets up the semantic annotations for the fingers of this robot part.
-        """
 
 
 @dataclass(eq=False)
@@ -149,12 +117,6 @@ class HasSensors(Generic[GenericSensor], AbstractSubClassSafeGeneric, ABC):
     def add_sensor(self, sensor: GenericSensor):
         self.sensors.append(sensor)
 
-    @abstractmethod
-    def setup_sensor_semantic_annotations(self):
-        """
-        Sets up the semantic annotations for the sensors of this robot part.
-        """
-
 
 @dataclass(eq=False)
 class HasEndEffector(Generic[GenericEndEffector], AbstractSubClassSafeGeneric, ABC):
@@ -171,12 +133,6 @@ class HasEndEffector(Generic[GenericEndEffector], AbstractSubClassSafeGeneric, A
     def add_end_effector(self, end_effector: GenericEndEffector):
         self.end_effector = end_effector
 
-    @abstractmethod
-    def setup_end_effector_semantic_annotation(self):
-        """
-        Sets up the semantic annotation for the end effector of this robot part.
-        """
-
 
 @dataclass(eq=False)
 class HasArms(Generic[GenericArm], AbstractSubClassSafeGeneric, ABC):
@@ -192,12 +148,6 @@ class HasArms(Generic[GenericArm], AbstractSubClassSafeGeneric, ABC):
     @synchronized_attribute_modification
     def add_arm(self, arm: GenericArm):
         self.arms.append(arm)
-
-    @abstractmethod
-    def setup_arm_semantic_annotations(self):
-        """
-        Sets up the semantic annotations for the arms of this robot part.
-        """
 
 
 @dataclass(eq=False)
@@ -284,12 +234,6 @@ class HasMobileBase(Generic[GenericMobileBase], AbstractSubClassSafeGeneric, ABC
     def add_mobile_base(self, mobile_base: GenericMobileBase):
         self.mobile_base = mobile_base
 
-    @abstractmethod
-    def setup_mobile_base_semantic_annotation(self):
-        """
-        Sets up the semantic annotation for the mobile base of this robot.
-        """
-
 
 @dataclass(eq=False)
 class HasTorso(Generic[GenericTorso], AbstractSubClassSafeGeneric, ABC):
@@ -306,12 +250,6 @@ class HasTorso(Generic[GenericTorso], AbstractSubClassSafeGeneric, ABC):
     def add_torso(self, torso: GenericTorso):
         self.torso = torso
 
-    @abstractmethod
-    def setup_torso_semantic_annotation(self):
-        """
-        Sets up the semantic annotation for the torso of this robot part.
-        """
-
 
 @dataclass(eq=False)
 class HasNeck(Generic[GenericNeck], AbstractSubClassSafeGeneric, ABC):
@@ -327,9 +265,3 @@ class HasNeck(Generic[GenericNeck], AbstractSubClassSafeGeneric, ABC):
     @synchronized_attribute_modification
     def add_neck(self, neck: GenericNeck):
         self.neck = neck
-
-    @abstractmethod
-    def setup_neck_semantic_annotation(self):
-        """
-        Sets up the semantic annotation for the neck of this robot part.
-        """

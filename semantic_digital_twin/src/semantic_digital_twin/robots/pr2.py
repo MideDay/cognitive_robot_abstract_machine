@@ -74,7 +74,6 @@ class PR2KinectV1(Camera):
             maximal_height=1.60,
             default_camera=True,
         )
-        world.add_semantic_annotation(camera)
         return camera
 
 
@@ -109,7 +108,6 @@ class PR2RightGripperLeftFinger(Finger):
                 robot_root, "r_gripper_l_finger_tip_link"
             ),
         )
-        world.add_semantic_annotation(finger)
         return finger
 
 
@@ -135,7 +133,6 @@ class PR2RightGripperRightFinger(Finger):
                 robot_root, "r_gripper_r_finger_tip_link"
             ),
         )
-        world.add_semantic_annotation(finger)
         return finger
 
 
@@ -161,7 +158,6 @@ class PR2LeftGripperLeftFinger(Finger):
                 robot_root, "l_gripper_l_finger_tip_link"
             ),
         )
-        world.add_semantic_annotation(finger)
         return finger
 
 
@@ -187,7 +183,6 @@ class PR2LeftGripperRightFinger(Finger):
                 robot_root, "l_gripper_r_finger_tip_link"
             ),
         )
-        world.add_semantic_annotation(finger)
         return finger
 
 
@@ -229,18 +224,7 @@ class PR2RightGripper(
             ),
             front_facing_orientation=Quaternion(0, 0, 0, 1),
         )
-        world.add_semantic_annotation(right_gripper)
         return right_gripper
-
-    def setup_finger_semantic_annotations(self):
-        thumb = PR2RightGripperLeftFinger.setup_default_configuration_in_world_below_robot_root(
-            self.root
-        )
-        self.add_thumb(thumb)
-        finger = PR2RightGripperRightFinger.setup_default_configuration_in_world_below_robot_root(
-            self.root
-        )
-        self.add_finger(finger)
 
 
 @dataclass(eq=False)
@@ -275,18 +259,7 @@ class PR2LeftGripper(PR2Gripper[PR2LeftGripperLeftFinger, PR2LeftGripperRightFin
             ),
             front_facing_orientation=Quaternion(0, 0, 0, 1),
         )
-        world.add_semantic_annotation(left_gripper)
         return left_gripper
-
-    def setup_finger_semantic_annotations(self):
-        thumb = PR2LeftGripperRightFinger.setup_default_configuration_in_world_below_robot_root(
-            self.root
-        )
-        self.add_thumb(thumb)
-        finger = PR2LeftGripperLeftFinger.setup_default_configuration_in_world_below_robot_root(
-            self.root
-        )
-        self.add_finger(finger)
 
 
 @dataclass(eq=False)
@@ -307,14 +280,7 @@ class PR2Neck(Neck[PR2KinectV1]):
             root=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
             tip=world.get_body_in_branch_by_name(robot_root, "head_tilt_link"),
         )
-        world.add_semantic_annotation(neck)
         return neck
-
-    def setup_sensor_semantic_annotations(self):
-        neck = PR2KinectV1.setup_default_configuration_in_world_below_robot_root(
-            self.root
-        )
-        self.add_sensor(neck)
 
 
 @dataclass(eq=False)
@@ -354,15 +320,7 @@ class PR2LeftArm(Arm[PR2LeftGripper]):
             root=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
             tip=world.get_body_in_branch_by_name(robot_root, "l_wrist_roll_link"),
         )
-        world.add_semantic_annotation(left_arm)
         return left_arm
-
-    def setup_end_effector_semantic_annotation(self):
-        gripper = PR2LeftGripper.setup_default_configuration_in_world_below_robot_root(
-            self.root
-        )
-        self.add_end_effector(gripper)
-        gripper.setup_finger_semantic_annotations()
 
 
 @dataclass(eq=False)
@@ -394,15 +352,7 @@ class PR2RightArm(Arm[PR2RightGripper]):
             root=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
             tip=world.get_body_in_branch_by_name(robot_root, "r_wrist_roll_link"),
         )
-        world.add_semantic_annotation(right_arm)
         return right_arm
-
-    def setup_end_effector_semantic_annotation(self):
-        gripper = PR2RightGripper.setup_default_configuration_in_world_below_robot_root(
-            self.root
-        )
-        self.add_end_effector(gripper)
-        gripper.setup_finger_semantic_annotations()
 
 
 @dataclass(eq=False)
@@ -417,7 +367,6 @@ class PR2Torso(Torso, HasLeftRightArm[PR2LeftArm, PR2RightArm], HasNeck[PR2Neck]
             root=world.get_body_in_branch_by_name(robot_root, "base_link"),
             tip=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
         )
-        world.add_semantic_annotation(torso)
         return torso
 
     def setup_hardware_interfaces(self):
@@ -447,24 +396,6 @@ class PR2Torso(Torso, HasLeftRightArm[PR2LeftArm, PR2RightArm], HasNeck[PR2Neck]
         self.add_joint_state(torso_mid)
         self.add_joint_state(torso_high)
 
-    def setup_arm_semantic_annotations(self):
-        left_arm = PR2LeftArm.setup_default_configuration_in_world_below_robot_root(
-            self.root
-        )
-        self.add_arm(left_arm)
-        left_arm.setup_end_effector_semantic_annotation()
-
-        right_arm = PR2RightArm.setup_default_configuration_in_world_below_robot_root(
-            self.root
-        )
-        self.add_arm(right_arm)
-        right_arm.setup_end_effector_semantic_annotation()
-
-    def setup_neck_semantic_annotation(self):
-        neck = PR2Neck.setup_default_configuration_in_world_below_robot_root(self.root)
-        neck.setup_sensor_semantic_annotations()
-        self.add_neck(neck)
-
 
 @dataclass(eq=False)
 class PR2MobileBase(MobileBase, HasTorso[PR2Torso]):
@@ -483,16 +414,7 @@ class PR2MobileBase(MobileBase, HasTorso[PR2Torso]):
         self = cls(
             root=world.get_body_in_branch_by_name(robot_root, "base_link"),
         )
-        world.add_semantic_annotation(self)
         return self
-
-    def setup_torso_semantic_annotation(self):
-        torso = PR2Torso.setup_default_configuration_in_world_below_robot_root(
-            self.root
-        )
-        torso.setup_arm_semantic_annotations()
-        torso.setup_neck_semantic_annotation()
-        self.add_torso(torso)
 
 
 @dataclass(eq=False)
@@ -505,18 +427,6 @@ class PR2(AbstractRobot, HasMobileBase[PR2MobileBase]):
     @classmethod
     def _get_root_body_name(cls) -> str:
         return "base_footprint"
-
-    def setup_mobile_base_semantic_annotation(self):
-        mobile_base = (
-            PR2MobileBase.setup_default_configuration_in_world_below_robot_root(
-                self.root
-            )
-        )
-        mobile_base.setup_torso_semantic_annotation()
-        self.add_mobile_base(mobile_base)
-
-    def setup_robot_part_semantic_annotations(self):
-        self.setup_mobile_base_semantic_annotation()
 
     def _setup_velocity_limits(self):
         vel_limits = defaultdict(

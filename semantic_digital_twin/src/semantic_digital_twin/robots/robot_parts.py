@@ -1,12 +1,26 @@
 from __future__ import annotations
 
+import inspect
 import logging
+import types
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Optional, Self, TYPE_CHECKING, Set, List, DefaultDict, TypeVar
+from typing import (
+    Optional,
+    Self,
+    TYPE_CHECKING,
+    Set,
+    List,
+    DefaultDict,
+    TypeVar,
+    Union,
+    Any,
+)
 from uuid import UUID
+
+from typing_extensions import get_origin, get_args
 
 from krrood.adapters.json_serializer import list_like_classes
 from krrood.class_diagrams.attribute_introspector import (
@@ -80,7 +94,6 @@ class HasRobotParts(ABC):
         Recursively aggregates all robot parts assigned to this robot part, including itself if it is a robot part.
          Uses a set of seen UUIDs to avoid infinite recursion in case of cyclic references and duplicates.
         """
-        wrapped_class = WrappedClass(self.__class__)
         introspector = DataclassOnlyIntrospector()
         robot_parts = []
 
@@ -102,6 +115,81 @@ class HasRobotParts(ABC):
                 robot_parts.extend(value._aggregate_robot_parts(seen))
 
         return robot_parts
+
+    def setup_robot_part_semantic_annotations(self):
+        """
+        Automatically discovers and initializes sub-parts by introspecting dataclass fields.
+        """
+        introspector = DataclassOnlyIntrospector()
+
+        for attr in introspector.discover(self.__class__):
+            field_name = attr.public_name
+            field_type = attr.field.type
+
+            origin = get_origin(field_type)
+            args = get_args(field_type)
+
+            # Case 1: List-like collection of parts (e.g., arms: list[PR2LeftArm | PR2RightArm])
+            if origin in list_like_classes and args:
+                self._initialize_list_field(field_name, args[0])
+
+            # Case 2: Single robot part field (e.g., mobile_base: PR2MobileBase)
+            elif (
+                inspect.isclass(field_type)
+                and issubclass(field_type, AbstractRobotPart)
+                and not inspect.isabstract(field_type)
+            ):
+                if getattr(self, field_name) is None:
+                    # Requirement: Each semantic annotation type should only be initialized once
+                    if any(type(item) is field_type for item in self._robot_parts):
+                        continue
+
+                    part = field_type.setup_default_configuration_in_world_below_robot_root(
+                        self.root
+                    )
+                    if part:
+                        setattr(self, field_name, part)
+                        # Recursive call to trigger initialization for child part's fields
+                        part.setup_robot_part_semantic_annotations()
+
+    def _initialize_list_field(self, field_name: str, item_type: Any):
+        """
+        Helper to initialize all parts matching item_type and append them to a list field.
+
+        Handles Union types by initializing one instance of each type in the Union.
+        """
+        # Resolve Union types (e.g., Union[PR2LeftArm, PR2RightArm]) to get concrete types
+        if get_origin(item_type) in (Union, getattr(types, "UnionType", Union)):
+            types_to_initialize = get_args(item_type)
+        else:
+            types_to_initialize = [item_type]
+
+        current_list = getattr(self, field_name)
+        # Ensure the field is initialized as a list if it's currently None
+        if not isinstance(current_list, list):
+            current_list = []
+            setattr(self, field_name, current_list)
+
+        for concrete_type in types_to_initialize:
+            # Only process concrete subclasses of AbstractRobotPart
+            if (
+                inspect.isclass(concrete_type)
+                and issubclass(concrete_type, AbstractRobotPart)
+                and not inspect.isabstract(concrete_type)
+            ):
+                # Requirement: Each semantic annotation type should only be initialized once
+                if any(type(item) is concrete_type for item in self._robot_parts):
+                    continue
+
+                part = (
+                    concrete_type.setup_default_configuration_in_world_below_robot_root(
+                        self.root
+                    )
+                )
+                if part:
+                    current_list.append(part)
+                    # Recursive call for nested robot parts
+                    part.setup_robot_part_semantic_annotations()
 
 
 @dataclass(eq=False)
@@ -419,11 +507,11 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
         robot's kinematic structure.
         """
 
-    @abstractmethod
     def setup_robot_part_semantic_annotations(self):
         """
         Sets up the semantic annotations for all robot parts of this robot.
         """
+        super().setup_robot_part_semantic_annotations()
 
     @classmethod
     def from_world(cls, world: World) -> Self:
@@ -446,8 +534,8 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
             self = cls(
                 root=robot_root,
             )
-            world.add_semantic_annotation(self)
             self.setup_robot_part_semantic_annotations()
+            world.add_semantic_annotation_recursively(self)
             for robot_part in self._robot_parts:
                 robot_part.setup_hardware_interfaces()
                 robot_part.setup_joint_states()
