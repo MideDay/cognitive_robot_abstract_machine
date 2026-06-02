@@ -62,18 +62,6 @@ class HasFingers(Generic[GenericFinger], AbstractSubClassSafeGeneric, ABC):
     The thumb is a finger that always needs to be involved in the manipulation of objects.
     """
 
-    @synchronized_attribute_modification
-    def add_finger(self, finger: GenericFinger):
-        if finger == self.thumb:
-            raise Exception(f"This finger is already part of the robot {self}.")
-        self.fingers.append(finger)
-
-    @synchronized_attribute_modification
-    def add_thumb(self, thumb: GenericFinger):
-        if thumb in self.fingers:
-            raise Exception(f"This finger is already part of the robot {self}.")
-        self.thumb = thumb
-
 
 @dataclass(eq=False)
 class HasTwoFingers(
@@ -91,16 +79,6 @@ class HasTwoFingers(
         [finger] = self.fingers
         return finger
 
-    @synchronized_attribute_modification
-    def add_finger(self, finger: Union[GenericLeftFinger, GenericRightFinger]):
-        if finger == self.thumb:
-            raise Exception(f"This finger is already part of the robot {self}.")
-        if len(self.fingers) > 0:
-            raise Exception(
-                f"When inheriting from HasTwoFingers, the fingers must be a thumb, and exactly one other finger."
-            )
-        self.fingers.append(finger)
-
 
 @dataclass(eq=False)
 class HasSensors(Generic[GenericSensor], AbstractSubClassSafeGeneric, ABC):
@@ -112,10 +90,6 @@ class HasSensors(Generic[GenericSensor], AbstractSubClassSafeGeneric, ABC):
     """
     The list of sensors associated with the robot part.GenericFinger
     """
-
-    @synchronized_attribute_modification
-    def add_sensor(self, sensor: GenericSensor):
-        self.sensors.append(sensor)
 
 
 @dataclass(eq=False)
@@ -129,10 +103,6 @@ class HasEndEffector(Generic[GenericEndEffector], AbstractSubClassSafeGeneric, A
     The end effector attached to the robot part.
     """
 
-    @synchronized_attribute_modification
-    def add_end_effector(self, end_effector: GenericEndEffector):
-        self.end_effector = end_effector
-
 
 @dataclass(eq=False)
 class HasArms(Generic[GenericArm], AbstractSubClassSafeGeneric, ABC):
@@ -145,22 +115,12 @@ class HasArms(Generic[GenericArm], AbstractSubClassSafeGeneric, ABC):
     The list of arms attached to the robot part.
     """
 
-    @synchronized_attribute_modification
-    def add_arm(self, arm: GenericArm):
-        self.arms.append(arm)
-
 
 @dataclass(eq=False)
 class HasOneArm(HasArms[GenericArm], ABC):
     """
     Mixin class for robots or robot parts that have exactly one arm.
     """
-
-    @synchronized_attribute_modification
-    def add_arm(self, arm: GenericArm):
-        if len(self.arms) != 0:
-            raise Exception(f"This robot already has an arm {self.arms}")
-        self.arms.append(arm)
 
     @property
     def arm(self) -> GenericArm:
@@ -230,10 +190,6 @@ class HasMobileBase(Generic[GenericMobileBase], AbstractSubClassSafeGeneric, ABC
     The mobile base attached to the robot part.
     """
 
-    @synchronized_attribute_modification
-    def add_mobile_base(self, mobile_base: GenericMobileBase):
-        self.mobile_base = mobile_base
-
 
 @dataclass(eq=False)
 class HasTorso(Generic[GenericTorso], AbstractSubClassSafeGeneric, ABC):
@@ -246,10 +202,6 @@ class HasTorso(Generic[GenericTorso], AbstractSubClassSafeGeneric, ABC):
     The torso attached to the robot part.
     """
 
-    @synchronized_attribute_modification
-    def add_torso(self, torso: GenericTorso):
-        self.torso = torso
-
 
 @dataclass(eq=False)
 class HasNeck(Generic[GenericNeck], AbstractSubClassSafeGeneric, ABC):
@@ -261,7 +213,3 @@ class HasNeck(Generic[GenericNeck], AbstractSubClassSafeGeneric, ABC):
     """
     The neck attached to the robot part.
     """
-
-    @synchronized_attribute_modification
-    def add_neck(self, neck: GenericNeck):
-        self.neck = neck

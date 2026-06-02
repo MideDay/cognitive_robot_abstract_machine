@@ -63,9 +63,8 @@ class PR2KinectV1(Camera):
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        camera = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "wide_stereo_optical_frame"
             ),
             forward_facing_axis=Vector3.Z(),
@@ -74,7 +73,6 @@ class PR2KinectV1(Camera):
             maximal_height=1.60,
             default_camera=True,
         )
-        return camera
 
 
 @dataclass(eq=False)
@@ -100,7 +98,7 @@ class PR2RightGripperLeftFinger(Finger):
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
         world = robot_root._world
-        finger = cls(
+        return cls(
             root=world.get_body_in_branch_by_name(
                 robot_root, "r_gripper_l_finger_link"
             ),
@@ -108,7 +106,6 @@ class PR2RightGripperLeftFinger(Finger):
                 robot_root, "r_gripper_l_finger_tip_link"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
@@ -125,7 +122,7 @@ class PR2RightGripperRightFinger(Finger):
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
         world = robot_root._world
-        finger = cls(
+        return cls(
             root=world.get_body_in_branch_by_name(
                 robot_root, "r_gripper_r_finger_link"
             ),
@@ -133,7 +130,6 @@ class PR2RightGripperRightFinger(Finger):
                 robot_root, "r_gripper_r_finger_tip_link"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
@@ -150,7 +146,7 @@ class PR2LeftGripperLeftFinger(Finger):
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
         world = robot_root._world
-        finger = cls(
+        return cls(
             root=world.get_body_in_branch_by_name(
                 robot_root, "l_gripper_l_finger_link"
             ),
@@ -158,7 +154,6 @@ class PR2LeftGripperLeftFinger(Finger):
                 robot_root, "l_gripper_l_finger_tip_link"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
@@ -175,7 +170,7 @@ class PR2LeftGripperRightFinger(Finger):
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
         world = robot_root._world
-        finger = cls(
+        return cls(
             root=world.get_body_in_branch_by_name(
                 robot_root, "l_gripper_r_finger_link"
             ),
@@ -183,7 +178,6 @@ class PR2LeftGripperRightFinger(Finger):
                 robot_root, "l_gripper_r_finger_tip_link"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
@@ -217,14 +211,13 @@ class PR2RightGripper(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
         world = robot_root._world
-        right_gripper = cls(
+        return cls(
             root=world.get_body_in_branch_by_name(robot_root, "r_gripper_palm_link"),
             tool_frame=world.get_body_in_branch_by_name(
                 robot_root, "r_gripper_tool_frame"
             ),
             front_facing_orientation=Quaternion(0, 0, 0, 1),
         )
-        return right_gripper
 
 
 @dataclass(eq=False)
@@ -252,14 +245,13 @@ class PR2LeftGripper(PR2Gripper[PR2LeftGripperLeftFinger, PR2LeftGripperRightFin
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
         world = robot_root._world
-        left_gripper = cls(
+        return cls(
             root=world.get_body_in_branch_by_name(robot_root, "l_gripper_palm_link"),
             tool_frame=world.get_body_in_branch_by_name(
                 robot_root, "l_gripper_tool_frame"
             ),
             front_facing_orientation=Quaternion(0, 0, 0, 1),
         )
-        return left_gripper
 
 
 @dataclass(eq=False)
@@ -276,11 +268,10 @@ class PR2Neck(Neck[PR2KinectV1]):
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
         world = robot_root._world
-        neck = cls(
+        return cls(
             root=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
             tip=world.get_body_in_branch_by_name(robot_root, "head_tilt_link"),
         )
-        return neck
 
 
 @dataclass(eq=False)
@@ -316,11 +307,10 @@ class PR2LeftArm(Arm[PR2LeftGripper]):
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
         world = robot_root._world
-        left_arm = cls(
+        return cls(
             root=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
             tip=world.get_body_in_branch_by_name(robot_root, "l_wrist_roll_link"),
         )
-        return left_arm
 
 
 @dataclass(eq=False)
@@ -348,11 +338,10 @@ class PR2RightArm(Arm[PR2RightGripper]):
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
         world = robot_root._world
-        right_arm = cls(
+        return cls(
             root=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
             tip=world.get_body_in_branch_by_name(robot_root, "r_wrist_roll_link"),
         )
-        return right_arm
 
 
 @dataclass(eq=False)
@@ -363,11 +352,10 @@ class PR2Torso(Torso, HasLeftRightArm[PR2LeftArm, PR2RightArm], HasNeck[PR2Neck]
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
         world = robot_root._world
-        torso = cls(
+        return cls(
             root=world.get_body_in_branch_by_name(robot_root, "base_link"),
             tip=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
         )
-        return torso
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -411,10 +399,9 @@ class PR2MobileBase(MobileBase, HasTorso[PR2Torso]):
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
         world = robot_root._world
-        self = cls(
+        return cls(
             root=world.get_body_in_branch_by_name(robot_root, "base_link"),
         )
-        return self
 
 
 @dataclass(eq=False)
