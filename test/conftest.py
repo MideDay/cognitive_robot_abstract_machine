@@ -11,6 +11,11 @@ from giskardpy.middleware.ros2.utils.utils import load_xacro
 from semantic_digital_twin.robots.daisy import DAiSy
 
 try:
+    from semantic_digital_twin.robots.garmi import Garmi
+except ImportError:
+    Garmi = None
+
+try:
     from pycram.datastructures.dataclasses import Context
 except ModuleNotFoundError:
     # ROS dependencies.
@@ -30,6 +35,7 @@ from krrood.utils import recursive_subclasses
 from semantic_digital_twin.adapters.mesh import STLParser
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.exceptions import ParsingError
 from semantic_digital_twin.robots.abstract_robot import AbstractRobot
 from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
@@ -411,6 +417,24 @@ def hsr_world_setup():
     )
     hsr = os.path.join(urdf_dir, "hsrb.urdf")
     return world_with_urdf_factory(hsr, HSRB, OmniDrive)
+
+
+@pytest.fixture(scope="function")
+def hsr_world_copy(hsr_world_setup):
+    result = deepcopy(hsr_world_setup)
+    HSRB.from_world(result)
+    return result
+
+
+@pytest.fixture(scope="session")
+def garmi_world_setup():
+    if Garmi is None:
+        pytest.skip("GARMI semantic annotation not installed")
+    urdf_dir = "package://garmi_description/urdf/garmi.urdf"
+    try:
+        return world_with_urdf_factory(urdf_dir, Garmi, OmniDrive)
+    except ParsingError as error:
+        pytest.skip(f"GARMI URDF not available: {error}")
 
 
 @pytest.fixture(scope="session")
