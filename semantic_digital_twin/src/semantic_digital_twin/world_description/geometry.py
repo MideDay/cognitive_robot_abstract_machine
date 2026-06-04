@@ -430,12 +430,13 @@ class Mesh(Shape):
         origin = from_json(data["origin"], **kwargs)
         scale = from_json(data["scale"], **kwargs)
         file_type = data["file_type"]
-        color = from_json(data["color"], **kwargs)
-        instance = cls.from_trimesh(
+        # Per-vertex colors only survive the temporary export/reload in a
+        # color-preserving format, so prefer PLY when colors are present.
+        if vertex_colors is not None:
+            file_type = "ply"
+        return cls.from_trimesh(
             mesh=mesh, origin=origin, scale=scale, file_type=file_type
         )
-        instance.color = color
-        return instance
 
     @classmethod
     def add_uv(cls, mesh: trimesh.Trimesh, uv: np.ndarray) -> trimesh.Trimesh:
@@ -480,8 +481,13 @@ class Mesh(Shape):
         """
         mesh = trimesh.load_mesh(self.filename)
         mesh.apply_scale(self.scale.to_np())
-        if not isinstance(mesh.visual, TextureVisuals):
-            mesh.visual.vertex_colors = trimesh.visual.color.to_rgba(self.color.to_rgba())
+        # Apply the shape's color only when it was explicitly set, so a mesh's own
+        # materials or per-vertex colors (e.g. from a .dae or from serialization)
+        # are preserved by default. dye_shapes still works as it sets a color.
+        if self.color != Color():
+            mesh.visual.vertex_colors = trimesh.visual.color.to_rgba(
+                self.color.to_rgba()
+            )
         return mesh
 
     @classmethod
