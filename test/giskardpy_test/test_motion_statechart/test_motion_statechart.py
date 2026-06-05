@@ -95,6 +95,7 @@ from semantic_digital_twin.spatial_types import (
     Vector3,
     Point3,
 )
+from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 
 
@@ -1735,10 +1736,17 @@ class TestMaxManipulability:
         msc = MotionStatechart()
         msc.add_nodes(
             [
-                MaxManipulability(root_link=root, tip_link=tip),
+                cart_goal := CartesianPose(
+                    root_link=pr2_world_state_reset.root,
+                    tip_link=tip,
+                    goal_pose=Pose.from_xyz_rpy(
+                        x=0.8, y=-0.3, z=1.0, reference_frame=pr2_world_state_reset.root
+                    ),
+                ),
+                maxi := MaxManipulability(root_link=root, tip_link=tip),
             ]
         )
-        # msc.add_node(EndMotion.when_false(pulse))
+        msc.add_node(EndMotion.when_true(cart_goal))
 
         kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
         kin_sim.compile(motion_statechart=msc)

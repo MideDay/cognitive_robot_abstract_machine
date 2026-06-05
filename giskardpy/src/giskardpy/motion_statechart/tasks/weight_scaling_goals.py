@@ -89,8 +89,7 @@ class MaxManipulability(Task):
 
     root_link: Body
     tip_link: Body
-    gain: float = 5
-    m_threshold: float = 0.15
+    m_threshold: float = 0.5
 
     def build(self, context: MotionStatechartContext) -> NodeArtifacts:
         artifacts = NodeArtifacts()
@@ -107,18 +106,10 @@ class MaxManipulability(Task):
         artifacts.constraints.add_position_constraint(
             reference_velocity=1,
             expr_goal=self.m_threshold,
-            quadratic_weight=10,
+            quadratic_weight=1,
             expr_current=m,
             name=self.name,
         )
 
-        # context.add_debug_expression(
-        #     f"mIndex {self.tip_link.name.name}", m, derivatives_to_plot=[0, 1]
-        # )
-        # context.add_debug_expression(
-        #     f"mIndex {self.tip_link.name.name} threshold",
-        #     self.m_threshold,
-        #     derivatives_to_plot=[0, 1],
-        # )
         artifacts.observation_expression = sm.abs(self.m_threshold - m) <= 0.01
         return artifacts
