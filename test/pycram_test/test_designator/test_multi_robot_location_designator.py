@@ -38,7 +38,7 @@ from semantic_digital_twin.world import World
 @pytest.fixture(
     scope="module",
     params=[
-        # Garmi commented out until we get access to the robot description in CI
+        # TODO Garmi commented out until we get access to the robot description in CI
         # pytest.param(
         #     "garmi",
         #     marks=pytest.mark.skipif(
