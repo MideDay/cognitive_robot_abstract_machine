@@ -1,13 +1,19 @@
 """
-The grammar as first-class data — a :class:`PhraseRule` per EQL construct, the
-dispatch primitive :func:`select`, and the per-node :class:`Ctx` handed to a rule.
+The grammar as first-class rule objects — a :class:`PhraseRule` subclass per EQL
+construct, the dispatch primitive :func:`select`, and the per-node :class:`Ctx`
+handed to a rule.
 
 This realises the **rule-to-rule** mapping of Montague grammar: each construct of
 the source algebra (an EQL :class:`~krrood.entity_query_language.core.base_expressions.SymbolicExpression`)
-has one clause describing how it composes into the target (English) algebra.  A
-clause is *data* — a :class:`PhraseRule` value — not a method on a class, so the
-grammar is itself queryable (see
-:mod:`~krrood.entity_query_language.verbalization.grammar.registry`).
+has one rule describing how it composes into the target (English) algebra.  Rules
+are registered as *instances* (see
+:mod:`~krrood.entity_query_language.verbalization.grammar.registry`), so the grammar
+is still queryable with EQL (``entity(r).where(r.construct == Comparator)``) while a
+rule's behaviour lives in an overridable :meth:`PhraseRule.build` method — the
+natural home for the planner/assembler split of the more complex constructs.
+
+Specificity is driven by the ``construct`` class attribute (not by the rule-class
+hierarchy), so rules stay flat and dispatch is honest.
 
 References:
 
@@ -20,9 +26,10 @@ References:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
-from typing_extensions import Any, Callable, List, Optional, Sequence, TypeVar
+from typing_extensions import Any, Callable, ClassVar, Optional, Sequence, TypeVar
 
 from krrood.entity_query_language.verbalization.fragments.base import VerbFragment
 
@@ -41,15 +48,10 @@ if TYPE_CHECKING:
 _T = TypeVar("_T")
 
 
-def _always(node: Any) -> bool:
-    """Default guard — a rule with no extra precondition beyond its ``construct``."""
-    return True
-
-
 @dataclass
 class Ctx:
     """
-    Per-node context handed to a :attr:`PhraseRule.build`.
+    Per-node context handed to :meth:`PhraseRule.build`.
 
     Bundles the single recursion entry (:attr:`child`, the fold continuation) with
     the microplanning services, so a ``build`` never recurses by hand and never
@@ -78,32 +80,61 @@ class Ctx:
         return self.context.config
 
 
-@dataclass(frozen=True)
-class PhraseRule:
+class PhraseRule(ABC):
     """
-    One Montague rule-to-rule clause, as data: *for this construct, build this phrase.*
+    One Montague rule-to-rule clause: *for this construct, build this phrase.*
 
-    :param construct: The EQL node class this clause handles (the ``isinstance`` gate).
-    :param build: ``build(node, ctx) -> VerbFragment`` — how the construct composes
-        (delegating recursion to ``ctx.child`` and sub-decisions to ``ctx`` services).
-    :param when: Extra precondition beyond ``construct`` (the non-``isinstance`` part
-        of the old ``applies``); the default :func:`_always` means "no extra guard".
-    :param name: Stable identifier for querying / tracing the grammar.
-    :param tiebreak: Explicit ordering for the rare case of two rules with the same
-        ``construct`` that are *both* guarded and overlap (e.g. inference vs. top-level
-        entity); higher wins.
+    Subclasses set :attr:`construct` (and optionally :attr:`name` / :attr:`tiebreak`),
+    may override :meth:`when` to add a guard beyond the ``isinstance`` test, and must
+    implement :meth:`build`.  Rules are flat (all direct subclasses) — specificity
+    comes from :attr:`construct`, never from the rule-class hierarchy.
+
+    :cvar construct: The EQL node class this rule handles (the ``isinstance`` gate).
+    :cvar name: Stable identifier for querying / tracing the grammar.
+    :cvar tiebreak: Explicit ordering for the rare case of two rules with the same
+        ``construct`` that are *both* guarded and overlap (e.g. inference vs.
+        top-level entity); higher wins.
     """
 
-    construct: type
-    build: Callable[[Any, Ctx], VerbFragment]
-    when: Callable[[Any], bool] = _always
-    name: str = ""
-    tiebreak: int = 0
+    construct: ClassVar[type]
+    name: ClassVar[str] = ""
+    tiebreak: ClassVar[int] = 0
+
+    def when(self, node) -> bool:
+        """
+        Extra precondition beyond ``isinstance(node, construct)``.
+
+        The default accepts everything; override to express the non-``isinstance``
+        part of the rule's applicability (a *guarded* rule outranks an unguarded one
+        on the same construct).
+
+        :param node: The candidate EQL expression.
+        :rtype: bool
+        """
+        return True
+
+    @abstractmethod
+    def build(self, node, ctx: Ctx) -> VerbFragment:
+        """
+        Build the fragment for *node*, delegating recursion to ``ctx.child`` and
+        cross-cutting decisions to ``ctx`` services / morphology / coordination /
+        the lexicon.
+
+        :param node: The EQL expression to verbalize.
+        :param ctx: The per-node context (recursion + services).
+        :return: The fragment for *node*.
+        :rtype: ~krrood.entity_query_language.verbalization.fragments.base.VerbFragment
+        """
 
 
 def _mro_depth(cls: type) -> int:
     """Specificity of a construct: deeper in the MRO ⇒ more specific (``Literal`` > ``Variable``)."""
     return len(cls.__mro__)
+
+
+def _is_guarded(rule: PhraseRule) -> bool:
+    """``True`` when *rule* overrides :meth:`PhraseRule.when` (a guarded rule)."""
+    return type(rule).when is not PhraseRule.when
 
 
 def most_specific(candidates: Sequence[_T], key: Callable[[_T], tuple]) -> Optional[_T]:
@@ -123,12 +154,12 @@ def most_specific(candidates: Sequence[_T], key: Callable[[_T], tuple]) -> Optio
 
 def select(node, rules: Sequence[PhraseRule]) -> Optional[PhraseRule]:
     """
-    Return the most-specific :class:`PhraseRule` whose ``construct`` and ``when``
+    Return the most-specific :class:`PhraseRule` whose ``construct`` and :meth:`~PhraseRule.when`
     match *node*, or ``None`` when none apply.
 
     Specificity key, highest wins: ``(construct MRO depth, guarded over unguarded,
-    explicit tiebreak)``.  This reproduces the previous engine's MRO-depth ordering
-    and ``applies`` guards without a class hierarchy.
+    explicit tiebreak)`` — reproducing the previous engine's MRO-depth ordering and
+    ``applies`` guards without a rule-class hierarchy.
 
     :param node: The EQL expression being dispatched.
     :param rules: The grammar (e.g. ``ALL_PHRASE_RULES``).
@@ -141,7 +172,7 @@ def select(node, rules: Sequence[PhraseRule]) -> Optional[PhraseRule]:
         candidates,
         key=lambda rule: (
             _mro_depth(rule.construct),
-            rule.when is not _always,
+            _is_guarded(rule),
             rule.tiebreak,
         ),
     )
