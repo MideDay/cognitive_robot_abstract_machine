@@ -45,5 +45,5 @@ dev = [
 ]
 
 rerun = [
-    "rerun-sdk",
+    "rerun-sdk[datafusion]",
 ]

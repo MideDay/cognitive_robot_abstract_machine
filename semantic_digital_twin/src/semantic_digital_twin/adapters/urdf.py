@@ -157,6 +157,18 @@ class URDFParser:
         prefix: Optional[str] = None,
         mappings: Optional[Dict[str, str]] = None,
     ) -> URDFParser:
+        """
+        Creates a parser from a xacro file by expanding it to URDF.
+
+        The xacro file is resolved and processed into a URDF string, applying the
+        given substitution arguments, before constructing the parser.
+
+        :param xacro_path: The path to the xacro file to expand.
+        :param prefix: The prefix for every name used in this world.
+        :param mappings: The xacro substitution arguments to apply during expansion
+            (the ``arg`` values, e.g. ``{"ur_type": "ur5"}``).
+        :return: A parser for the world described by the expanded xacro file.
+        """
         from xacro import process_file
 
         xacro_path = CompositePathResolver().resolve(xacro_path)
