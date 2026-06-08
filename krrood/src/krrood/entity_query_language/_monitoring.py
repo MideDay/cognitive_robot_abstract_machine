@@ -26,6 +26,9 @@ class MonitoredRegistry(metaclass=SingletonMeta):
     """
 
     _monitored: set[type] = field(default_factory=set)
+    """
+    Set of classes that are currently being monitored.
+    """
 
     def __call__(self, cls: Type) -> Type:
         """Decorate a class to automatically record its creation stack as a :class:`CallStack`."""
@@ -70,6 +73,7 @@ class MonitoredRegistry(metaclass=SingletonMeta):
         :return: An immutable snapshot of all currently monitored classes as a tuple.
         """
         return tuple(self._monitored)
+
 
 # The decorator to use for classes to be monitored.
 monitored = MonitoredRegistry()
