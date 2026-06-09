@@ -55,6 +55,7 @@ from krrood.entity_query_language.verbalization.chain_utils import (
     walk_chain,
 )
 from krrood.entity_query_language.verbalization.fragments.base import (
+    BlockFragment,
     flatten_fragment_to_plain_text,
     join_with,
     oxford_and,
@@ -98,6 +99,25 @@ from krrood.entity_query_language.verbalization.vocabulary.english import (
     Prepositions,
 )
 from krrood.entity_query_language.verbalization.vocabulary.words import ChildForm
+
+# Constructs + relocated helpers for the complex query / inference families
+# (Phase A transcription; the helpers move into grammar/ in Phase B).
+from krrood.entity_query_language.core.base_expressions import Filter
+from krrood.entity_query_language.query.operations import GroupedBy, OrderedBy
+from krrood.entity_query_language.query.quantifiers import ResultQuantifier
+from krrood.entity_query_language.query.query import Entity, SetOf
+from krrood.entity_query_language.verbalization.rules.query import (
+    _verbalize_group_keys,
+    _verbalize_ordered_by,
+    verbalize_nested,
+    verbalize_query,
+    verbalize_set_of,
+)
+from krrood.entity_query_language.verbalization.rules.inference_rule import (
+    _ANALYZER,
+    _verbalize_rule_if_,
+    _verbalize_rule_then_,
+)
 
 #: Maps each standard aggregator subtype to its lexicon phrase.
 _AGGREGATION_KIND = {
@@ -437,6 +457,118 @@ class ExistsRule(PhraseRule):
         )
 
 
+# ── query / entity family ───────────────────────────────────────────────────
+# Phase A: build delegates to the relocated query helpers via _FoldVerbalizer.
+# Phase B splits these into planner (plan_query) + assembler.
+
+
+class TopLevelEntityRule(PhraseRule):
+    """Top-level Entity → imperative *"Find …"* (only at query_depth 0)."""
+
+    construct = Entity
+    name = "top-level-entity"
+
+    def when(self, node, ctx: Ctx):
+        return ctx.config.query_depth == 0
+
+    def build(self, node, ctx: Ctx):
+        return verbalize_query(node, ctx.context, _FoldVerbalizer(ctx))
+
+
+class NestedEntityRule(PhraseRule):
+    """Nested Entity → noun phrase (query_depth > 0); never emits *"Find"*."""
+
+    construct = Entity
+    name = "nested-entity"
+
+    def when(self, node, ctx: Ctx):
+        return ctx.config.query_depth > 0
+
+    def build(self, node, ctx: Ctx):
+        return verbalize_nested(node, ctx.context, _FoldVerbalizer(ctx))
+
+
+class InferenceRuleRule(PhraseRule):
+    """Top-level inference-rule Entity → ``IF … THEN …`` block."""
+
+    construct = Entity
+    name = "inference-rule"
+    tiebreak = 1  # beats TopLevelEntityRule when both match (same construct + depth 0)
+
+    def when(self, node, ctx: Ctx):
+        return ctx.config.query_depth == 0 and _ANALYZER.can_handle(node)
+
+    def build(self, node, ctx: Ctx):
+        verbalizer = _FoldVerbalizer(ctx)
+        structure = _ANALYZER.analyze(node)
+        if_frag = _verbalize_rule_if_(structure, ctx.context, verbalizer)
+        then_frag = _verbalize_rule_then_(structure, ctx.context, verbalizer)
+        return BlockFragment(
+            header=None,
+            items=[
+                BlockFragment(header=Keywords.IF.as_fragment(), items=if_frag),
+                BlockFragment(header=Keywords.THEN.as_fragment(), items=then_frag),
+            ],
+        )
+
+
+class SetOfRule(PhraseRule):
+    """SetOf → *"Find (v1, v2, …) such that …"*."""
+
+    construct = SetOf
+    name = "set-of"
+
+    def build(self, node, ctx: Ctx):
+        return verbalize_set_of(node, ctx.context, _FoldVerbalizer(ctx))
+
+
+class ResultQuantifierRule(PhraseRule):
+    """Transparent wrapper (An / The / …) → delegate to the child."""
+
+    construct = ResultQuantifier
+    name = "result-quantifier"
+
+    def build(self, node, ctx: Ctx):
+        return ctx.child(node._child_)
+
+
+class FilterRule(PhraseRule):
+    """Transparent wrapper (Where / Having) → delegate to the condition."""
+
+    construct = Filter
+    name = "filter"
+
+    def build(self, node, ctx: Ctx):
+        return ctx.child(node.condition)
+
+
+class GroupedByRule(PhraseRule):
+    """GroupedBy → *"grouped by <key1>, <key2>, …"* (or *"grouped"* when keyless)."""
+
+    construct = GroupedBy
+    name = "grouped-by"
+
+    def build(self, node, ctx: Ctx):
+        if node.variables_to_group_by:
+            return phrase(
+                Keywords.GROUPED_BY.as_fragment(),
+                _verbalize_group_keys(
+                    node.variables_to_group_by, ctx.context, _FoldVerbalizer(ctx)
+                ),
+            )
+        return Keywords.GROUPED.as_fragment()
+
+
+class OrderedByRule(PhraseRule):
+    """OrderedBy → *"ordered by <variable> (ascending|descending)"*."""
+
+    construct = OrderedBy
+    name = "ordered-by"
+
+    def build(self, node, ctx: Ctx):
+        return _verbalize_ordered_by(node, ctx.context, _FoldVerbalizer(ctx))
+
+
 # ── the full grammar (one instance per rule) ─────────────────────────────────────
 
 RULES: List[PhraseRule] = [
@@ -457,4 +589,12 @@ RULES: List[PhraseRule] = [
     CountAllRule(),
     ForAllRule(),
     ExistsRule(),
+    TopLevelEntityRule(),
+    NestedEntityRule(),
+    InferenceRuleRule(),
+    SetOfRule(),
+    ResultQuantifierRule(),
+    FilterRule(),
+    GroupedByRule(),
+    OrderedByRule(),
 ]
