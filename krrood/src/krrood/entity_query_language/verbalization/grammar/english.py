@@ -47,7 +47,6 @@ from krrood.entity_query_language.verbalization.chain_utils import (
     walk_chain,
 )
 from krrood.entity_query_language.verbalization.fragments.base import (
-    flatten_fragment_to_plain_text,
     join_with,
     oxford_and,
     PhraseFragment,
@@ -78,6 +77,9 @@ from krrood.entity_query_language.verbalization.microplanning.coordination impor
 )
 from krrood.entity_query_language.verbalization.microplanning.referring import (
     ArticleSelection,
+)
+from krrood.entity_query_language.verbalization.rendering.morphology_processor import (
+    realize_subtree,
 )
 from krrood.entity_query_language.verbalization.grammar.assembly.chains import (
     ChainAssembler,
@@ -525,9 +527,11 @@ class InstantiatedVerbalizableRule(PhraseRule):
         return InstantiatedPlanner.has_template(node)
 
     def build(self, node, ctx: Ctx):
+        # An opaque format string: it consumes finalized child text, so it realizes its
+        # children locally (morphology pass + flatten) rather than deferring to the global pass.
         template = node._type_._verbalization_template_()
         kwargs = {
-            name: flatten_fragment_to_plain_text(ctx.child(child))
+            name: realize_subtree(ctx.child(child))
             for name, child in node._child_vars_.items()
         }
         return word(template.format(**kwargs))

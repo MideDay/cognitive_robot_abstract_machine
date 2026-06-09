@@ -30,6 +30,7 @@ from krrood.entity_query_language.verbalization.fragments.factory import (
     role,
     word,
 )
+from krrood.entity_query_language.verbalization.fragments.features import Number
 from krrood.entity_query_language.verbalization.fragments.roles import SemanticRole
 from krrood.entity_query_language.verbalization.grammar.aggregation_kinds import (
     AGGREGATION_KIND,
@@ -212,7 +213,9 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         aggregation_kind = AGGREGATION_KIND[type(av.aggregator)]
         plural_leaf = aggregation_kind.value.child_form == ChildForm.PLURAL
         leaf_frag = RoleFragment.for_attribute(
-            av.leaf._owner_class_, av.leaf._attribute_name_, plural=plural_leaf
+            av.leaf._owner_class_,
+            av.leaf._attribute_name_,
+            number=Number.of(plural_leaf),
         )
         aggregate = phrase(
             Articles.THE.as_fragment(), aggregation_kind.as_fragment(), leaf_frag

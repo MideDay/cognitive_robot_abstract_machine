@@ -16,6 +16,7 @@ from dataclasses import replace
 
 from krrood.entity_query_language.verbalization import morphology
 from krrood.entity_query_language.verbalization.fragments.base import (
+    flatten_fragment_to_plain_text,
     map_fragment,
     RoleFragment,
     VerbFragment,
@@ -39,3 +40,14 @@ class MorphologyProcessor:
                 number=Number.SINGULAR,
             )
         return leaf
+
+
+def realize_subtree(fragment: VerbFragment) -> str:
+    """
+    Fully realise a sub-tree to plain text — run the morphology pass, then flatten.
+
+    For an **opaque leaf** (a user :class:`~krrood.entity_query_language.predicate.Verbalizable`
+    template that string-formats its children): the template's content is opaque text, so it
+    must realise its children *here*, locally, rather than deferring to the global pass.
+    """
+    return flatten_fragment_to_plain_text(MorphologyProcessor().process(fragment))

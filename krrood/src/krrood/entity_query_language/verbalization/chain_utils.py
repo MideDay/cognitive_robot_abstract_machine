@@ -27,9 +27,9 @@ from krrood.entity_query_language.verbalization.fragments.base import (
     PhraseFragment,
     RoleFragment,
 )
+from krrood.entity_query_language.verbalization.fragments.features import Number
 from krrood.entity_query_language.verbalization.fragments.roles import SemanticRole
 from krrood.entity_query_language.verbalization.fragments.source_ref import SourceRef
-from krrood.entity_query_language.verbalization import morphology
 from krrood.entity_query_language.verbalization.vocabulary.english import Prepositions
 
 if TYPE_CHECKING:
@@ -178,8 +178,10 @@ def verbalize_plural(
         type_name = expression._type_.__name__
         label = context.disambiguation_map.get(expression._id_, type_name)
         context.register_label(expression, label)
-        plural = label if label != type_name else morphology.plural(type_name)
-        return RoleFragment.for_variable(plural, expression)
+        # Numbered labels ("Robot 1") are surface-final; plain type names get pluralised
+        # by the morphology pass (tagged here).
+        number = Number.SINGULAR if label != type_name else Number.PLURAL
+        return RoleFragment.for_variable(label, expression, number=number)
 
     if isinstance(expression, Attribute):
         chain, root = walk_chain(expression)
@@ -191,14 +193,16 @@ def verbalize_plural(
             type_name = root._type_.__name__
             label = context.disambiguation_map.get(root._id_, type_name)
             context.register_label(root, label)
-            root_plural = label if label != type_name else morphology.plural(type_name)
+            root_number = Number.SINGULAR if label != type_name else Number.PLURAL
             attribute_name = chain[0]._attribute_name_
             owner = chain[0]._owner_class_
             return PhraseFragment(
                 parts=[
-                    RoleFragment.for_attribute(owner, attribute_name, plural=True),
+                    RoleFragment.for_attribute(
+                        owner, attribute_name, number=Number.PLURAL
+                    ),
                     Prepositions.OF.as_fragment(),
-                    RoleFragment.for_variable(root_plural, root),
+                    RoleFragment.for_variable(label, root, number=root_number),
                 ],
                 separator=" ",
             )

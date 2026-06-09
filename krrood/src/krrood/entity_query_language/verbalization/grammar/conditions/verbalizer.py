@@ -21,7 +21,6 @@ from __future__ import annotations
 
 from typing_extensions import Any
 
-from krrood.entity_query_language.verbalization import morphology
 from krrood.entity_query_language.verbalization.fragments.base import (
     PhraseFragment,
     RoleFragment,
@@ -100,6 +99,5 @@ class ConditionVerbalizer(Assembler[Any, None]):
         )
 
     def _attr_noun(self, name: str, number: Number) -> VerbFragment:
-        """A role-tagged attribute noun inflected for *number*."""
-        text = morphology.ensure_plural(name) if number is Number.PLURAL else name
-        return role(text, SemanticRole.ATTRIBUTE)
+        """A role-tagged attribute noun tagged with *number* (the pass inflects it)."""
+        return role(name, SemanticRole.ATTRIBUTE, number=number)

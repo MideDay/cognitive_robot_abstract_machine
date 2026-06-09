@@ -18,7 +18,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 from typing_extensions import Callable, List, Optional, TypeVar
 
-from krrood.entity_query_language.verbalization import morphology
 from krrood.entity_query_language.verbalization.fragments.features import Number
 from krrood.entity_query_language.verbalization.fragments.roles import SemanticRole
 from krrood.entity_query_language.verbalization.fragments.source_ref import SourceRef
@@ -101,26 +100,26 @@ class RoleFragment(VerbFragment):
 
     @classmethod
     def for_attribute(
-        cls, owner, attribute_name: str, plural: bool = False
+        cls, owner, attribute_name: str, number: Number = Number.SINGULAR
     ) -> RoleFragment:
         """
         Build a fragment for an attribute access, linked to its owner class.
 
+        Inflection is **not** applied here — a ``PLURAL`` *number* is a feature the
+        morphology pass realises later (the source link always uses the canonical name).
+
         :param owner: Owner class of the attribute (used for source linking).
         :param attribute_name: Canonical attribute name on *owner*.
         :type attribute_name: str
-        :param plural: Whether the attribute is pluralized in the display text.
-        :type plural: bool
+        :param number: Grammatical-number feature (pluralised by the morphology pass).
         :return: :class:`RoleFragment` with :attr:`~SemanticRole.ATTRIBUTE` role.
         :rtype: RoleFragment
         """
-        label = (
-            attribute_name if not plural else morphology.ensure_plural(attribute_name)
-        )
         return cls(
-            text=label,
+            text=attribute_name,
             role=SemanticRole.ATTRIBUTE,
             source_ref=SourceRef.for_attribute(owner, attribute_name),
+            number=number,
         )
 
     @classmethod
