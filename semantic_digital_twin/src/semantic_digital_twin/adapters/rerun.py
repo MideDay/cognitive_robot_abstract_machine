@@ -1,5 +1,4 @@
-# Rerun visualization adapter. Requires the optional rerun-sdk dependency
-# (pip install semantic_digital_twin[rerun]); does not require ROS.
+# Rerun visualization adapter. Requires the rerun-sdk dependency; does not require ROS.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
