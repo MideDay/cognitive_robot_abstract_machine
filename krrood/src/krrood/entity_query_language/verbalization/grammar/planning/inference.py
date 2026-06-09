@@ -122,85 +122,98 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
         return isinstance(entity.selected_variable, InstantiatedVariable)
 
     def plan(self) -> RuleStructure:
-        entity = self.node
-        entity.build()
-        inferred: InstantiatedVariable = entity.selected_variable
-        type_name = getattr(inferred._type_, "__name__", str(inferred._type_))
-
-        grouped_expression = entity._grouped_by_expression_
-        group_key_ids: FrozenSet[uuid.UUID] = frozenset()
-        if grouped_expression is not None and grouped_expression.variables_to_group_by:
-            group_key_ids = frozenset(
-                variable._id_ for variable in grouped_expression.variables_to_group_by
-            )
-        has_grouping = bool(group_key_ids)
-
-        seen_root_ids: dict = {}
-        consequent_bindings: List[ConsequentBinding] = []
-
-        for field_name, child_expression in inferred._child_vars_.items():
-            is_plural = morphology.is_plural(field_name)
-
-            if child_expression._id_ in group_key_ids:
-                binding_aggregation = AggregationStatus.GROUP_KEY
-            elif has_grouping:
-                binding_aggregation = AggregationStatus.AGGREGATED
-            else:
-                binding_aggregation = AggregationStatus.NONE
-
-            consequent_bindings.append(
-                ConsequentBinding(
-                    field_name=field_name,
-                    value_expression=child_expression,
-                    is_plural_field=is_plural,
-                    aggregation_status=binding_aggregation,
-                )
-            )
-
-            root = self._find_root(child_expression)
-            if root is None or root._id_ in seen_root_ids:
-                continue
-
-            root_type_name, own_conditions = self._extract_root_info(root)
-
-            if root._id_ in group_key_ids:
-                variable_aggregation = AggregationStatus.GROUP_KEY
-            elif has_grouping:
-                variable_aggregation = AggregationStatus.AGGREGATED
-            else:
-                variable_aggregation = AggregationStatus.NONE
-
-            seen_root_ids[root._id_] = AntecedentInfo(
-                root=root,
-                type_name=root_type_name,
-                aggregation_status=variable_aggregation,
-                conditions=own_conditions,
-            )
-
-        where_expression = entity._where_expression_
-        extra: List[Any] = []
-        if where_expression is not None:
-            extra = self._flatten_and(where_expression.condition)
-
-        primary, secondary, unmatched = self._attribute_conditions(
-            list(seen_root_ids.values()), extra
-        )
-
+        self.node.build()
+        group_key_ids = self._group_key_ids()
+        antecedents, unmatched = self._plan_antecedents(group_key_ids)
         return RuleStructure(
-            primary_antecedents=primary,
-            secondary_antecedents=secondary,
-            consequent_type=type_name,
-            consequent_bindings=consequent_bindings,
+            primary_antecedents=[a for a in antecedents if a.conditions],
+            secondary_antecedents=[a for a in antecedents if not a.conditions],
+            consequent_type=self._consequent_type(),
+            consequent_bindings=self._plan_consequent(group_key_ids),
             unmatched_conditions=unmatched,
             group_key_ids=group_key_ids,
         )
 
-    # ── analysis sub-steps (methods) ────────────────────────────────────────────
+    # ── shared analysis helpers ──────────────────────────────────────────────────
+
+    @property
+    def _inferred(self) -> InstantiatedVariable:
+        """The InstantiatedVariable selected by the entity (after build)."""
+        return self.node.selected_variable
+
+    def _consequent_type(self) -> str:
+        inferred = self._inferred
+        return getattr(inferred._type_, "__name__", str(inferred._type_))
+
+    def _group_key_ids(self) -> FrozenSet[uuid.UUID]:
+        grouped = self.node._grouped_by_expression_
+        if grouped is not None and grouped.variables_to_group_by:
+            return frozenset(v._id_ for v in grouped.variables_to_group_by)
+        return frozenset()
+
+    @staticmethod
+    def _aggregation_status(
+        node_id, group_key_ids: FrozenSet[uuid.UUID]
+    ) -> AggregationStatus:
+        """GROUP_KEY if a group key, else AGGREGATED when grouping is present, else NONE."""
+        if node_id in group_key_ids:
+            return AggregationStatus.GROUP_KEY
+        return AggregationStatus.AGGREGATED if group_key_ids else AggregationStatus.NONE
+
+    # ── consequent (THEN bindings) ───────────────────────────────────────────────
+
+    def _plan_consequent(
+        self, group_key_ids: FrozenSet[uuid.UUID]
+    ) -> List[ConsequentBinding]:
+        return [
+            ConsequentBinding(
+                field_name=field_name,
+                value_expression=child,
+                is_plural_field=morphology.is_plural(field_name),
+                aggregation_status=self._aggregation_status(child._id_, group_key_ids),
+            )
+            for field_name, child in self._inferred._child_vars_.items()
+        ]
+
+    # ── antecedents (IF roots + their conditions) ────────────────────────────────
+
+    def _plan_antecedents(
+        self, group_key_ids: FrozenSet[uuid.UUID]
+    ) -> Tuple[List[AntecedentInfo], List[Any]]:
+        """Discover antecedent roots, then attribute outer-WHERE conditions to them.
+
+        Returns the antecedents (their ``conditions`` mutated in place) and the
+        conditions that matched no antecedent.
+        """
+        antecedents = self._discover_antecedents(group_key_ids)
+        unmatched = self._attribute_conditions(antecedents, self._outer_conditions())
+        return antecedents, unmatched
+
+    def _discover_antecedents(
+        self, group_key_ids: FrozenSet[uuid.UUID]
+    ) -> List[AntecedentInfo]:
+        seen_root_ids: dict = {}
+        for child in self._inferred._child_vars_.values():
+            root = self._find_root(child)
+            if root is None or root._id_ in seen_root_ids:
+                continue
+            type_name, own_conditions = self._extract_root_info(root)
+            seen_root_ids[root._id_] = AntecedentInfo(
+                root=root,
+                type_name=type_name,
+                aggregation_status=self._aggregation_status(root._id_, group_key_ids),
+                conditions=own_conditions,
+            )
+        return list(seen_root_ids.values())
+
+    def _outer_conditions(self) -> List[Any]:
+        where = self.node._where_expression_
+        return self._flatten_and(where.condition) if where is not None else []
 
     def _attribute_conditions(
         self, antecedents: List[AntecedentInfo], extra_conditions: List[Any]
-    ) -> Tuple[List[AntecedentInfo], List[AntecedentInfo], List[Any]]:
-        """Distribute outer-WHERE conditions to owning antecedents; split primary/secondary."""
+    ) -> List[Any]:
+        """Distribute outer-WHERE conditions to owning antecedents (in place); return unmatched."""
         id_to_antecedent = {self._antecedent_var_id(a): a for a in antecedents}
         unmatched: List[Any] = []
         for condition in extra_conditions:
@@ -209,9 +222,7 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
                 id_to_antecedent[owner_id].conditions.append(condition)
             else:
                 unmatched.append(condition)
-        primary = [a for a in antecedents if a.conditions]
-        secondary = [a for a in antecedents if not a.conditions]
-        return primary, secondary, unmatched
+        return unmatched
 
     def _antecedent_var_id(self, antecedent: AntecedentInfo) -> Optional[object]:
         """Stable ``_id_`` of the underlying variable for an antecedent."""
