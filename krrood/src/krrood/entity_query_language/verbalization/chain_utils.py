@@ -177,7 +177,7 @@ def verbalize_plural(
     if isinstance(expression, Variable):
         type_name = expression._type_.__name__
         label = context.disambiguation_map.get(expression._id_, type_name)
-        context.seen[expression._id_] = label
+        context.register_label(expression, label)
         plural = label if label != type_name else morphology.plural(type_name)
         return RoleFragment.for_variable(plural, expression)
 
@@ -190,7 +190,7 @@ def verbalize_plural(
         ):
             type_name = root._type_.__name__
             label = context.disambiguation_map.get(root._id_, type_name)
-            context.seen[root._id_] = label
+            context.register_label(root, label)
             root_plural = label if label != type_name else morphology.plural(type_name)
             attribute_name = chain[0]._attribute_name_
             owner = chain[0]._owner_class_

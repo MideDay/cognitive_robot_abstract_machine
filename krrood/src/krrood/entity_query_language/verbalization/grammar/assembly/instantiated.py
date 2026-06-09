@@ -53,7 +53,7 @@ class InstantiatedAssembler(Assembler[InstantiatedVariable, InstantiatedPlan]):
         seen = self.ctx.refer.seen_reference(node)
         if seen is not None:
             return seen
-        self.ctx.refer.seen[node._id_] = plan.type_name
+        self.ctx.refer.register_label(node, plan.type_name)
 
         self.ctx.scope.push_constraint_frame()
         binding_frags, overrides = self._bindings(plan, node._type_)

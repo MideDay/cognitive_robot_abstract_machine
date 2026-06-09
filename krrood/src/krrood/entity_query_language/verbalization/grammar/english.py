@@ -357,9 +357,7 @@ class AggregatorRule(PhraseRule):
             )
 
         if node._id_ not in ctx.refer.seen:
-            ctx.refer.seen[node._id_] = flatten_fragment_to_plain_text(
-                phrase(aggregation_fragment, child_fragment)
-            )
+            ctx.refer.register(node, phrase(aggregation_fragment, child_fragment))
         return result
 
 

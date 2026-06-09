@@ -100,6 +100,18 @@ class VerbalizationContext:
         """``_id_`` of the current coreference subject, or ``None``."""
         return self.referring.current_subject_id
 
+    def register(self, expression, label: VerbFragment) -> None:
+        """Delegate to :meth:`ReferringExpressions.register`."""
+        self.referring.register(expression, label)
+
+    def register_label(self, expression, text: str) -> None:
+        """Delegate to :meth:`ReferringExpressions.register_label`."""
+        self.referring.register_label(expression, text)
+
+    def alias(self, target, source) -> None:
+        """Delegate to :meth:`ReferringExpressions.alias`."""
+        self.referring.alias(target, source)
+
     def seen_reference(self, expression) -> Optional[VerbFragment]:
         """Delegate to :meth:`ReferringExpressions.seen_reference`."""
         return self.referring.seen_reference(expression)

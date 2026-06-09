@@ -20,7 +20,6 @@ from krrood.entity_query_language.query.query import Query
 from krrood.entity_query_language.verbalization.chain_utils import verbalize_plural
 from krrood.entity_query_language.verbalization.fragments.base import (
     BlockFragment,
-    flatten_fragment_to_plain_text,
     oxford_and,
     PhraseFragment,
     RoleFragment,
@@ -80,7 +79,7 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
                     node, plan, selection, where_item=self._where_clause(plan)
                 )
             if plan.kind is SelectionKind.EMPTY:
-                self.ctx.context.seen[node._id_] = FallbackNouns.ENTITY.text
+                self.ctx.context.register_label(node, FallbackNouns.ENTITY.text)
                 return self._query_body(
                     node,
                     plan,
@@ -133,17 +132,15 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
     def _build_selection(self, node, var, plan: QueryPlan) -> VerbFragment:
         if plan.is_the:
             selected_type = plan.selected_type
-            self.ctx.context.seen[var._id_] = selected_type
-            self.ctx.context.seen[node._id_] = selected_type
+            self.ctx.context.register_label(var, selected_type)
+            self.ctx.context.register_label(node, selected_type)
             return phrase(
                 Articles.THE_UNIQUE.as_fragment(),
                 role(selected_type, SemanticRole.VARIABLE),
             )
         selected = self.ctx.child(var)
-        selected_type = self.ctx.context.seen.get(
-            getattr(var, "_id_", None), FallbackNouns.ENTITY.text
-        )
-        self.ctx.context.seen[node._id_] = selected_type
+        # The entity shares its selected variable's label (registered by ctx.child above).
+        self.ctx.context.alias(node, var)
         return selected
 
     def _apply_subject_restrictions(
@@ -172,9 +169,9 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         plan = self.plan(entity)
         var = entity.selected_variable
         selected_type = plan.selected_type
-        self.ctx.context.seen[entity._id_] = selected_type
+        self.ctx.context.register_label(entity, selected_type)
         if var is not None:
-            self.ctx.context.seen[var._id_] = selected_type
+            self.ctx.context.register_label(var, selected_type)
 
         if plan.is_the:
             article_noun: VerbFragment = phrase(
@@ -222,8 +219,8 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         )
 
         if av.aggregator._id_ not in self.ctx.context.seen:
-            self.ctx.context.seen[av.aggregator._id_] = flatten_fragment_to_plain_text(
-                phrase(aggregation_kind.as_fragment(), leaf_frag)
+            self.ctx.context.register(
+                av.aggregator, phrase(aggregation_kind.as_fragment(), leaf_frag)
             )
 
         if not av.is_constrained:
@@ -358,8 +355,8 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
             variable_type.__name__ if variable_type else FallbackNouns.ENTITY.text
         )
 
-        self.ctx.context.seen[entity._id_] = type_name
-        self.ctx.context.seen[var._id_] = type_name
+        self.ctx.context.register_label(entity, type_name)
+        self.ctx.context.register_label(var, type_name)
 
         where_expression = entity._where_expression_
         if where_expression is not None:

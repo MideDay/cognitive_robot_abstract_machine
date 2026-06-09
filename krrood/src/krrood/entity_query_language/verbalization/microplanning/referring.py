@@ -138,9 +138,11 @@ class ReferringExpressions:
     (:attr:`coref_subjects`).
     """
 
-    seen: dict = field(default_factory=dict)
-    """Maps expression ``_id_`` → display label for every expression already
-    verbalized in this pass."""
+    seen: "Dict[uuid.UUID, VerbFragment]" = field(default_factory=dict)
+    """Maps expression ``_id_`` → its **label fragment** for every expression already
+    verbalized in this pass (a subsequent mention renders as *"the <label>"*).  Storing a
+    fragment (not a flattened string) keeps discourse state structural — surface inflection
+    is applied once, later, by the morphology pass."""
 
     disambiguation_map: Dict[uuid.UUID, str] = field(default_factory=dict)
     """Maps variable ``_id_`` → display label, pre-computed before verbalization
@@ -181,6 +183,24 @@ class ReferringExpressions:
         """``_id_`` of the current coreference subject, or ``None`` when there is none."""
         return self.coref_subjects[-1] if self.coref_subjects else None
 
+    def register(self, expression, label: VerbFragment) -> None:
+        """Record *expression*'s label **fragment** (reused for a definite later mention)."""
+        self.seen[expression._id_] = label
+
+    def register_label(self, expression, text: str) -> None:
+        """Record *expression*'s label as a plain ``VARIABLE``-role noun (the common case)."""
+        self.seen[expression._id_] = RoleFragment(text=text, role=SemanticRole.VARIABLE)
+
+    def alias(self, target, source) -> None:
+        """Give *target* the label already registered for *source* (no-op if *source* unseen)."""
+        label = self.seen.get(source._id_)
+        if label is not None:
+            self.seen[target._id_] = label
+
+    def label_of(self, expression) -> Optional[VerbFragment]:
+        """The registered label fragment for *expression*, or ``None``."""
+        return self.seen.get(getattr(expression, "_id_", None))
+
     def seen_reference(self, expression) -> Optional[VerbFragment]:
         """
         Return *"the <label>"* when *expression* has already been verbalized in this pass,
@@ -194,10 +214,7 @@ class ReferringExpressions:
         if variable_id is None or variable_id not in self.seen:
             return None
         return PhraseFragment(
-            parts=[
-                Articles.THE.as_fragment(),
-                RoleFragment(text=self.seen[variable_id], role=SemanticRole.VARIABLE),
-            ]
+            parts=[Articles.THE.as_fragment(), self.seen[variable_id]]
         )
 
     def pronoun_for(self, root) -> Optional[VerbFragment]:
@@ -245,7 +262,7 @@ class ReferringExpressions:
             return (
                 ArticleSelection.NONE if is_numbered else ArticleSelection.DEFINITE
             ), label
-        self.seen[var._id_] = label
+        self.seen[var._id_] = RoleFragment(text=label, role=SemanticRole.VARIABLE)
         return (
             ArticleSelection.NONE if is_numbered else ArticleSelection.INDEFINITE
         ), label
