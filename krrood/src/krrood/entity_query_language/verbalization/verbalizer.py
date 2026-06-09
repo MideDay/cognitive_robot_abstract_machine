@@ -12,7 +12,7 @@ For coloured / hierarchical output use
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from typing_extensions import Optional
 
@@ -25,8 +25,6 @@ from krrood.entity_query_language.verbalization.fragments.base import (
     flatten_fragment_to_plain_text,
 )
 from krrood.entity_query_language.verbalization.grammar.registry import ALL_PHRASE_RULES
-from krrood.entity_query_language.verbalization.rule_engine import RuleEngine
-from krrood.entity_query_language.verbalization.rules.registry import ALL_RULES
 
 
 @dataclass
@@ -34,23 +32,15 @@ class EQLVerbalizer:
     """
     Coordinator that maps an EQL expression tree to a :class:`~krrood.entity_query_language.verbalization.fragments.base.VerbFragment` tree.
 
-    Dispatches via a :class:`~krrood.entity_query_language.verbalization.rule_engine.RuleEngine` of
-    :class:`~krrood.entity_query_language.verbalization.rule_engine.VerbalizationRule` classes.
-    Each rule declares its guard in :meth:`~krrood.entity_query_language.verbalization.rule_engine.VerbalizationRule.applies`
-    and its rendering in :meth:`~krrood.entity_query_language.verbalization.rule_engine.VerbalizationRule.transform`.
-    More-specific subclasses are tried before their parents (MRO-depth priority).
+    Dispatches via the grammar :func:`~krrood.entity_query_language.verbalization.engine.fold`:
+    a single catamorphism over the EQL tree that selects the most-specific
+    :class:`~krrood.entity_query_language.verbalization.grammar.phrase_rule.PhraseRule`
+    for each node (see :mod:`~krrood.entity_query_language.verbalization.grammar`).
 
     For simple plain-text output use :func:`verbalize_expression`.
     For coloured / formatted output build a
     :class:`~krrood.entity_query_language.verbalization.pipeline.VerbalizationPipeline`.
     """
-
-    _engine: RuleEngine = field(init=False, repr=False)
-    """Legacy rule dispatcher, used as the strangler fallback for EQL constructs
-    not yet ported to :data:`~krrood.entity_query_language.verbalization.grammar.registry.ALL_PHRASE_RULES`."""
-
-    def __post_init__(self) -> None:
-        self._engine = RuleEngine(ALL_RULES)
 
     def build(
         self,
@@ -58,13 +48,10 @@ class EQLVerbalizer:
         context: Optional[VerbalizationContext] = None,
     ) -> VerbFragment:
         """
-        Translate *expression* into a :class:`~krrood.entity_query_language.verbalization.fragments.base.VerbFragment` tree.
+        Translate *expression* into a :class:`~krrood.entity_query_language.verbalization.fragments.base.VerbFragment` tree
+        via the grammar :func:`~krrood.entity_query_language.verbalization.engine.fold`.
 
-        Dispatches through the grammar :func:`~krrood.entity_query_language.verbalization.engine.fold`;
-        constructs not yet expressed as a
-        :class:`~krrood.entity_query_language.verbalization.grammar.phrase_rule.PhraseRule`
-        fall through to the legacy :class:`~krrood.entity_query_language.verbalization.rule_engine.RuleEngine`
-        (strangler migration). A fresh context is created when *context* is ``None``.
+        A fresh context is created when *context* is ``None``.
 
         :param expression: Any EQL symbolic expression.
         :type expression: ~krrood.entity_query_language.core.base_expressions.SymbolicExpression
@@ -75,12 +62,7 @@ class EQLVerbalizer:
         """
         if context is None:
             context = VerbalizationContext.from_expression(expression)
-        return fold(expression, context, ALL_PHRASE_RULES, fallback=self._legacy_build)
-
-    def _legacy_build(self, node, context: VerbalizationContext) -> VerbFragment:
-        """Strangler fallback: dispatch *node* via the legacy engine; its children
-        re-enter the grammar fold through ``self.build``."""
-        return self._engine.build(node, context, self)
+        return fold(expression, context, ALL_PHRASE_RULES)
 
     def verbalize(
         self,
