@@ -276,6 +276,10 @@ def atomic_world_modification(func=None, modification: Type[WorldModification] =
         def wrapper(current_world: World, *args, **kwargs):
             if current_world._current_active_atomic_world_modification is not None:
                 raise AtomicWorldModificationNotAtomic(func, current_world)
+            if (
+                not current_world._model_manager._active_world_model_update_context_manager_ids
+            ):
+                raise MissingWorldModificationContextError(func)
             current_world._current_active_atomic_world_modification = func
 
             # bind args and kwargs
@@ -288,10 +292,6 @@ def atomic_world_modification(func=None, modification: Type[WorldModification] =
             # Build a dict with all arguments (including positional), excluding 'self'
             bound_args = dict(bound.arguments)
             bound_args.pop("self", None)
-            if (
-                not current_world._model_manager._active_world_model_update_context_manager_ids
-            ):
-                raise MissingWorldModificationContextError(func)
             recorded_modification = modification.from_kwargs(bound_args)
 
             try:
