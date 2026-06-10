@@ -14,7 +14,7 @@ except ImportError:
     Garmi = None
 
 try:
-    from pycram.datastructures.dataclasses import Context
+    from coraplex.datastructures.dataclasses import Context
 except ModuleNotFoundError:
     # ROS dependencies.
     Context = None
@@ -468,7 +468,7 @@ def stretch_world():
     urdf_dir = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "..",
-        "pycram",
+        "coraplex",
         "resources",
         "robots",
     )
@@ -486,7 +486,7 @@ def apartment_world_setup():
         os.path.join(
             os.path.dirname(__file__),
             "..",
-            "pycram",
+            "coraplex",
             "resources",
             "worlds",
             "apartment.urdf",
@@ -496,7 +496,7 @@ def apartment_world_setup():
         os.path.join(
             os.path.dirname(__file__),
             "..",
-            "pycram",
+            "coraplex",
             "resources",
             "objects",
             "milk.stl",
@@ -506,7 +506,7 @@ def apartment_world_setup():
         os.path.join(
             os.path.dirname(__file__),
             "..",
-            "pycram",
+            "coraplex",
             "resources",
             "objects",
             "breakfast_cereal.stl",
@@ -634,7 +634,7 @@ def simple_apartment_setup():
         os.path.join(
             os.path.dirname(__file__),
             "..",
-            "pycram",
+            "coraplex",
             "resources",
             "objects",
             "milk.stl",

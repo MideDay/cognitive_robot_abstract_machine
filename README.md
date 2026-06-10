@@ -88,7 +88,7 @@ sudo bash .github/docker/setup_ros_workspace.sh && source ~/.bashrc
 pytest test/<package>_test
 ```
 
-e.g. `pytest test/pycram_test`
+e.g. `pytest test/coraplex_test`
 
 ## Contribution
 
