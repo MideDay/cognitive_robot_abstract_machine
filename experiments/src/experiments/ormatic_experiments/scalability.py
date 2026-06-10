@@ -1,5 +1,5 @@
-import datetime
 import random
+import time
 import tempfile
 from dataclasses import is_dataclass, dataclass
 from typing import Type, List
@@ -45,10 +45,10 @@ alternative_mappings = [
 
 @dataclass
 class ORMaticScalabilityExperimentResult(ExperimentResult):
-    total_duration: datetime.timedelta
-    class_diagram_creation_duration: datetime.timedelta
-    ormatic_reasoning_duration: datetime.timedelta
-    writing_to_file_duration: datetime.timedelta
+    total_duration: float
+    class_diagram_creation_duration: float
+    ormatic_reasoning_duration: float
+    writing_to_file_duration: float
     number_of_classes: int
     number_of_associations: int
     number_of_inheritances: int
@@ -74,14 +74,14 @@ def ormatic_scalability_experiment(
 
     filtered_classes |= {am.original_class() for am in alternative_mappings}
 
-    begin = datetime.datetime.now()
+    begin = time.perf_counter()
 
     # create the new ormatic interface
     class_diagram = ClassDiagram(
         list(sorted(filtered_classes, key=lambda c: c.__name__, reverse=True))
     )
 
-    class_diagram_creation_time = datetime.datetime.now()
+    class_diagram_creation_time = time.perf_counter()
 
     # Create an ORMatic object with the classes to be mapped
     ormatic = ORMatic(
@@ -93,13 +93,13 @@ def ormatic_scalability_experiment(
     # Generate the ORM classes
     ormatic.make_all_tables()
 
-    ormatic_reasoning_time = datetime.datetime.now()
+    ormatic_reasoning_time = time.perf_counter()
 
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".py") as f:
         temp_path = f.name
         ormatic.to_sqlalchemy_file(f)
 
-    writing_to_file_time = datetime.datetime.now()
+    writing_to_file_time = time.perf_counter()
 
     return ORMaticScalabilityExperimentResult(
         total_duration=writing_to_file_time - begin,

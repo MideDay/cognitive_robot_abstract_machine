@@ -40,10 +40,16 @@ from krrood.class_diagrams.attribute_introspector import (
 from krrood.class_diagrams.utils import Role, resolve_type
 from krrood.class_diagrams.wrapped_field import WrappedField
 
-from krrood.class_diagrams.exceptions import ClassIsUnMappedInClassDiagram
+from krrood.class_diagrams.exceptions import (
+    ClassIsUnMappedInClassDiagram,
+    CouldNotResolveType,
+)
 
 if TYPE_CHECKING:
     from krrood.entity_query_language.predicate import PropertyDescriptor
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -767,6 +773,14 @@ class ClassDiagram:
             for wrapped_class in self.wrapped_classes
             for wrapped_field in wrapped_class.fields
         ]
+
+        for wrapped_class in self.wrapped_classes:
+            for wrapped_field in wrapped_class.fields:
+                try:
+                    to_process.add(wrapped_field.type_endpoint)
+                except CouldNotResolveType as e:
+                    logger.warning(e)
+                    continue
 
         # Phase 2: Add nodes for discovered types that do not already exists
         while to_process:
