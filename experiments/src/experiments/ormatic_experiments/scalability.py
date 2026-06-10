@@ -24,12 +24,20 @@ from krrood.ormatic.helper import get_classes_of_ormatic_interface
 from krrood.ormatic.ormatic import ORMatic
 from krrood.ormatic.type_dict import TypeDict
 from krrood.utils import recursive_subclasses
+from pycram.robot_plans.actions.base import ActionDescription
 
 
 def build_cram_class_sets() -> Tuple[Set[Type], List[Type], dict]:
     """
     Collect all mappable classes, alternative mappings, and type mappings from
     the pycram ORM interface.
+
+    Filters out non-dataclasses and AlternativeMapping subclasses from the raw
+    interface, then augments with the original classes of every registered
+    AlternativeMapping so the full set is consistent.
+
+    :return: Tuple of (classes, alternative_mappings, type_mappings) ready to
+             pass to :func:`run_scalability_experiment`.
     """
     classes, alternative_mappings, type_mappings = get_classes_of_ormatic_interface(
         pycram.orm.ormatic_interface
@@ -52,25 +60,57 @@ def build_cram_class_sets() -> Tuple[Set[Type], List[Type], dict]:
 
 @dataclass
 class ORMaticScalabilityExperimentResult(ExperimentResult):
+    """
+    Raw measurements from a single ORMatic generation run.
+
+    All durations are in seconds, rounded to two decimal places.
+    Structural counts reflect the class diagram that was actually built for
+    the given filtered class set.
+    """
+
     total_duration: float
+    """Wall-clock time from ClassDiagram creation to file write completion."""
     class_diagram_creation_duration: float
+    """Time spent constructing the ClassDiagram."""
     ormatic_reasoning_duration: float
+    """Time spent in ORMatic.make_all_tables()."""
     writing_to_file_duration: float
+    """Time spent serialising the generated SQLAlchemy code to a temp file."""
     number_of_classes: int
+    """Number of classes in the filtered input set."""
     number_of_associations: int
+    """Number of association edges in the resulting class diagram."""
     number_of_inheritances: int
+    """Number of inheritance edges in the resulting class diagram."""
 
 
 @dataclass
 class ORMaticScalabilityAggregateResult(ExperimentResult):
+    """
+    Aggregated statistics over multiple ORMatic generation runs at a fixed drop probability.
+
+    Every numeric field is a :class:`MeanAndStandardDeviation` computed across
+    all iterations of :func:`run_scalability_experiment`.  Structural counts
+    (classes, associations, inheritances) vary between iterations because the
+    class subset is resampled each time.
+    """
+
     class_drop_probability: float
+    """Fraction of classes randomly excluded from each iteration's input set."""
     number_of_classes: MeanAndStandardDeviation
+    """Statistics over the size of the filtered class set across iterations."""
     number_of_associations: MeanAndStandardDeviation
+    """Statistics over association edge count across iterations."""
     number_of_inheritances: MeanAndStandardDeviation
+    """Statistics over inheritance edge count across iterations."""
     total_duration: MeanAndStandardDeviation
+    """Statistics over total generation time (s) across iterations."""
     class_diagram_creation_duration: MeanAndStandardDeviation
+    """Statistics over ClassDiagram construction time (s) across iterations."""
     ormatic_reasoning_duration: MeanAndStandardDeviation
+    """Statistics over ORMatic reasoning time (s) across iterations."""
     writing_to_file_duration: MeanAndStandardDeviation
+    """Statistics over file serialisation time (s) across iterations."""
 
 
 @contextmanager
@@ -90,12 +130,16 @@ def ormatic_scalability_experiment(
     type_mappings: dict,
 ) -> ORMaticScalabilityExperimentResult:
     """
-    Run a single ORMatic scalability experiment over a fixed set of classes.
+    Run a single ORMatic generation pass over a pre-determined class set and
+    return timing and structural measurements.
 
-    :param filtered_classes: Pre-determined set of classes to map.
-    :param alternative_mappings: Alternative mapping classes to apply.
-    :param type_mappings: Custom type mappings for ORMatic.
-    :return: Timing and structural measurements for this run.
+    ORMatic log output is suppressed for the duration of the run to keep
+    benchmark output readable.
+
+    :param filtered_classes: The exact set of classes to map in this run.
+    :param alternative_mappings: AlternativeMapping subclasses to register with ORMatic.
+    :param type_mappings: Custom type-to-column mappings forwarded to :class:`TypeDict`.
+    :return: Timing breakdown and class-diagram statistics for this single run.
     """
     with _silence_ormatic_logger():
         return _ormatic_scalability_experiment(
@@ -154,16 +198,21 @@ def run_scalability_experiment(
     required_classes: List[Type] | None = None,
 ) -> ORMaticScalabilityAggregateResult:
     """
-    Randomly resample the class subset each iteration, run the generation process
-    `iterations` times, and aggregate mean and standard deviation of all measurements.
+    Repeatedly sample a random subset of classes and run the ORMatic generation
+    pipeline, then aggregate timing and structural measurements across all runs.
 
-    :param classes: Full pool of classes to sample from.
-    :param alternative_mappings: Alternative mapping classes to apply.
-    :param type_mappings: Custom type mappings for ORMatic.
-    :param class_drop_probability: Probability of dropping each class when building the subset.
-    :param iterations: Number of generation runs.
-    :param required_classes: Classes that are always included regardless of drop probability.
-    :return: Aggregated timing statistics across all runs.
+    Each iteration independently resamples the class subset so that the reported
+    standard deviations reflect variability from both class-set composition and
+    runtime noise.  AlternativeMapping original classes and any ``required_classes``
+    are always present in every iteration's input, regardless of the drop probability.
+
+    :param classes: Full pool of candidate classes to sample from.
+    :param alternative_mappings: AlternativeMapping subclasses to register with ORMatic.
+    :param type_mappings: Custom type-to-column mappings forwarded to :class:`TypeDict`.
+    :param class_drop_probability: Per-class probability of exclusion in each iteration.
+    :param iterations: Number of independent generation runs to aggregate.
+    :param required_classes: Classes pinned into every iteration's input set.
+    :return: Aggregated mean and standard deviation for all measurements.
     """
     pinned = set(required_classes) if required_classes else set()
     results = []
@@ -207,9 +256,17 @@ def run_scalability_experiment(
 
 def plot_scalability(table: ExperimentsTable) -> go.Figure:
     """
-    Band plot of number of classes (x) vs total runtime (y) for a table of
-    ORMaticScalabilityAggregateResult rows. The shaded band spans ±1 standard
-    deviation around the mean runtime.
+    Produce a band plot of number of classes (x) vs mean total runtime (y).
+
+    The shaded band covers mean ± 1 standard deviation of the total duration.
+    The x-axis uses the mean number of classes from each
+    :class:`ORMaticScalabilityAggregateResult` row in ``table``.
+
+    :param table: An :class:`ExperimentsTable` whose rows are
+                  :class:`ORMaticScalabilityAggregateResult` instances, typically
+                  produced by calling :func:`run_scalability_experiment` at
+                  several different drop probabilities.
+    :return: A Plotly figure ready for display or export.
     """
     rows: List[ORMaticScalabilityAggregateResult] = table.experiments
 
@@ -252,10 +309,10 @@ def plot_scalability(table: ExperimentsTable) -> go.Figure:
 
 def main():
     classes, alternative_mappings, type_mappings = build_cram_class_sets()
-    required_classes = [pycram.plans.plan_node.UnderspecifiedNode]
+    required_classes = [pycram.plans.plan_node.UnderspecifiedNode, ActionDescription]
     results = []
     for class_drop_probability in tqdm.tqdm(
-        list(reversed([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]))
+        [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0]
     ):
         results.append(
             run_scalability_experiment(
@@ -263,7 +320,7 @@ def main():
                 alternative_mappings,
                 type_mappings,
                 class_drop_probability,
-                iterations=2,
+                iterations=10,
                 required_classes=required_classes,
             )
         )
