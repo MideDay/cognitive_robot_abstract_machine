@@ -6,6 +6,7 @@ from giskardpy.qp.constraint import DofLimits, SystemDynamicsStrategy, IntegralS
 from giskardpy.qp.constraint_collection import ConstraintCollection
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from giskardpy.qp.qp_data_factories import QPDataExplicitFactory
+from giskardpy.qp.qp_data_symbolic import QPDataSymbolic
 from giskardpy.qp.qp_debugger import QuadraticProgramDebugger
 from giskardpy.qp.solvers.qp_solver_piqp import QPSolverPIQP
 from krrood.symbolic_math.symbolic_math import (
@@ -268,7 +269,7 @@ def test_mpc_model(prismatic_bot2):
     )
 
 
-def test_equality_constraint_model(prismatic_bot2):
+def test_integral_strategy_with_equality_constraints(prismatic_bot2):
     target_frequency = 20
     prediction_horizon = 10
     number_of_variables = len(prismatic_bot2.active_degrees_of_freedom)
@@ -294,9 +295,7 @@ def test_equality_constraint_model(prismatic_bot2):
     )
     bounds = eq_constraint_model.create_equality_bounds()
     slack_variables = eq_constraint_model.create_slack_variables()
-    assert bounds[0] == eq_constraint_model.config.radian_normalization_number * (
-        1 / target_frequency
-    ) * (prediction_horizon - 2)
+    assert bounds[0] == 1 * (1 / target_frequency) * (prediction_horizon - 2)
     assert slack_variables.quadratic_weights[0] != 0
     assert slack_variables.linear_weights[0] == 0
     assert slack_variables.lower_bounds < 0
@@ -304,7 +303,7 @@ def test_equality_constraint_model(prismatic_bot2):
     assert eq_constraint_model.create_slack_matrix()[0, 0] == (1 / target_frequency)
 
 
-def test_inequality_constraint_model(prismatic_bot2):
+def test_integral_strategy_with_inequality_constraints(prismatic_bot2):
     target_frequency = 20
     prediction_horizon = 10
     number_of_variables = len(prismatic_bot2.active_degrees_of_freedom)
@@ -318,32 +317,30 @@ def test_inequality_constraint_model(prismatic_bot2):
         quadratic_weight=1,
         reference_velocity=1,
     )
-    ineq_constraint_model = InequalityConstraintModel(
+    ineq_constraint_model = IntegralStrategy(
         degrees_of_freedom=prismatic_bot2.active_degrees_of_freedom,
-        constraint_collection=constraints,
+        constraints=constraints.inequality_constraints,
         config=QPControllerConfig(
             target_frequency=target_frequency, prediction_horizon=prediction_horizon
         ),
     )
     assert np.allclose(
-        sum(ineq_constraint_model.matrix[0, :].to_np()),
+        sum(ineq_constraint_model.create_matrix()[0, :].to_np()),
         (1 / target_frequency) * (prediction_horizon - 2),
     )
 
-    assert ineq_constraint_model.lower_bounds[0] == 0
+    lower_bounds = ineq_constraint_model.create_lower_bounds()
+    upper_bounds = ineq_constraint_model.create_upper_bounds()
+    slack_variables = ineq_constraint_model.create_slack_variables()
 
-    assert ineq_constraint_model.upper_bounds[
-        0
-    ] == ineq_constraint_model.config.radian_normalization_number * (
-        1 / target_frequency
-    ) * (
-        prediction_horizon - 2
-    )
-    assert ineq_constraint_model.slack_variables.quadratic_weights[0] != 0
-    assert ineq_constraint_model.slack_variables.linear_weights[0] == 0
-    assert ineq_constraint_model.slack_variables.lower_bounds < 0
-    assert ineq_constraint_model.slack_variables.upper_bounds > 0
-    assert ineq_constraint_model.slack_matrix[0, 0] == (1 / target_frequency)
+    assert lower_bounds[0] == 0
+
+    assert upper_bounds[0] == 1 * (1 / target_frequency) * (prediction_horizon - 2)
+    assert slack_variables.quadratic_weights[0] != 0
+    assert slack_variables.linear_weights[0] == 0
+    assert slack_variables.lower_bounds < 0
+    assert slack_variables.upper_bounds > 0
+    assert ineq_constraint_model.create_slack_matrix()[0, 0] == (1 / target_frequency)
 
 
 def test_qp_data_symbolic(prismatic_bot2):
@@ -384,7 +381,7 @@ def test_qp_data_symbolic(prismatic_bot2):
         float_variables=[],
     )
     qp_data = adapter.evaluate(
-        world_state=prismatic_bot2.state.data,
+        world_state=prismatic_bot2.state._data,
         life_cycle_state=np.array([]),
         float_variables=np.array([]),
     )
@@ -395,5 +392,3 @@ def test_qp_data_symbolic(prismatic_bot2):
     )
     assert len(debugger.inequality_constraints) == 1
     assert len(debugger.equality_constraints) == 22
-
-    pass
