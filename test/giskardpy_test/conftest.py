@@ -13,11 +13,18 @@ from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from krrood.symbolic_math.symbolic_math import trinary_logic_and
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.spatial_types import Vector3, HomogeneousTransformationMatrix
+from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
     RevoluteConnection,
     FixedConnection,
+    PrismaticConnection,
+)
+from semantic_digital_twin.world_description.degree_of_freedom import (
+    DegreeOfFreedom,
+    DegreeOfFreedomLimits,
 )
 from semantic_digital_twin.world_description.geometry import Box, Scale
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
@@ -179,3 +186,76 @@ def apartment_setup(giskard_better_pose: GiskardTester) -> GiskardTester:
         ),
     )
     return giskard_better_pose
+
+
+@pytest.fixture()
+def prismatic_bot():
+    world = World()
+    with world.modify_world():
+        map = Body(name=PrefixedName("map"))
+        robot = Body(name=PrefixedName("robot"))
+        dof = DegreeOfFreedom(
+            limits=DegreeOfFreedomLimits(
+                lower=DerivativeMap(
+                    position=-1, velocity=-1, acceleration=None, jerk=None
+                ),
+                upper=DerivativeMap(
+                    position=1, velocity=1, acceleration=None, jerk=None
+                ),
+            ),
+            has_hardware_interface=True,
+        )
+        world.add_degree_of_freedom(dof)
+        map_C_robot = PrismaticConnection(
+            parent=map, child=robot, dof_id=dof.id, axis=Vector3.Z()
+        )
+        world.add_connection(map_C_robot)
+    MinimalRobot.from_world(world)
+    return world
+
+
+@pytest.fixture()
+def prismatic_bot2():
+    world = World()
+    with world.modify_world():
+        map = Body(name=PrefixedName("map"))
+        robot = Body(name=PrefixedName("robot"))
+        dof = DegreeOfFreedom(
+            limits=DegreeOfFreedomLimits(
+                lower=DerivativeMap(
+                    position=-1, velocity=-1, acceleration=None, jerk=None
+                ),
+                upper=DerivativeMap(
+                    position=1, velocity=1, acceleration=None, jerk=None
+                ),
+            ),
+            has_hardware_interface=True,
+            name=PrefixedName("dof1"),
+        )
+        world.add_degree_of_freedom(dof)
+        world.add_connection(
+            PrismaticConnection(
+                parent=map, child=robot, dof_id=dof.id, axis=Vector3.Z()
+            )
+        )
+        robot2 = Body(name=PrefixedName("robot2"))
+        dof = DegreeOfFreedom(
+            limits=DegreeOfFreedomLimits(
+                lower=DerivativeMap(
+                    position=-0.5, velocity=-0.5, acceleration=None, jerk=None
+                ),
+                upper=DerivativeMap(
+                    position=0.5, velocity=0.5, acceleration=None, jerk=None
+                ),
+            ),
+            has_hardware_interface=True,
+            name=PrefixedName("dof2"),
+        )
+        world.add_degree_of_freedom(dof)
+        world.add_connection(
+            PrismaticConnection(
+                parent=map, child=robot2, dof_id=dof.id, axis=Vector3.Z()
+            )
+        )
+    MinimalRobot.from_world(world)
+    return world
