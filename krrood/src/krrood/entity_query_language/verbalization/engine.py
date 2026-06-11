@@ -90,4 +90,10 @@ def fold(
             f"No verbalization rule for {type(node).__name__!r} "
             f"(name={getattr(node, '_name_', None)!r}); add a PhraseRule in grammar/english.py."
         )
+    if rule.enters_query_scope:
+        # The rule's construct is a query body: everything built inside sees query_depth >= 1,
+        # so a nested Entity renders as a noun phrase. Declared on the rule (not pushed by hand
+        # in assemblers) so the policy lives in one place. ``when`` already ran outside.
+        with context.config.query_depth_scope():
+            return rule.build(node, ctx)
     return rule.build(node, ctx)

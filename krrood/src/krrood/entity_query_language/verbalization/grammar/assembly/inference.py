@@ -58,6 +58,7 @@ class InferenceAssembler(Assembler[Entity, RuleStructure]):
     planner = InferencePlanner
 
     def realize(self, node, plan: RuleStructure) -> VerbFragment:
+        """*"If <antecedents…>, then <consequent…>"* — the two-block IF/THEN form."""
         return BlockFragment(
             header=None,
             items=[
@@ -78,6 +79,8 @@ class InferenceAssembler(Assembler[Entity, RuleStructure]):
     # ── IF clause ───────────────────────────────────────────────────────────────
 
     def _if_items(self, s: RuleStructure) -> List[VerbFragment]:
+        """One item per antecedent — *"there's a <Type> [whose …]"* — plus any unmatched
+        conditions; *"true"* when there are none."""
         for antecedent in s.secondary_antecedents:
             self._register_antecedent(antecedent)
 
@@ -96,8 +99,11 @@ class InferenceAssembler(Assembler[Entity, RuleStructure]):
         return items or [Keywords.TRUE.as_fragment()]
 
     def _antecedent_intro(self, antecedent: AntecedentInfo) -> VerbFragment:
-        # Pass the antecedent's referent so the coreference pass marks it introduced — a later
-        # mention (e.g. "the parent of the FixedConnection" in the THEN clause) then reads "the".
+        """*"there's a <Type>"* / *"there are <Types>"* — the antecedent's existential intro.
+
+        Passes the antecedent's referent so the coreference pass marks it introduced — a later
+        mention (e.g. *"the parent of the FixedConnection"* in the THEN clause) then reads
+        *"the"*."""
         return ExistentialPhrase.for_number(self._number(antecedent)).build_phrase(
             antecedent.type_name, referent_id=self._antecedent_referent_id(antecedent)
         )
@@ -114,6 +120,8 @@ class InferenceAssembler(Assembler[Entity, RuleStructure]):
         return getattr(root, "_id_", None)
 
     def _register_antecedent(self, antecedent: AntecedentInfo) -> None:
+        """Mark the antecedent (and its selected variable) introduced, so later mentions in
+        the THEN clause read *"the <Type>"*."""
         root = antecedent.root
         self.ctx.refer.mark_introduced(root)
         if isinstance(root, Entity):
@@ -125,6 +133,7 @@ class InferenceAssembler(Assembler[Entity, RuleStructure]):
     def _condition_frags(
         self, conditions: List[ConditionPlan], antecedent: AntecedentInfo
     ) -> List[VerbFragment]:
+        """One fragment per antecedent condition (see :meth:`_condition_frag`)."""
         return [self._condition_frag(pc, antecedent) for pc in conditions]
 
     def _condition_frag(
@@ -146,6 +155,7 @@ class InferenceAssembler(Assembler[Entity, RuleStructure]):
     # ── THEN clause ───────────────────────────────────────────────────────────
 
     def _then_items(self, s: RuleStructure) -> List[VerbFragment]:
+        """*"there's a <Consequent> [whose <field> is <value> …]"* — the THEN-clause block."""
         intro: VerbFragment = ExistentialPhrase.for_number(
             Number.SINGULAR
         ).build_phrase(s.consequent_type)
@@ -155,12 +165,15 @@ class InferenceAssembler(Assembler[Entity, RuleStructure]):
         return [BlockFragment(header=intro, items=binding_frags)]
 
     def _binding_frag(self, binding: ConsequentBinding) -> VerbFragment:
+        """*"whose <field> is/are <value>"* — one consequent field binding."""
         number = Number.of(binding.is_plural_field)
         return ConditionVerbalizer(self.ctx).whose_attribute(
             binding.field_name, number, self._binding_value(binding)
         )
 
     def _binding_value(self, binding: ConsequentBinding) -> VerbFragment:
+        """The binding's value: *"the <plural chain>"* (aggregated), bare plural, the group-key
+        *"common …"* phrase, or the plain rendering."""
         if (
             binding.is_plural_field
             and binding.aggregation_status == AggregationStatus.AGGREGATED
@@ -178,6 +191,7 @@ class InferenceAssembler(Assembler[Entity, RuleStructure]):
         return self.ctx.child(binding.value_expression)
 
     def _group_key_value(self, expression) -> VerbFragment:
+        """*"the common <field> of the <Roots>"* — a binding that refers to a GROUP BY key."""
         chain, current = walk_chain(expression)
         if not chain or not isinstance(current, Variable):
             return self.ctx.child(expression)

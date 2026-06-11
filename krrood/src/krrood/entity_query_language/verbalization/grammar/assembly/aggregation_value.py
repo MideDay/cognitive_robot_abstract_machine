@@ -3,7 +3,7 @@ Aggregation value-subquery **assembler** — realise an aggregation used as a *v
 (*"the maximum amount"*, or *"the sum of amounts among BankTransactions whose …"*).
 
 This is one of the query family's standalone surface forms, extracted from ``QueryAssembler``:
-it is keyed on the plan's :attr:`QueryPlan.aggregation_value` and composes the aggregate noun
+it is keyed on the plan's :attr:`QueryPlan.aggregation_data` and composes the aggregate noun
 with an optional *"among <plural source> [whose/such that] [having]"* scope.  It reuses the
 shared :class:`RestrictionAssembler` (source filter) and :class:`HavingAssembler`.
 
@@ -53,10 +53,11 @@ class AggregationValueAssembler(Assembler[Query, QueryPlan]):
     planner = QueryPlanner
 
     def realize(self, node, plan: QueryPlan) -> VerbFragment:
+        """*"the <aggregation> <leaf>"*, optionally scoped *"among <source> …"* — runs inside
+        the query scope pushed by ``NestedEntityRule.enters_query_scope``."""
         aggregation_data = plan.aggregation_data
         if aggregation_data.leaf is None:
-            with self.ctx.config.query_depth_scope():
-                return self.ctx.child(aggregation_data.aggregator)
+            return self.ctx.child(aggregation_data.aggregator)
 
         aggregation_kind = AGGREGATION_KIND[type(aggregation_data.aggregator)]
         plural_leaf = aggregation_kind.value.child_form == ChildForm.PLURAL
@@ -91,17 +92,15 @@ class AggregationValueAssembler(Assembler[Query, QueryPlan]):
         ]
 
         if plan.subject_restriction is not None:
-            with self.ctx.config.query_depth_scope():
-                whose, residual = RestrictionAssembler(self.ctx).render(
-                    plan.subject_restriction, plan.subject
-                )
+            whose, residual = RestrictionAssembler(self.ctx).render(
+                plan.subject_restriction, plan.subject
+            )
             if whose is not None:
                 parts.append(whose)
             if residual is not None:
                 parts += [Keywords.SUCH_THAT.as_fragment(), residual]
 
-        with self.ctx.config.query_depth_scope():
-            having = HavingAssembler(self.ctx).clause(node)
+        having = HavingAssembler(self.ctx).clause(node)
         if having is not None:
             parts.append(having)
 

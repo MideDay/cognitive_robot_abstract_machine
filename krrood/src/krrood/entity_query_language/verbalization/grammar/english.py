@@ -406,6 +406,7 @@ class TopLevelEntityRule(PhraseRule):
 
     construct = Entity
     name = "top-level-entity"
+    enters_query_scope = True
 
     def when(self, node, ctx: Ctx):
         return ctx.config.query_depth == 0
@@ -419,6 +420,7 @@ class NestedEntityRule(PhraseRule):
 
     construct = Entity
     name = "nested-entity"
+    enters_query_scope = True
 
     def when(self, node, ctx: Ctx):
         return ctx.config.query_depth > 0
@@ -446,6 +448,7 @@ class SetOfRule(PhraseRule):
 
     construct = SetOf
     name = "set-of"
+    enters_query_scope = True
 
     def build(self, node, ctx: Ctx):
         return QueryAssembler(ctx).assemble_set_of(node)

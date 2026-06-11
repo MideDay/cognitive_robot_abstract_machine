@@ -146,3 +146,29 @@ def test_fold_raises_when_no_rule_covers_the_node():
     node._name_ = "uncovered"
     with pytest.raises(UnverbalizableExpressionError):
         fold(node, VerbalizationContext(), [])
+
+
+def test_enters_query_scope_wraps_build_but_not_when():
+    """A rule declaring ``enters_query_scope`` builds at depth+1 (children see > 0), while its
+    ``when`` guard still sees the rule's own (outer) depth — and the depth is restored after.
+    """
+    observed = {}
+
+    class ScopedRule(PhraseRule):
+        construct = Mid
+        name = "scoped"
+        enters_query_scope = True
+
+        def when(self, node, ctx):
+            observed["when_depth"] = ctx.config.query_depth
+            return True
+
+        def build(self, node, ctx):
+            observed["build_depth"] = ctx.config.query_depth
+            return WordFragment("scoped")
+
+    context = VerbalizationContext()
+    fold(Mid(), context, [ScopedRule()])
+    assert observed["when_depth"] == 0  # the guard judges the rule's own position
+    assert observed["build_depth"] == 1  # everything inside is one query level deeper
+    assert context.config.query_depth == 0  # restored on exit

@@ -45,6 +45,8 @@ class GroupedByAssembler(Assembler[Any, GroupPlan]):
     planner = GroupedByPlanner
 
     def realize(self, node, plan: GroupPlan) -> VerbFragment:
+        """*"grouped by <keys>"* — or *"and the <aggregated> are grouped by <keys>"* when the
+        query also selects aggregations (bare *"grouped"* when there are no keys)."""
         if not plan.has_keys:
             return Keywords.GROUPED.as_fragment()
         groups_phrase = self._keys_phrase(plan.keys)
@@ -73,6 +75,7 @@ class GroupedByAssembler(Assembler[Any, GroupPlan]):
         return self.realize(node, plan) if plan.has_keys else None
 
     def _keys_phrase(self, variables) -> VerbFragment:
+        """*"<key1>, <key2>, …"* — the comma-joined group keys."""
         return PhraseFragment(
             parts=[self.ctx.child(variable) for variable in variables],
             separator=Punctuation.COMMA.text + " ",
@@ -83,8 +86,10 @@ class OrderedByAssembler(Assembler[Any, None]):
     """*"ordered by <variable> (ascending|descending)"*. Realisation-only (no plan)."""
 
     def realize(self, node, plan: None = None) -> VerbFragment:
-        # *node* is "ordered-like": an OrderedBy expression or an OrderedByBuilder, both
-        # exposing ``.variable`` and ``.descending``.
+        """*"ordered by <variable> (ascending|descending)"*.
+
+        *node* is "ordered-like": an OrderedBy expression or an OrderedByBuilder, both
+        exposing ``.variable`` and ``.descending``."""
         direction = (
             SortDirections.DESCENDING if node.descending else SortDirections.ASCENDING
         )
@@ -113,6 +118,8 @@ class HavingAssembler(Assembler[Any, None]):
     """*"having <condition>"* (compact comparators). Realisation-only (no plan)."""
 
     def realize(self, node, plan: None = None) -> VerbFragment:
+        """*"having <condition>"* — the condition rendered with compact (copula-less)
+        comparators."""
         with self.ctx.config.compact_predicates_scope():
             having_frag = self.ctx.child(node._having_expression_.condition)
         return PhraseFragment(parts=[Keywords.HAVING.as_fragment(), having_frag])

@@ -190,6 +190,8 @@ block = BlockFragment(header=keyword_frag, items=[item1, item2])
 
 A rule never recurses by hand — it calls `ctx.child(sub_expression)`.
 
+**Query scoping is declarative.**  A rule whose construct *is* a query body (`TopLevelEntityRule`, `NestedEntityRule`, `SetOfRule`) declares `enters_query_scope = True`; the engine then runs its `build` inside `ctx.config.query_depth_scope()`, so any Entity found within renders as a nested noun phrase (`query_depth > 0`) rather than emitting *"Find …"*.  Neither rules nor assemblers ever push the scope by hand.  `when` runs *outside* the scope — it guards on the rule's own position (`query_depth == 0` for the top-level form).
+
 ### Specificity
 
 `select` ranks the rules whose `construct` matches (`isinstance`) and whose `when` guard passes, by the key **(construct MRO depth, guarded-over-unguarded, explicit `tiebreak`)**, highest wins.  Specificity comes from the *construct* class, not from a rule-class hierarchy, so rules stay flat.  For example `Literal <: Variable`, so `LiteralRule` (deeper construct) shadows `VariableRule`; a guarded `RangeConjunctionRule` (an `AND` containing a lo/hi pair) outranks the plain `AndRule`.
@@ -207,7 +209,7 @@ This walkthrough adds verbalization for a hypothetical `Between` operator (`betw
 
 #### Step 2 — Write the rule
 
-Set `construct`, optionally `name`/`tiebreak`/`when`, and implement `build(node, ctx)`:
+Set `construct`, optionally `name`/`tiebreak`/`when` (and `enters_query_scope = True` if the construct is itself a query body), and implement `build(node, ctx)`.  Start the docstring with the **target string** in the established convention (*"x is between lo and hi"*) — that line is how readers get the output intuition at a glance:
 
 ```python
 class BetweenRule(PhraseRule):

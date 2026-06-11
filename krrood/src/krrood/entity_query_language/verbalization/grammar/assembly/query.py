@@ -76,14 +76,16 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
     def realize(self, node, plan: QueryPlan) -> VerbFragment:
         """Top-level imperative form *"Find X such that …"*, dispatched on the selection shape
         (a closed enum → handler table; ``SET_OF`` enters via :meth:`assemble_set_of`).
+
+        Runs inside the query scope (``TopLevelEntityRule.enters_query_scope`` — the engine
+        pushes it), so every Entity below renders as a nested noun phrase.
         """
         handlers = {
             SelectionKind.ENTITY_SELECTOR: self._realize_entity_selector,
             SelectionKind.EMPTY: self._realize_empty,
             SelectionKind.SUBJECT: self._assemble_subject,
         }
-        with self.ctx.config.query_depth_scope():
-            return handlers[plan.kind](node, plan)
+        return handlers[plan.kind](node, plan)
 
     def _realize_entity_selector(self, node, plan: QueryPlan) -> VerbFragment:
         """*"Find <a Robot where …> such that …"* — the selected variable is itself an Entity."""
@@ -109,34 +111,36 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         return self._as_noun(node)
 
     def assemble_set_of(self, node) -> VerbFragment:
-        """*"Find (v1, v2, …) such that …"* for a SetOf query."""
+        """*"Find sets of (v1, v2, …) such that …"* for a SetOf query (in the query scope,
+        pushed by ``SetOfRule.enters_query_scope``)."""
         plan = self.plan(node)
-        with self.ctx.config.query_depth_scope():
-            variable_fragments = [
-                self.ctx.child(variable) for variable in node._selected_variables_
+        variable_fragments = [
+            self.ctx.child(variable) for variable in node._selected_variables_
+        ]
+        vars_phrase = PhraseFragment(
+            parts=variable_fragments, separator=Punctuation.COMMA.text + " "
+        )
+        # The parens glue to their content via the orthography pass — no separator="".
+        selection = PhraseFragment(
+            parts=[
+                Punctuation.OPEN_PAREN.as_fragment(),
+                vars_phrase,
+                Punctuation.CLOSE_PAREN.as_fragment(),
             ]
-            vars_phrase = PhraseFragment(
-                parts=variable_fragments, separator=Punctuation.COMMA.text + " "
-            )
-            # The parens glue to their content via the orthography pass — no separator="".
-            selection = PhraseFragment(
-                parts=[
-                    Punctuation.OPEN_PAREN.as_fragment(),
-                    vars_phrase,
-                    Punctuation.CLOSE_PAREN.as_fragment(),
-                ]
-            )
-            return self._query_body(
-                node,
-                plan,
-                selection,
-                where_item=self._where_clause(plan),
-                find_header=Keywords.FIND_SETS_OF.as_fragment(),
-            )
+        )
+        return self._query_body(
+            node,
+            plan,
+            selection,
+            where_item=self._where_clause(plan),
+            find_header=Keywords.FIND_SETS_OF.as_fragment(),
+        )
 
     # ── subject selection ──────────────────────────────────────────────────────
 
     def _assemble_subject(self, node, plan: QueryPlan) -> VerbFragment:
+        """*"Find a Robot whose battery is high, such that … [clauses]"* — the plain-variable
+        selection with its WHERE woven in."""
         var = node.selected_variable
         selected = self._build_selection(node, var, plan)
         selected, where_item = self._apply_subject_restrictions(plan, selected)
@@ -145,6 +149,7 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         return SubjectScope(subject_id=_subject_id(var), child=body)
 
     def _build_selection(self, node, var, plan: QueryPlan) -> VerbFragment:
+        """*"the unique Robot"* (``eql.the``) or *"a Robot"* — the selection's referring NP."""
         if plan.is_the:
             # "the unique <type>" first mention; the coreference pass reduces a repeat to
             # "the <type>" (UNIQUE downgrades to DEFINITE) — so it is a referring NP.
@@ -159,6 +164,8 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
     def _apply_subject_restrictions(
         self, plan: QueryPlan, selected: VerbFragment
     ) -> Tuple[VerbFragment, Optional[VerbFragment]]:
+        """Weave the WHERE into the selection: *"<selected> whose <grouped>"* plus a separate
+        *"such that <residual>"* clause item (``None`` when absent)."""
         restriction = plan.subject_restriction
         if restriction is None:
             return selected, None
@@ -189,10 +196,9 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
 
         modifiers: List[VerbFragment] = []
         if plan.subject_restriction is not None:
-            with self.ctx.config.query_depth_scope():
-                whose, residual = RestrictionAssembler(self.ctx).render(
-                    plan.subject_restriction, plan.subject
-                )
+            whose, residual = RestrictionAssembler(self.ctx).render(
+                plan.subject_restriction, plan.subject
+            )
             if whose is not None:
                 modifiers.append(whose)
             if residual is not None:
@@ -220,6 +226,8 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         where_item: Optional[VerbFragment],
         find_header: Optional[VerbFragment] = None,
     ) -> VerbFragment:
+        """*"Find <selection>"* + the present clauses (*such that … grouped by … having …
+        ordered by …*) as block items — absent clauses (``None``) are simply skipped."""
         if find_header is None:
             find_header = Keywords.FIND.as_fragment()
         header = PhraseFragment(parts=[find_header, selection])
@@ -240,6 +248,7 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         ]
 
     def _where_clause(self, plan: QueryPlan) -> Optional[VerbFragment]:
+        """*"such that <condition>"*, or ``None`` when the query has no WHERE."""
         if plan.where_condition is None:
             return None
         return PhraseFragment(

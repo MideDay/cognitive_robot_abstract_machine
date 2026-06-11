@@ -102,11 +102,17 @@ class PhraseRule(ABC):
     :cvar tiebreak: Explicit ordering for the rare case of two rules with the same
         ``construct`` that are *both* guarded and overlap (e.g. inference vs.
         top-level entity); higher wins.
+    :cvar enters_query_scope: Declare ``True`` on a rule whose construct *is* a query body
+        (Entity / SetOf): the engine then runs :meth:`build` inside
+        ``ctx.config.query_depth_scope()`` automatically, so an Entity found anywhere within
+        renders as a nested noun phrase — no rule or assembler ever pushes the scope by hand.
+        :meth:`when` still runs *outside* the scope (it guards on the rule's own position).
     """
 
     construct: ClassVar[type]
     name: ClassVar[str] = ""
     tiebreak: ClassVar[int] = 0
+    enters_query_scope: ClassVar[bool] = False
 
     def when(self, node, ctx: Ctx) -> bool:
         """

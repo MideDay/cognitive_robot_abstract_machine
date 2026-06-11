@@ -54,8 +54,11 @@ class InstantiatedAssembler(Assembler[InstantiatedVariable, InstantiatedPlan]):
     planner = InstantiatedPlanner
 
     def realize(self, node, plan: InstantiatedPlan) -> VerbFragment:
-        # A referring NP (referent_id below) — the CoreferenceProcessor reduces a repeat
-        # mention to "the <type>" in document order, so no build-time seen check here.
+        """*"a TypeName, where the <field> of the TypeName is <value> …, such that <deferred>"*.
+
+        A referring NP (referent_id below) — the CoreferenceProcessor reduces a repeat
+        mention to *"the <type>"* in document order, so no build-time seen check here.
+        """
         self.ctx.scope.push_constraint_frame()
         binding_frags, overrides = self._bindings(plan, node._type_)
         self.ctx.scope.binding_overrides.update(overrides)
@@ -103,9 +106,11 @@ class InstantiatedAssembler(Assembler[InstantiatedVariable, InstantiatedPlan]):
         return possessive_path([(field_name, None)], type_root)
 
     def _copula(self, binding: BindingPlan) -> VerbFragment:
+        """*"is"* / *"are"* agreeing with the binding's plurality (inflected by morphology)."""
         return Copulas.for_number(Number.of(binding.is_plural))
 
     def _value(self, binding: BindingPlan) -> VerbFragment:
+        """The binding's value expression, rendered in the binding's number."""
         return self.ctx.child(binding.value, number=Number.of(binding.is_plural))
 
     # ── phrase assembly ──────────────────────────────────────────────────────────
@@ -117,6 +122,8 @@ class InstantiatedAssembler(Assembler[InstantiatedVariable, InstantiatedPlan]):
         binding_frags: List[VerbFragment],
         constraint_frags: List[VerbFragment],
     ) -> VerbFragment:
+        """*"a <type>, where <bindings>, such that <constraints>"* — the referring NP with
+        its appositive clauses as droppable modifiers."""
         modifiers: List[VerbFragment] = []
         if binding_frags:
             joined = oxford_and(binding_frags, Conjunctions.AND.as_fragment())
