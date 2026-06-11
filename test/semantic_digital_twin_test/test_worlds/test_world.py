@@ -676,7 +676,7 @@ def test_copy_big_world():
             "..",
             "..",
             "..",
-            "pycram",
+            "coraplex",
             "resources",
             "worlds",
             "apartment.urdf",
