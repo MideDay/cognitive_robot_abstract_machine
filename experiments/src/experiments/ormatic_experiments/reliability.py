@@ -298,7 +298,7 @@ def main():
             1,
         ]
     ):
-        aggregate, raw = run_reliability_experiment(plan_size, iterations=1)
+        aggregate, raw = run_reliability_experiment(plan_size, iterations=10)
         aggregate_results.append(aggregate)
         all_raw.extend(raw)
 

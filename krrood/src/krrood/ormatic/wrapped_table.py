@@ -682,7 +682,7 @@ class WrappedTable:
         rel_name = f"{wrapped_field.field.name}"
         rel_type = f"Mapped[{target_wrapped_table.tablename}]"
         # relationships have to be post updated since since it won't work in the case of subclasses with another ref otherwise
-        rel_constructor = f"relationship('{target_wrapped_table.tablename}', uselist=False, foreign_keys=[{fk_name}], post_update=True)"
+        rel_constructor = f"relationship('{target_wrapped_table.tablename}', uselist=False, foreign_keys=[{fk_name}], post_update=True, lazy='selectin')"
         self.relationships.append(
             ColumnConstructor(rel_name, rel_type, rel_constructor)
         )
@@ -738,7 +738,8 @@ class WrappedTable:
             f"relationship('{association_table.name}', "
             f"collection_class={container_name}, "
             f"cascade='all, delete-orphan', "
-            f"foreign_keys='[{association_table.name}.{association_table.left_foreign_key}]')"
+            f"foreign_keys='[{association_table.name}.{association_table.left_foreign_key}]', "
+            f"lazy='selectin')"
         )
 
         self.relationships.append(

@@ -311,14 +311,7 @@ class HSRBHeadRGBDCamera(Camera):
 
 
 @dataclass(eq=False)
-class HSRBNeck(
-    Neck[
-        HSRBHeadCenterCamera,
-        HSRBHeadLeftCamera,
-        HSRBHeadRightCamera,
-        HSRBHeadRGBDCamera,
-    ],
-):
+class HSRBNeck(Neck[Camera]):
 
     def setup_hardware_interfaces(self):
         controlled_joints = ["head_pan_joint", "head_tilt_joint"]
