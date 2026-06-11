@@ -26,6 +26,7 @@ from typing_extensions import (
 )
 
 from krrood.entity_query_language.core.mapped_variable import Attribute, Index
+from krrood.entity_query_language._monitoring import monitored
 from krrood.ormatic.data_access_objects.alternative_mappings import AlternativeMapping
 from krrood.ormatic.data_access_objects.base import (
     HasGeneric,
@@ -489,7 +490,8 @@ class DataAccessObject(HasGeneric[T]):
             return state.get(self)
 
         if not state.is_processing:
-            result = self._perform_from_dao_conversion(state)
+            with monitored.disabled():
+                result = self._perform_from_dao_conversion(state)
 
             # if the instance that started this whole process is alternatively mapped, finally convert it
             if isinstance(result, AlternativeMapping):
