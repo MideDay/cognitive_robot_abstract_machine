@@ -19,6 +19,7 @@ from krrood.entity_query_language.verbalization.fragments.base import (
     NounPhrase,
     PhraseFragment,
     RoleFragment,
+    SubjectScope,
     VerbFragment,
 )
 from krrood.entity_query_language.verbalization.fragments.features import (
@@ -78,7 +79,12 @@ class AggregationValueAssembler(Assembler[Query, QueryPlan]):
         return self._scope(node, plan, aggregate)
 
     def _scope(self, node, plan: QueryPlan, aggregate) -> VerbFragment:
-        """Append *"among <plural source> [whose …] [such that …] [having …]"*."""
+        """*"<aggregate> among <plural source> [whose …] [such that … their …] [having …]"*.
+
+        The plural source population is the scope's discourse subject (a plural
+        ``SubjectScope``), so chains rooted at it pronominalise to *"their …"* instead of the
+        ambiguous singular re-mention *"the <Type>"* (which would collide with an outer
+        same-type subject)."""
         source = plan.aggregation_data.source
         source_frag = (
             self.ctx.child(source, number=Number.PLURAL)
@@ -104,4 +110,11 @@ class AggregationValueAssembler(Assembler[Query, QueryPlan]):
         if having is not None:
             parts.append(having)
 
-        return PhraseFragment(parts=parts)
+        scope_phrase = PhraseFragment(parts=parts)
+        if source is None:
+            return scope_phrase
+        return SubjectScope(
+            subject_id=source._id_,
+            child=scope_phrase,
+            subject_number=Number.PLURAL,
+        )

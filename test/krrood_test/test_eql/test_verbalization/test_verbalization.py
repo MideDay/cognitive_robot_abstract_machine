@@ -555,13 +555,15 @@ def test_nested_constrained_aggregation_preserves_filter():
 
 def test_deeply_nested_subqueries_golden():
     """Nesting has no depth limit: three levels of constrained aggregation sub-queries render
-    with exactly one top-level 'Find', every deeper query as a noun phrase, and coreference
-    tracked across levels (subject → 'its', re-mention → 'the … of the …')."""
+    with exactly one top-level 'Find' and every deeper query as a noun phrase.  Each level's
+    subject is differentiated: the unique top-level subject pronominalises to 'its', the
+    level-2 population to 'their' (never the ambiguous singular 'the BankTransaction'), and
+    the level-3 condition folds into 'whose'."""
     t1 = variable(BankTransaction, domain=None)
     t2 = variable(BankTransaction, domain=None)
     t3 = variable(BankTransaction, domain=None)
     level3 = an(
-        entity(eql.max(t3.amount_details.amount)).where(
+        entity(eql.min(t3.amount_details.amount)).where(
             t3.booking_date < datetime.datetime(2024, 1, 1)
         )
     )
@@ -575,8 +577,8 @@ def test_deeply_nested_subqueries_golden():
     assert text == (
         "Find the unique BankTransaction such that the amount of its amount_details "
         "is equal to the maximum amount among BankTransactions such that "
-        "the amount of the amount_details of the BankTransaction is equal to "
-        "the maximum amount among BankTransactions whose booking_date is before "
+        "the amount of their amount_details is equal to "
+        "the minimum amount among BankTransactions whose booking_date is before "
         "January 1, 2024"
     )
     assert text.count("Find") == 1  # only the top level emits the imperative

@@ -22,7 +22,7 @@ Gatt & Reiter (2009), SimpleNLG — ordered realisation stages.
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Tuple
 import uuid
 
 from krrood.entity_query_language.verbalization.fragments.base import (
@@ -59,7 +59,8 @@ class CoreferenceProcessor:
             *"the Robot"*).  These are treated as already-mentioned before the walk begins.
         """
         self._seen: set[uuid.UUID] = set(already_seen or ())
-        self._subject_stack: List[Optional[uuid.UUID]] = []
+        # Stack of (subject_id, subject_number) frames — the number selects "its"/"their".
+        self._subject_stack: List[Tuple[Optional[uuid.UUID], Number]] = []
         return self._walk(fragment)
 
     def _walk(self, fragment: VerbFragment) -> VerbFragment:
@@ -72,8 +73,10 @@ class CoreferenceProcessor:
         (recursing through ``self._walk``), and a leaf is returned unchanged.
         """
         match fragment:
-            case SubjectScope(subject_id=subject_id, child=child):
-                self._subject_stack.append(subject_id)
+            case SubjectScope(
+                subject_id=subject_id, child=child, subject_number=subject_number
+            ):
+                self._subject_stack.append((subject_id, subject_number))
                 try:
                     return self._walk(child)
                 finally:
@@ -87,18 +90,23 @@ class CoreferenceProcessor:
                 return rebuilt if rebuilt is not None else fragment
 
     def _possessive_chain(self, pc: PossessiveChain) -> VerbFragment:
-        """Render a chain as *"its …"* when its root is the current subject, else as the
+        """Render a chain as *"its/their …"* when its root is the current subject (the pronoun
+        agreeing with the subject's number — *"their"* for a plural population), else as the
         possessive *"the … of <root>"* (resolving the root NP for first/subsequent mention).
         """
         if self._pronominalises(pc):
-            return pronominal_path(pc.parts, Pronouns.ITS.as_fragment())
+            _, subject_number = self._subject_stack[-1]
+            pronoun = (
+                Pronouns.THEIR if subject_number is Number.PLURAL else Pronouns.ITS
+            )
+            return pronominal_path(pc.parts, pronoun.as_fragment())
         return possessive_path(pc.parts, self._walk(pc.root_fragment))
 
     def _pronominalises(self, pc: PossessiveChain) -> bool:
         """The chain root is the current, already-introduced, non-numbered subject."""
         if pc.root_referent_id is None or pc.root_referent_id not in self._seen:
             return False
-        if not self._subject_stack or self._subject_stack[-1] != pc.root_referent_id:
+        if not self._subject_stack or self._subject_stack[-1][0] != pc.root_referent_id:
             return False
         # A numbered root ("Robot 2") renders BARE and is never pronominalised.
         return not (

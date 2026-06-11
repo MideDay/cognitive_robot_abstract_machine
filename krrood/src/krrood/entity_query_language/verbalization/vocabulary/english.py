@@ -262,6 +262,7 @@ class Pronouns(VocabEnum):
     """Coreference pronouns standing in for a previously introduced variable."""
 
     ITS = PronounWord("its")
+    THEIR = PronounWord("their")
 
 
 class RangePhrases(VocabEnum):

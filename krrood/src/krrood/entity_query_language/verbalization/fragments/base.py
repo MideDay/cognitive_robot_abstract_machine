@@ -224,6 +224,11 @@ class SubjectScope(VerbFragment):
     child: VerbFragment
     """The wrapped fragment the scope applies to."""
 
+    subject_number: Number = Number.SINGULAR
+    """The subject's grammatical number — selects the possessive pronoun (*"its"* for a singular
+    subject, *"their"* for a plural population, e.g. an aggregation source *"among
+    BankTransactions such that … their …"*)."""
+
 
 @dataclass
 class PossessiveChain(VerbFragment):
@@ -369,8 +374,14 @@ def map_structural_children(
                 header=None if header is None else recurse(header),
                 items=[recurse(i) for i in items],
             )
-        case SubjectScope(subject_id=subject_id, child=child):
-            return SubjectScope(subject_id=subject_id, child=recurse(child))
+        case SubjectScope(
+            subject_id=subject_id, child=child, subject_number=subject_number
+        ):
+            return SubjectScope(
+                subject_id=subject_id,
+                child=recurse(child),
+                subject_number=subject_number,
+            )
         case _:
             return None
 

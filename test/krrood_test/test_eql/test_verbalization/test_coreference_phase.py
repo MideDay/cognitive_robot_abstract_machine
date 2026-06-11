@@ -195,3 +195,24 @@ def test_chain_not_rooted_at_subject_is_possessive():
     tree = SubjectScope(subject_id=subj, child=chain)
     # root is not the subject → possessive "the battery of a Robot" (root resolved as first mention)
     assert _realise(tree) == "the battery of a Robot"
+
+
+def test_chain_rooted_at_plural_subject_pronominalises_with_their():
+    """A plural-subject scope (e.g. an aggregation source population) yields *"their …"*."""
+    rid = uuid.uuid4()
+    chain = PossessiveChain(
+        parts=[_attr_part("battery")],
+        root_fragment=NounPhrase(head=_noun("Robot"), referent_id=rid),
+        root_referent_id=rid,
+    )
+    intro = NounPhrase(
+        head=_noun("Robot"), number=Number.PLURAL, referent_id=rid
+    )  # "Robots" (bare plural population intro)
+    tree = SubjectScope(
+        subject_id=rid,
+        child=PhraseFragment(parts=[intro, chain]),
+        subject_number=Number.PLURAL,
+    )
+    # _realise runs coreference + determiner only; the head inflects to "Robots" later in the
+    # morphology pass (the full pipeline is pinned by test_deeply_nested_subqueries_golden).
+    assert _realise(tree) == "Robot their battery"
