@@ -120,7 +120,7 @@ class TypstRenderer:
         columns_count = len(headers)
 
         # 2. Build the Typst header block
-        header_cells = ",\n  ".join(
+        header_cells = ", ".join(
             [f"[*{name.replace('_', ' ').title()}*]" for name in headers]
         )
 
