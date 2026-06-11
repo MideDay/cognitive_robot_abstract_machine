@@ -1,40 +1,31 @@
 from __future__ import annotations
 
 import logging
-from abc import abstractmethod, ABC, abstractproperty
+from abc import abstractmethod
 from copy import copy
-from dataclasses import dataclass, fields, Field
+from dataclasses import dataclass
 from functools import cached_property
 
 from typing_extensions import (
     Any,
-    Callable,
     TypeVar,
     Dict,
-    List,
     Union,
     Iterable,
-    Generator,
     Optional,
 )
 
-from pycram.exceptions import ContextIsUnavailable, ConditionNotSatisfied
-from pycram.plans.failures import PlanFailure
-from semantic_digital_twin.world import World
-
-from pycram.plans.plan_node import PlanNode, ActionNode
-from pycram.plans.designator import Designator
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import (
     variable,
-    a,
-    set_of,
-    evaluate_condition,
 )
-from ...datastructures.dataclasses import Context
-from ...plans.condition_nodes import ConditionNode
-from ...plans.plan import Plan
+from pycram.exceptions import ContextIsUnavailable
+from designator import Designator
+from pycram.plans.plan_node import PlanNode, ActionNode
+from semantic_digital_twin.world import World
+from pycram.datastructures.dataclasses import Context
+from pycram.plans.condition_nodes import ConditionNode
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +62,65 @@ class ActionDescription(Designator):
 
         return result
 
+    def action_plan_for_context(self, context: Context) -> PlanNode:
+        sub_plan_root = self._action_plan
+        action_node = ActionNode(designator=copy(self))
+
+        pre_condition_node = ConditionNode(
+            condition=self.pre_condition(
+                self.bound_variables,
+                context,
+                self.designator_parameter,
+            ),
+            pre_condition=True,
+        )
+
+        sub_plan_root.plan.add_edge(action_node, pre_condition_node)
+
+        sub_plan_root.plan.add_edge(action_node, sub_plan_root)
+
+        post_condition_node = ConditionNode(
+            condition=self.post_condition(
+                self.bound_variables,
+                context,
+                self.designator_parameter,
+            ),
+            pre_condition=False,
+        )
+
+        sub_plan_root.plan.add_edge(action_node, post_condition_node)
+
+        return action_node
+
     @property
     def action_plan(self) -> PlanNode:
 
         sub_plan_root = self._action_plan
         action_node = ActionNode(designator=copy(self))
 
+        pre_condition_node = ConditionNode(
+            condition=self.pre_condition(
+                self.bound_variables,
+                self.context,
+                self.designator_parameter,
+            ),
+            pre_condition=True,
+        )
+
+        sub_plan_root.plan.add_edge(action_node, pre_condition_node)
+
         sub_plan_root.plan.add_edge(action_node, sub_plan_root)
+
+        post_condition_node = ConditionNode(
+            condition=self.post_condition(
+                self.bound_variables,
+                self.context,
+                self.designator_parameter,
+            ),
+            pre_condition=False,
+        )
+
+        sub_plan_root.plan.add_edge(action_node, post_condition_node)
 
         return action_node
 
@@ -93,31 +136,7 @@ class ActionDescription(Designator):
 
     def expand(self) -> PlanNode:
 
-        pre_condition_node = ConditionNode(
-            condition=self.pre_condition(
-                self.bound_variables,
-                self.context,
-                self.designator_parameter,
-            ),
-            pre_condition=True,
-        )
-
-        self.plan.add_edge(self.plan_node, pre_condition_node)
-
-        root = self.add_subplan(self.action_plan)
-
-        post_condition_node = ConditionNode(
-            condition=self.post_condition(
-                self.bound_variables,
-                self.context,
-                self.designator_parameter,
-            ),
-            pre_condition=False,
-        )
-
-        self.plan.add_edge(self.plan_node, post_condition_node)
-
-        return root
+        return self.add_subplan(self.action_plan)
 
     def execute(self) -> Any:
         """

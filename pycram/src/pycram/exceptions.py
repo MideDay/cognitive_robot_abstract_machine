@@ -9,7 +9,7 @@ from krrood.exceptions import DataclassException
 from pycram.plans.failures import PlanFailure
 
 if TYPE_CHECKING:
-    from pycram.plans.designator import Designator
+    from designator import Designator
     from pycram.robot_plans.actions.base import ActionDescription
 
 

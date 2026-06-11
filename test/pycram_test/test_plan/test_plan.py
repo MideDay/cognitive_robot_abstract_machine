@@ -56,7 +56,7 @@ def urdf_context():
     world = URDFParser.from_file(
         os.path.join(
             os.path.dirname(__file__),
-            "..",
+            "../..",
             "..",
             "pycram",
             "resources",
@@ -558,3 +558,40 @@ def test_motion_order_place(mutable_model_world):
         "OpenGripper",
         "MoveTCP",
     ]
+
+
+def test_node_expansion(immutable_model_world):
+    world, view, context = immutable_model_world
+
+    plan = sequential(
+        [
+            PickUpAction(
+                object_designator=world.get_body_by_name("milk.stl"),
+                arm=Arms.RIGHT,
+                grasp_description=GraspDescription(
+                    ApproachDirection.FRONT,
+                    vertical_alignment=VerticalAlignment.NoAlignment,
+                    end_effector=view.right_arm.end_effector,
+                ),
+            )
+        ],
+        context=context,
+    )
+
+    pick_node = plan.children[0]
+    pick_node.notify()
+
+    expanded_children = pick_node.children
+    assert len(expanded_children) == 3
+    assert len(expanded_children[1].children) == 5
+
+
+def test_expand_move_torso(immutable_model_world):
+    world, view, context = immutable_model_world
+    plan = sequential([MoveTorsoAction(TorsoState.HIGH)], context=context)
+
+    plan.notify()
+
+    node = plan.plan.get_nodes_by_designator_type(MoveTorsoAction)[0]
+
+    assert len(node.children) == 3

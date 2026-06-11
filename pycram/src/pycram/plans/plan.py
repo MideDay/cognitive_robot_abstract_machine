@@ -4,13 +4,11 @@ import logging
 from copy import deepcopy
 from dataclasses import field, dataclass
 
-import numpy as np
 import rustworkx as rx
 import rustworkx.visualization
 from typing_extensions import (
     Optional,
     Any,
-    Dict,
     List,
     Iterable,
     TYPE_CHECKING,
@@ -19,9 +17,6 @@ from typing_extensions import (
     Type,
 )
 
-from probabilistic_model.probabilistic_circuit.rx.probabilistic_circuit import (
-    PlotAlignment,
-)
 from pycram.plans.plan_entity import PlanEntity
 from pycram.plans.plan_node import (
     PlanNode,
@@ -35,7 +30,7 @@ from semantic_digital_twin.world import World
 if TYPE_CHECKING:
     from pycram.plans.plan_callbacks import PlanCallback
     from pycram.datastructures.dataclasses import Context
-    from pycram.plans.designator import Designator
+    from designator import Designator
 
 
 logger = logging.getLogger(__name__)

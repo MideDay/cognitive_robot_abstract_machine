@@ -2,16 +2,10 @@
 
 from __future__ import annotations
 from sqlalchemy import (
-    Column,
     ForeignKey,
     Integer,
     String,
-    Float,
-    Boolean,
-    DateTime,
-    Enum,
     JSON,
-    Table,
 )
 from sqlalchemy.orm import relationship, Mapped, mapped_column, DeclarativeBase
 
@@ -99,7 +93,7 @@ import pycram.locations.pose_validator
 import pycram.motion_executor
 import pycram.orm.model
 import pycram.perception
-import pycram.plans.designator
+import designator
 import pycram.plans.failures
 import pycram.plans.plan_callbacks
 import pycram.plans.plan_entity
@@ -209,7 +203,6 @@ import semantic_digital_twin.world_description.world_state_trajectory_plotter
 import sqlalchemy.sql.sqltypes
 import trimesh.base
 import typing
-import typing_extensions
 import uuid
 
 
@@ -3373,7 +3366,7 @@ class DerivativeMap_floatDAO(
     }
 
 
-class DesignatorDAO(Base, DataAccessObject[pycram.plans.designator.Designator]):
+class DesignatorDAO(Base, DataAccessObject[designator.Designator]):
 
     __tablename__ = "DesignatorDAO"
 

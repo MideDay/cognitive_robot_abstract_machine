@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from abc import abstractmethod, ABC
 from collections import deque
 from dataclasses import dataclass, field
@@ -9,12 +8,11 @@ from datetime import datetime
 from typing import Optional, Any, List, Type, TYPE_CHECKING, Iterable, Iterator
 
 import rustworkx as rx
-import tqdm
 from typing_extensions import Union, Dict
 
 from giskardpy.motion_statechart.graph_node import Task
 from krrood.entity_query_language.query.match import Match
-from pycram.action_executor import Executable, ConditionExecutable, MotionExecutable
+from plans.executables import Executable, MotionExecutable, ConditionExecutable
 
 from pycram.datastructures.enums import TaskStatus
 from pycram.plans.failures import PlanFailure
@@ -22,7 +20,8 @@ from pycram.motion_executor import MotionExecutor
 
 from pycram.plans.plan_entity import PlanEntity
 from pycram.datastructures.execution_data import ExecutionData
-from pycram.plans.designator import Designator
+from designator import Designator
+from utils import group_by_type
 
 if TYPE_CHECKING:
     from pycram.robot_plans import ActionDescription, BaseMotion
@@ -320,7 +319,7 @@ class PlanNode(PlanEntity, ABC):
         self, executables: List[Executable]
     ) -> List[Executable]:
         result = []
-        for exec in self.group_by_type(executables, MotionExecutable):
+        for exec in group_by_type(executables, MotionExecutable):
             if not isinstance(exec[0], MotionExecutable):
                 result.extend(exec)
             else:
@@ -328,7 +327,7 @@ class PlanNode(PlanEntity, ABC):
                 result.append(MotionExecutable(motion_mappings=new_mappings))
         return result
 
-    def merge_motion_mappings(self, motions: List[Dict[MotionNode, Task]]):
+    def merge_motion_mappings(self, motions: List[MotionExecutable]):
         new_mappings = {}
         for motion in motions:
             new_mappings.update(motion.motion_mappings)
@@ -475,20 +474,28 @@ class ActionNode(DesignatorNode):
 
         # self.execute_motion_state_chart()
 
+        # TODO: This can't stay here
         self.update_execution_data_post_perform()
 
         # return result
 
     def parse(self) -> Executable:
         children = self.children
-        pre_condition_executable = ConditionExecutable(condition_node=children.pop(0))
-        post_condition_executable = ConditionExecutable(condition_node=children.pop(-1))
+        pre_condition_executable = ConditionExecutable(
+            condition_node=children.pop(0), context=self.plan.context
+        )
+        post_condition_executable = ConditionExecutable(
+            condition_node=children.pop(-1), context=self.plan.context
+        )
 
         child_execs = [child.parse() for child in children]
 
         exec_list = [pre_condition_executable, *child_execs, post_condition_executable]
 
-        return Executable(execution_list=self.merge_motion_executables(exec_list))
+        return Executable(
+            execution_list=self.merge_motion_executables(exec_list),
+            context=self.plan.context,
+        )
 
 
 @dataclass(eq=False, repr=False)
@@ -512,7 +519,8 @@ class MotionNode(DesignatorNode):
 
         :return: The return value of the Motion Designator
         """
-        return self.motion.perform()
+        pass
+        # return self.motion.perform()
 
     @property
     def parent_action_node(self) -> Optional[ActionNode]:
@@ -527,7 +535,7 @@ class MotionNode(DesignatorNode):
     def parse(self) -> Executable:
         task = self.motion.motion_chart
 
-        return MotionExecutable(motion_mappings={self: task}, giskard_task=task)
+        return MotionExecutable(motion_mappings={self: task}, context=self.plan.context)
 
 
 ActionLike = Union[Match, Designator, PlanNode]

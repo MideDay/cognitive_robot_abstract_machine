@@ -24,9 +24,6 @@ from pycram.locations.pose_validator import AreReachableBy
 from pycram.plans.attachment_nodes import AttachNode
 from pycram.plans.factories import sequential, execute_single
 from pycram.plans.plan_node import PlanNode
-from pycram.pose_validator import (
-    pose_sequence_reachability_validator,
-)
 from pycram.querying.predicates import GripperIsFree
 from pycram.robot_plans.actions.base import ActionDescription
 from pycram.robot_plans.motions.gripper import (
@@ -198,7 +195,7 @@ class PickUpAction(ActionDescription):
                     object_designator=self.object_designator,
                     arm=self.arm,
                     grasp_description=self.grasp_description,
-                ).action_plan,
+                ).action_plan_for_context(self.context),
                 MoveGripperMotion(motion=GripperState.CLOSE, gripper=self.arm),
                 AttachNode(
                     body=self.object_designator,

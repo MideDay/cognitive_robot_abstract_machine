@@ -45,33 +45,31 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 if TYPE_CHECKING:
     from pycram.view_manager import CameraDescription
-    from pycram.action_executor import Executable
+    from pycram.plans.executables import Executable
 
-    def split_list_by_type(
-        flat_list: List, cluster_type: Type[Any]
-    ) -> List[List[Executable]]:
-        groups = list(
-            (
-                list(g)
-                for _, g in groupby(
-                    flat_list, key=lambda m: isinstance(m, cluster_type)
-                )
-            )
-        )
-        return groups
 
-    def group_by_type(
-        flat_list: List[Any], group_type: Type[Any]
-    ) -> List[List[Executable]]:
-        groups = list(
-            (
-                list(g)
-                for _, g in groupby(
-                    flat_list, key=lambda m: not isinstance(m, group_type)
-                )
-            )
+def split_list_by_type(
+    flat_list: List, cluster_type: Type[Any]
+) -> List[List[Executable]]:
+    groups = list(
+        (
+            list(g)
+            for _, g in groupby(flat_list, key=lambda m: isinstance(m, cluster_type))
         )
-        return groups
+    )
+    return groups
+
+
+def group_by_type(
+    flat_list: List[Any], group_type: Type[Any]
+) -> List[List[Executable]]:
+    groups = list(
+        (
+            list(g)
+            for _, g in groupby(flat_list, key=lambda m: not isinstance(m, group_type))
+        )
+    )
+    return groups
 
 
 def link_pose_for_joint_config(obj: Body, joint_config: Dict[str, float]) -> Pose:

@@ -1,6 +1,5 @@
 import time
 
-from pycram.action_executor import ActionGraphParser
 from pycram.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from pycram.datastructures.grasp import GraspDescription
 from pycram.plans.factories import sequential
@@ -18,7 +17,7 @@ def test_sub_action_expansion(immutable_model_world):
                 grasp_description=GraspDescription(
                     ApproachDirection.FRONT,
                     vertical_alignment=VerticalAlignment.NoAlignment,
-                    manipulator=view.right_arm.manipulator,
+                    end_effector=view.right_arm.end_effector,
                 ),
             )
         ],
@@ -29,5 +28,5 @@ def test_sub_action_expansion(immutable_model_world):
     pick_node.notify()
 
     parser = ActionGraphParser(pick_node)
-    exapanded_children = parser.parse_children(pick_node.children)
-    assert len(exapanded_children) > 1
+    expanded_children = parser.parse_children(pick_node.children)
+    assert len(expanded_children) > 1

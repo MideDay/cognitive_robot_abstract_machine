@@ -20,11 +20,11 @@ from typing_extensions import (
 
 from giskardpy.motion_statechart.goals.templates import Sequence, Parallel
 from giskardpy.motion_statechart.graph_node import Goal
-from pycram.action_executor import (
-    MotionExecutable,
-    LanguageExecutable,
-    Executable,
+from plans.executables import (
     GiskardExecutable,
+    Executable,
+    LanguageExecutable,
+    ModelChangeExecutable,
 )
 from pycram.datastructures.enums import TaskStatus, MonitorBehavior
 from pycram.plans.attachment_nodes import ModelChangeNode
@@ -33,7 +33,7 @@ from pycram.fluent import Fluent
 from pycram.plans.plan_node import (
     PlanNode,
 )
-from pycram.utils import split_list_by_type
+from pycram.utils import split_list_by_type, group_by_type
 
 logger = logging.getLogger(__name__)
 
@@ -55,23 +55,47 @@ class LanguageNode(PlanNode, ABC):
 
             self.merge(child)
 
+    def notify(self):
+        # result = [child.perform() for child in self.children]
+        # return result
+        for child in self.children:
+            child.notify()
+
     def parse(self) -> Executable:
         child_executables = [node.parse() for node in self.children]
 
-        model_change_split = split_list_by_type(child_executables, ModelChangeNode)
+        # model_change_split = split_list_by_type(
+        #     child_executables, ModelChangeExecutable
+        # )
+
+        giskard_exec_groups = group_by_type(child_executables, GiskardExecutable)
+
+        exec_list = []
+
+        for group in giskard_exec_groups:
+            if isinstance(group[0], GiskardExecutable):
+                exec_list.append(
+                    GiskardExecutable(
+                        motion_mappings=self.merge_motion_mappings(group),
+                        context=self.plan.context,
+                    )
+                )
+            else:
+                exec_list.extend(group)
+        return LanguageExecutable(execution_list=exec_list, context=self.plan.context)
 
         # group everything before and after
 
-        all_motions = all([isinstance(m, GiskardExecutable) for m in child_executables])
-        if all_motions:
-            tasks = [
-                t for exe in child_executables for t in exe.motion_mappings.values()
-            ]
-
-            return LanguageExecutable(
-                motion_mappings=self.merge_motion_mappings(child_executables),
-                giskard_task=self.msc_template(nodes=tasks),
-            )
+        # all_motions = all([isinstance(m, GiskardExecutable) for m in child_executables])
+        # if all_motions:
+        #     tasks = [
+        #         t for exe in child_executables for t in exe.motion_mappings.values()
+        #     ]
+        #
+        #     return LanguageExecutable(
+        #         motion_mappings=self.merge_motion_mappings(child_executables),
+        #         giskard_task=self.msc_template(nodes=tasks),
+        #     )
 
 
 @dataclass
@@ -80,9 +104,7 @@ class ExecutesSequentially(LanguageNode):
     Base class for nodes that execute their children sequentially.
     """
 
-    def notify(self):
-        result = [child.perform() for child in self.children]
-        return result
+    ...
 
 
 @dataclass
