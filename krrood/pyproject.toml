@@ -11,7 +11,7 @@ name = "krrood"
 dynamic = ["version", "dependencies"]
 description = "A python package for Knowledge Representation and Reasoning systems based on Object Oriented Design."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Abdelrhman Bassiouny", email = "abassiou@uni-bremen.de"},
