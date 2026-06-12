@@ -1,23 +1,11 @@
-"""
-Clause **assemblers** — one realisation component per query clause (GROUP BY, HAVING,
-ORDER BY).  Each is a self-contained, independently-testable unit that the
-:class:`~krrood.entity_query_language.verbalization.grammar.assembly.query.QueryAssembler`
-orchestrates as an ordered pipeline, and that the standalone GROUP BY / ORDER BY phrase
-rules dispatch to directly — so a clause is rendered in exactly one place.
-
-* :meth:`assemble` (inherited) — render the clause unconditionally (the standalone-node path).
-* :meth:`clause` — render the clause *within a query* iff it is present (returns ``None``
-  otherwise), the form the query-body orchestrator calls.
-
-Reference: Reiter & Dale (2000) — aggregation / clause structuring; Gatt & Reiter (2009),
-SimpleNLG — surface realisation.
-"""
-
 from __future__ import annotations
 
-from typing_extensions import Any, Optional
+from typing_extensions import List, Optional, Union
 
-from krrood.entity_query_language.query.query import SetOf
+from krrood.entity_query_language.core.base_expressions import SymbolicExpression
+from krrood.entity_query_language.query.builders import OrderedByBuilder
+from krrood.entity_query_language.query.operations import GroupedBy, OrderedBy
+from krrood.entity_query_language.query.query import Query, SetOf
 from krrood.entity_query_language.verbalization.fragments.base import (
     oxford_and,
     PhraseFragment,
@@ -40,14 +28,23 @@ from krrood.entity_query_language.verbalization.vocabulary.english import (
 )
 
 
-class GroupedByAssembler(Assembler[Any, GroupPlan]):
-    """*"grouped by <keys>"* — or *"and the <aggregated> are grouped by <keys>"* in a query."""
+class GroupedByAssembler(Assembler[Union[Query, GroupedBy], GroupPlan]):
+    """
+    *"grouped by <keys>"* — or *"and the <aggregated> are grouped by <keys>"* in a query.
+
+    Reference: Reiter & Dale (2000) — aggregation / clause structuring; Gatt & Reiter (2009),
+    SimpleNLG — surface realisation.
+    """
 
     planner = GroupedByPlanner
 
-    def realize(self, node, plan: GroupPlan) -> Fragment:
-        """*"grouped by <keys>"* — or *"and the <aggregated> are grouped by <keys>"* when the
-        query also selects aggregations (bare *"grouped"* when there are no keys)."""
+    def realize(self, node: Union[Query, GroupedBy], plan: GroupPlan) -> Fragment:
+        """
+        :param node: The query (or bare grouped-by node) being rendered.
+        :param plan: The group plan.
+        :return: *"grouped by <keys>"* — or *"and the <aggregated> are grouped by <keys>"* when
+            the query also selects aggregations (bare *"grouped"* when there are no keys).
+        """
         if not plan.has_keys:
             return Keywords.GROUPED.as_fragment()
         groups_phrase = self._keys_phrase(plan.keys)
@@ -70,27 +67,39 @@ class GroupedByAssembler(Assembler[Any, GroupPlan]):
             )
         return PhraseFragment(parts=[Keywords.GROUPED_BY.as_fragment(), groups_phrase])
 
-    def clause(self, node) -> Optional[Fragment]:
-        """The in-query GROUP BY clause, or ``None`` when there are no group keys."""
+    def clause(self, node: Union[Query, GroupedBy]) -> Optional[Fragment]:
+        """
+        :param node: The query being rendered.
+        :return: The in-query GROUP BY clause, or ``None`` when there are no group keys.
+        """
         plan = self.plan(node)
         return self.realize(node, plan) if plan.has_keys else None
 
-    def _keys_phrase(self, variables) -> Fragment:
-        """*"<key1>, <key2>, …"* — the comma-joined group keys."""
+    def _keys_phrase(self, variables: List[SymbolicExpression]) -> Fragment:
+        """
+        :param variables: The group-by key expressions.
+        :return: The comma-joined group keys *"<key1>, <key2>, …"*.
+        """
         return PhraseFragment(
             parts=[self.ctx.child(variable) for variable in variables],
             separator=COMMA_SEPARATOR,
         )
 
 
-class OrderedByAssembler(Assembler[Any, None]):
+class OrderedByAssembler(Assembler[Union[OrderedBy, OrderedByBuilder], None]):
     """*"ordered by <variable> (ascending|descending)"*. Realisation-only (no plan)."""
 
-    def realize(self, node, plan: None = None) -> Fragment:
-        """*"ordered by <variable> (ascending|descending)"*.
+    def realize(
+        self, node: Union[OrderedBy, OrderedByBuilder], plan: None = None
+    ) -> Fragment:
+        """
+        *node* is "ordered-like": an ``OrderedBy`` expression or an ``OrderedByBuilder``, both
+        exposing ``.variable`` and ``.descending``.
 
-        *node* is "ordered-like": an OrderedBy expression or an OrderedByBuilder, both
-        exposing ``.variable`` and ``.descending``."""
+        :param node: The ordered-by expression or builder.
+        :param plan: Unused (this assembler has no plan).
+        :return: The clause *"ordered by <variable> (ascending|descending)"*.
+        """
         direction = (
             SortDirections.DESCENDING if node.descending else SortDirections.ASCENDING
         )
@@ -109,22 +118,32 @@ class OrderedByAssembler(Assembler[Any, None]):
             ]
         )
 
-    def clause(self, query) -> Optional[Fragment]:
-        """The in-query ORDER BY clause, or ``None`` when the query is unordered."""
+    def clause(self, query: Query) -> Optional[Fragment]:
+        """
+        :param query: The query being rendered.
+        :return: The in-query ORDER BY clause, or ``None`` when the query is unordered.
+        """
         builder = query._ordered_by_builder_
         return self.realize(builder) if builder is not None else None
 
 
-class HavingAssembler(Assembler[Any, None]):
+class HavingAssembler(Assembler[Query, None]):
     """*"having <condition>"* (compact comparators). Realisation-only (no plan)."""
 
-    def realize(self, node, plan: None = None) -> Fragment:
-        """*"having <condition>"* — the condition rendered with compact (copula-less)
-        comparators."""
+    def realize(self, node: Query, plan: None = None) -> Fragment:
+        """
+        :param node: The query whose HAVING condition to render.
+        :param plan: Unused (this assembler has no plan).
+        :return: *"having <condition>"* — the condition rendered with compact (copula-less)
+            comparators.
+        """
         with self.ctx.config.compact_predicates_scope():
             having_fragment = self.ctx.child(node._having_expression_.condition)
         return PhraseFragment(parts=[Keywords.HAVING.as_fragment(), having_fragment])
 
-    def clause(self, query) -> Optional[Fragment]:
-        """The in-query HAVING clause, or ``None`` when there is no HAVING."""
+    def clause(self, query: Query) -> Optional[Fragment]:
+        """
+        :param query: The query being rendered.
+        :return: The in-query HAVING clause, or ``None`` when there is no HAVING.
+        """
         return self.realize(query) if query._having_expression_ is not None else None

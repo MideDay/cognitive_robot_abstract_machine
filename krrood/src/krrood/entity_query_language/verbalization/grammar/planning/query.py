@@ -1,26 +1,9 @@
-"""
-Query **planner** — pure structural analysis of an
-:class:`~krrood.entity_query_language.query.query.Entity` / :class:`~krrood.entity_query_language.query.query.SetOf`
-into a :class:`QueryPlan` (the *what to say* decisions).
-
-It never builds fragments, mutates the context, or recurses — those are realisation
-concerns owned by
-:class:`~krrood.entity_query_language.verbalization.grammar.assembly.query.QueryAssembler`.
-The plan is the **selection** concern: the selection shape, the definiteness
-(``is_the``), the restriction subject and its WHERE partition (grouped *"whose …"*
-predicates vs. residual *"such that …"*), and whether the entity is an aggregation
-value-subquery.  The trailing clauses (GROUP BY / HAVING / ORDER BY) are owned by their
-own components (see :mod:`~krrood.entity_query_language.verbalization.grammar.assembly.clauses`).
-
-Reference: Reiter & Dale (2000) — content/structure determination (microplanning).
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-from typing_extensions import Any, List, Optional, Tuple, Type
+from typing_extensions import List, Optional, Tuple, Type, Union
 
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.mapped_variable import MappedVariable
@@ -39,6 +22,7 @@ from krrood.entity_query_language.verbalization.grammar.restriction import (
     restriction_subject,
 )
 from krrood.entity_query_language.verbalization.microplanning.coordination import (
+    RangeFold,
     fold_range_pairs,
 )
 from krrood.entity_query_language.verbalization.subquery import (
@@ -52,32 +36,32 @@ from krrood.entity_query_language.verbalization.vocabulary.english import Fallba
 
 
 class SelectionKind(Enum):
-    """The structural shape of a query's selection.
-
-    :cvar ENTITY_SELECTOR: The selected variable is itself an Entity (a sub-query selector).
-    :cvar EMPTY: No selected variable — the fallback *"entity"* form.
-    :cvar SUBJECT: A plain variable / aggregator selection that can carry restrictions.
-    :cvar SET_OF: A :class:`~krrood.entity_query_language.query.query.SetOf` tuple selection.
-    """
+    """The structural shape of a query's selection."""
 
     ENTITY_SELECTOR = auto()
+    """The selected variable is itself an entity (a sub-query selector)."""
     EMPTY = auto()
+    """No selected variable — the fallback *"entity"* form."""
     SUBJECT = auto()
+    """A plain variable / aggregator selection that can carry restrictions."""
     SET_OF = auto()
+    """A tuple selection over several variables."""
 
 
 @dataclass(frozen=True)
 class RestrictionPlan:
     """Partition of a subject's WHERE condition into rule-matched conjuncts vs. the residual.
 
-    A matched conjunct carries the :class:`RestrictionRule` that recognised it; the rule's
-    :attr:`~RestrictionRule.placement` decides where its rendering lands (the assembler groups by
-    it).  An unmatched conjunct is residual and stays in a *"such that …"* clause."""
+    A matched conjunct carries the restriction rule that recognised it, whose placement decides
+    where its rendering lands.  An unmatched conjunct is residual and stays in a *"such that …"*
+    clause."""
 
-    matched: List[Tuple[Type[RestrictionRule], Any]] = field(default_factory=list)
+    matched: List[Tuple[Type[RestrictionRule], Union[SymbolicExpression, RangeFold]]] = (
+        field(default_factory=list)
+    )
     """``(rule, folded item)`` pairs — the rule renders each into its declared placement."""
 
-    residual: List[Any] = field(default_factory=list)
+    residual: List[Union[SymbolicExpression, RangeFold]] = field(default_factory=list)
     """Folded items (``RangeFold`` or raw expression) for the residual *"such that …"*."""
 
     @property
@@ -94,7 +78,7 @@ class AggregationData:
     """The selected aggregator."""
 
     leaf: Optional[MappedVariable]
-    """The leaf :class:`Attribute` of the aggregator chain, or ``None``."""
+    """The leaf attribute of the aggregator chain, or ``None``."""
 
     is_constrained: bool
     """``True`` when the aggregation is constrained by a WHERE/HAVING clause."""
@@ -108,20 +92,43 @@ class QueryPlan:
     """Complete *what to say* decomposition of a query (the plan)."""
 
     kind: SelectionKind
+    """The structural shape of the selection."""
+
     is_the: bool
+    """``True`` when the query is uniqueness-quantified (*"the"* rather than *"a"*)."""
+
     selected_type: str
+    """Display name of the selected type (e.g. ``"Robot"``)."""
+
     subject: Optional[Variable]
+    """The variable the WHERE restricts, or ``None`` when there is no groupable subject."""
+
     subject_restriction: Optional[RestrictionPlan]
+    """Partition of the subject's WHERE into rule-matched restrictions and the residual."""
+
     where_condition: Optional[SymbolicExpression]
+    """The query's raw WHERE condition, or ``None``."""
+
     is_aggregation_subquery: bool
+    """``True`` when the query is an aggregation value-subquery."""
+
     aggregation_data: Optional[AggregationData]
+    """The collapsed aggregation details when this is an aggregation subquery, else ``None``."""
 
 
 @dataclass
 class QueryPlanner(Planner[Query, QueryPlan]):
-    """Decompose an :class:`Entity` / :class:`SetOf` into a :class:`QueryPlan`."""
+    """
+    Decompose an entity or set-of query into a ``QueryPlan`` (the *what to say* decisions): the
+    selection shape, the definiteness (``is_the``), the restriction subject and its WHERE
+    partition (grouped *"whose …"* predicates vs. residual *"such that …"*), and whether the
+    entity is an aggregation value-subquery.
+
+    Reference: Reiter & Dale (2000) — content/structure determination (microplanning).
+    """
 
     def plan(self) -> QueryPlan:
+        """:return: The plan: selection shape, definiteness, restriction partition, aggregation."""
         self.node.build()
         return QueryPlan(
             kind=self._kind(),
@@ -137,7 +144,7 @@ class QueryPlanner(Planner[Query, QueryPlan]):
     # ── selection shape ──────────────────────────────────────────────────────
 
     @property
-    def _selected(self):
+    def _selected(self) -> Optional[SymbolicExpression]:
         return getattr(self.node, "selected_variable", None)
 
     def _kind(self) -> SelectionKind:
@@ -174,11 +181,14 @@ class QueryPlanner(Planner[Query, QueryPlan]):
             return None
         return self._partition(subject, condition)
 
-    def _partition(self, subject, condition) -> RestrictionPlan:
-        """Fold range pairs, then split each conjunct into a rule-matched restriction (the rule's
-        placement decides its slot) or the residual *"such that …"* clause."""
-        matched: List[Tuple[Type[RestrictionRule], Any]] = []
-        residual: List[Any] = []
+    def _partition(
+        self, subject: Variable, condition: SymbolicExpression
+    ) -> RestrictionPlan:
+        """:return: The WHERE folded into range pairs and split per conjunct into a rule-matched
+        restriction (the rule's placement decides its slot) or the residual *"such that …"*
+        clause."""
+        matched: List[Tuple[Type[RestrictionRule], Union[SymbolicExpression, RangeFold]]] = []
+        residual: List[Union[SymbolicExpression, RangeFold]] = []
         for item in fold_range_pairs(flatten_operands(condition, AND)):
             rule = match_restriction(item, subject)
             if rule is None:

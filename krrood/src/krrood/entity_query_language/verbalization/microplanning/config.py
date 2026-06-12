@@ -1,25 +1,22 @@
-"""
-Render-mode configuration — the small set of mutable flags that switch how a
-clause is realised, independent of *what* is said.
-
-* :attr:`RenderConfig.query_depth` selects the imperative *"Find …"* form for a
-  top-level query versus a nested noun phrase for a sub-query used as a value.
-* :attr:`RenderConfig.compact_predicates` drops the copula in post-nominal /
-  HAVING contexts (*"greater than 10"* instead of *"is greater than 10"*).
-
-These are surface-realisation directives, kept apart from coreference state and
-binding bookkeeping so each concern changes for exactly one reason.
-"""
-
 from __future__ import annotations
 
 import contextlib
 from dataclasses import dataclass
 
+from typing_extensions import Iterator
+
 
 @dataclass
 class RenderConfig:
-    """Mutable render-mode flags for the current verbalization pass."""
+    """
+    Mutable render-mode flags for the current verbalization pass — the small set that switch how
+    a clause is realised, independent of *what* is said:
+
+    * ``query_depth`` selects the imperative *"Find …"* form for a top-level query versus a
+      nested noun phrase for a sub-query used as a value.
+    * ``compact_predicates`` drops the copula in post-nominal / HAVING contexts (*"greater than
+      10"* instead of *"is greater than 10"*).
+    """
 
     query_depth: int = 0
     """Number of enclosing query/noun renderings on the stack.  ``0`` ⇒ the next
@@ -31,8 +28,8 @@ class RenderConfig:
     than *"is greater than"*)."""
 
     @contextlib.contextmanager
-    def query_depth_scope(self):
-        """Increment :attr:`query_depth` for the duration of a ``with`` block, restoring it on exit."""
+    def query_depth_scope(self) -> Iterator[None]:
+        """Increment ``query_depth`` for the duration of a ``with`` block, restoring it on exit."""
         self.query_depth += 1
         try:
             yield
@@ -40,8 +37,8 @@ class RenderConfig:
             self.query_depth -= 1
 
     @contextlib.contextmanager
-    def compact_predicates_scope(self):
-        """Set :attr:`compact_predicates` ``True`` for a ``with`` block, restoring it on exit (even on error)."""
+    def compact_predicates_scope(self) -> Iterator[None]:
+        """Set ``compact_predicates`` ``True`` for a ``with`` block, restoring it on exit (even on error)."""
         previous = self.compact_predicates
         self.compact_predicates = True
         try:

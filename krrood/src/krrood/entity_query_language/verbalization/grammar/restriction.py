@@ -1,26 +1,10 @@
-"""
-Subject restriction systems — recognising a subject's ``WHERE`` conjunct as a
-post-nominal *"whose <attr> is …"* modifier (vs. a residual *"such that …"* clause),
-and resolving **which** variable a selection restricts.
-
-Both decisions are **declarative**: small rule hierarchies that share the
-:class:`~krrood.entity_query_language.verbalization.grammar.selection.SpecificityRule`
-base — self-registering alternatives selected by specificity, the same primitive family
-as :class:`~krrood.entity_query_language.verbalization.grammar.phrase_rule.PhraseRule`
-— so there is no bespoke dispatch loop.  Matching is **pure analysis** (used by
-:class:`~krrood.entity_query_language.verbalization.grammar.planning.query.QueryPlanner`);
-each rule's :meth:`render` is the realisation half (used by
-:class:`~krrood.entity_query_language.verbalization.grammar.assembly.query.QueryAssembler`).
-
-Reference: Dale & Reiter (1995) — referring expressions / post-nominal modification.
-"""
-
 from __future__ import annotations
 
 from abc import abstractmethod
 from enum import Enum, auto
-from typing_extensions import ClassVar, Optional, Type
+from typing_extensions import ClassVar, Optional, Type, Union
 
+from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.operators.aggregators import Aggregator
 from krrood.entity_query_language.operators.comparator import Comparator
@@ -44,51 +28,63 @@ from krrood.entity_query_language.verbalization.subquery import aggregation_sour
 
 
 class Placement(Enum):
-    """**Where** a matched restriction's fragment attaches in the query — the single, extensible
-    taxonomy of restriction surface slots.
-
-    A rule declares its placement and the :class:`RestrictionAssembler` groups by it, so a new
-    fold that targets an *existing* slot is one rule class (no other change); only a genuinely new
-    syntactic slot adds an enum member (and a field on ``RestrictionFragments``).
-
-    :cvar SELECTION_MODIFIER: A post-nominal PP on the selection — *"<noun> with the maximum amount"*.
-    :cvar WHOSE_GROUP: A bare predicate gathered under one shared *"whose …, and …"* envelope.
-    """
+    """Where a matched restriction's fragment attaches in the query — the taxonomy of
+    restriction surface slots."""
 
     SELECTION_MODIFIER = auto()
+    """A post-nominal PP on the selection — *"<noun> with the maximum amount"*."""
     WHOSE_GROUP = auto()
+    """A bare predicate gathered under one shared *"whose …, and …"* envelope."""
 
 
 class RestrictionRule(SpecificityRule):
     """
     Recognise a folded conjunct as a subject restriction and render its fragment, declaring
-    **where** that fragment attaches via :attr:`placement`.  A conjunct matched by no rule is
+    where that fragment attaches via ``placement``.  A conjunct matched by no rule is
     residual and stays in a *"such that …"* clause.
 
-    Self-registering alternative (see :class:`SpecificityRule`); ranked by ``priority``.
+    Reference: Dale & Reiter (1995) — referring expressions / post-nominal modification.
     """
 
     placement: ClassVar[Placement]
-    """The slot this rule's :meth:`render` output occupies (see :class:`Placement`)."""
+    """The surface slot this rule's output occupies."""
 
     @classmethod
     @abstractmethod
-    def applies(cls, item, subject_variable) -> bool:
-        """Return ``True`` when *item* is a restriction on *subject_variable* this rule renders."""
+    def applies(
+        cls, item: Union[SymbolicExpression, RangeFold], subject_variable: Variable
+    ) -> bool:
+        """
+        :param item: A folded ``WHERE`` conjunct.
+        :param subject_variable: The variable the restriction is on.
+        :return: ``True`` when *item* is a restriction on *subject_variable* this rule renders.
+        """
 
     @classmethod
     @abstractmethod
-    def render(cls, item, subject_variable, ctx: Ctx) -> Fragment:
-        """Render *item* as the fragment for its :attr:`placement` (recurses via ``ctx.child``)."""
+    def render(
+        cls,
+        item: Union[SymbolicExpression, RangeFold],
+        subject_variable: Variable,
+        ctx: Ctx,
+    ) -> Fragment:
+        """
+        :param item: The folded conjunct this rule matched.
+        :param subject_variable: The variable the restriction is on.
+        :param ctx: The per-node context (recursion and services).
+        :return: *item* rendered as the fragment for this rule's placement.
+        """
 
 
 class RangeRestrictionRule(RestrictionRule):
-    """A :class:`RangeFold` on a single-hop subject attribute → *"<attr> is between lo and hi"*."""
+    """A range fold on a single-hop subject attribute → *"<attr> is between lo and hi"*."""
 
     placement = Placement.WHOSE_GROUP
 
     @classmethod
-    def applies(cls, item, subject_variable) -> bool:
+    def applies(
+        cls, item: Union[SymbolicExpression, RangeFold], subject_variable: Variable
+    ) -> bool:
         return (
             isinstance(item, RangeFold)
             and single_hop_attribute(item.chain_expression, subject_variable)
@@ -96,20 +92,22 @@ class RangeRestrictionRule(RestrictionRule):
         )
 
     @classmethod
-    def render(cls, item, subject_variable, ctx: Ctx) -> Fragment:
+    def render(cls, item: RangeFold, subject_variable: Variable, ctx: Ctx) -> Fragment:
         return ConditionVerbalizer(ctx).range_modifier(item, subject_variable)
 
 
 class AttributePredicateRestrictionRule(RestrictionRule):
     """
-    A single-hop, non-boolean subject-attribute :class:`Comparator` whose RHS does not
-    reference the subject → *"<attr> is greater than 100"* / *"<attr> is equal to <calc>"*.
+    A single-hop, non-boolean subject-attribute comparator whose RHS does not reference the
+    subject → *"<attr> is greater than 100"* / *"<attr> is equal to <calc>"*.
     """
 
     placement = Placement.WHOSE_GROUP
 
     @classmethod
-    def applies(cls, item, subject_variable) -> bool:
+    def applies(
+        cls, item: Union[SymbolicExpression, RangeFold], subject_variable: Variable
+    ) -> bool:
         if not isinstance(item, Comparator):
             return False
         attr = single_hop_attribute(item.left, subject_variable)
@@ -118,34 +116,37 @@ class AttributePredicateRestrictionRule(RestrictionRule):
         return not references(item.right, subject_variable)
 
     @classmethod
-    def render(cls, item, subject_variable, ctx: Ctx) -> Fragment:
+    def render(cls, item: Comparator, subject_variable: Variable, ctx: Ctx) -> Fragment:
         return ConditionVerbalizer(ctx).attribute_modifier(item, subject_variable)
 
 
 class SuperlativeRestrictionRule(RestrictionRule):
     """
     ``subject.<chain> == max/min(over all <same-type>.<same chain>)`` → the superlative selection
-    modifier *"with the maximum/minimum <leaf>"* (see :func:`superlative_aggregation`).  Higher
-    ``priority`` than :class:`AttributePredicateRestrictionRule` so a single-hop superlative folds
-    to the superlative rather than *"<attr> is equal to <calc>"*.
+    modifier *"with the maximum/minimum <leaf>"*.
     """
 
     placement = Placement.SELECTION_MODIFIER
     priority = 1
 
     @classmethod
-    def applies(cls, item, subject_variable) -> bool:
+    def applies(
+        cls, item: Union[SymbolicExpression, RangeFold], subject_variable: Variable
+    ) -> bool:
         return superlative_aggregation(item, subject_variable) is not None
 
     @classmethod
-    def render(cls, item, subject_variable, ctx: Ctx) -> Fragment:
+    def render(cls, item: Comparator, subject_variable: Variable, ctx: Ctx) -> Fragment:
         return ConditionVerbalizer(ctx).superlative_modifier(item, subject_variable)
 
 
-def match_restriction(item, subject_variable) -> Optional[Type[RestrictionRule]]:
-    """The most-specific applicable :class:`RestrictionRule` for *item*, or ``None`` (residual).
-
-    Pure analysis — no fragment is built; the planner uses this to partition conjuncts.
+def match_restriction(
+    item: Union[SymbolicExpression, RangeFold], subject_variable: Variable
+) -> Optional[Type[RestrictionRule]]:
+    """
+    :param item: A folded ``WHERE`` conjunct.
+    :param subject_variable: The variable the restriction is on.
+    :return: The most-specific applicable restriction rule for *item*, or ``None`` (residual).
     """
     return RestrictionRule.most_applicable(item, subject_variable)
 
@@ -155,33 +156,47 @@ def match_restriction(item, subject_variable) -> Optional[Type[RestrictionRule]]
 
 class RestrictionSubjectRule(SpecificityRule):
     """
-    Resolve **which variable** a query's selection restricts, so the selection's ``WHERE``
-    can fold into a post-nominal *"whose …"* modifier on it.  A selection matched by no
-    rule has no groupable subject — its ``WHERE`` stays a full *"such that …"* clause.
-
-    Self-registering alternative (see :class:`SpecificityRule`); ranked by ``priority``.
+    Resolve which variable a query's selection restricts, so the selection's ``WHERE`` can fold
+    into a post-nominal *"whose …"* modifier on it.  A selection matched by no rule has no
+    groupable subject — its ``WHERE`` stays a full *"such that …"* clause.
     """
 
     @classmethod
     @abstractmethod
-    def applies(cls, expression, selected_variable) -> bool:
-        """Return ``True`` when this rule can name the restriction subject of *expression*."""
+    def applies(
+        cls, expression: SymbolicExpression, selected_variable: SymbolicExpression
+    ) -> bool:
+        """
+        :param expression: The query whose restriction subject to resolve.
+        :param selected_variable: The query's selected variable.
+        :return: ``True`` when this rule can name the restriction subject of *expression*.
+        """
 
     @classmethod
     @abstractmethod
-    def subject(cls, expression, selected_variable):
-        """Return the :class:`Variable` the ``WHERE`` restricts."""
+    def subject(
+        cls, expression: SymbolicExpression, selected_variable: SymbolicExpression
+    ) -> Optional[Variable]:
+        """
+        :param expression: The query whose restriction subject to resolve.
+        :param selected_variable: The query's selected variable.
+        :return: The variable the ``WHERE`` restricts.
+        """
 
 
 class SelectedVariableSubjectRule(RestrictionSubjectRule):
-    """The selection is a plain :class:`Variable` → it is its own subject."""
+    """The selection is a plain variable → it is its own subject."""
 
     @classmethod
-    def applies(cls, expression, selected_variable) -> bool:
+    def applies(
+        cls, expression: SymbolicExpression, selected_variable: SymbolicExpression
+    ) -> bool:
         return isinstance(selected_variable, Variable)
 
     @classmethod
-    def subject(cls, expression, selected_variable):
+    def subject(
+        cls, expression: SymbolicExpression, selected_variable: SymbolicExpression
+    ) -> Optional[Variable]:
         return selected_variable
 
 
@@ -193,18 +208,29 @@ class AggregationSourceSubjectRule(RestrictionSubjectRule):
     """
 
     @classmethod
-    def applies(cls, expression, selected_variable) -> bool:
+    def applies(
+        cls, expression: SymbolicExpression, selected_variable: SymbolicExpression
+    ) -> bool:
         return (
             isinstance(selected_variable, Aggregator)
             and aggregation_source_root(expression) is not None
         )
 
     @classmethod
-    def subject(cls, expression, selected_variable):
+    def subject(
+        cls, expression: SymbolicExpression, selected_variable: SymbolicExpression
+    ) -> Optional[Variable]:
         return aggregation_source_root(expression)
 
 
-def restriction_subject(expression, selected_variable) -> Optional[Variable]:
-    """The variable a selection's ``WHERE`` restricts (most-specific rule wins), or ``None``."""
+def restriction_subject(
+    expression: SymbolicExpression, selected_variable: SymbolicExpression
+) -> Optional[Variable]:
+    """
+    :param expression: The query whose restriction subject to resolve.
+    :param selected_variable: The query's selected variable.
+    :return: The variable a selection's ``WHERE`` restricts (most-specific rule wins), or
+        ``None``.
+    """
     chosen = RestrictionSubjectRule.most_applicable(expression, selected_variable)
     return chosen.subject(expression, selected_variable) if chosen is not None else None

@@ -1,12 +1,3 @@
-"""
-Utilities for walking MappedVariable chains and building path parts.
-
-These are pure utilities shared by multiple verbalizer subsystems.  They must
-not import from the subsystem files (``verbalizer.py``, ``context.py``) to avoid
-circular dependencies.  Imports from EQL core and from the ``fragments/`` layer
-are safe because those are lower in the dependency graph.
-"""
-
 from __future__ import annotations
 
 import datetime
@@ -14,6 +5,7 @@ from dataclasses import dataclass
 
 from typing_extensions import List, Optional, Tuple
 
+from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.mapped_variable import (
     Attribute,
     Call,
@@ -25,41 +17,29 @@ from krrood.entity_query_language.core.variable import Literal, Variable
 from krrood.entity_query_language.verbalization.fragments.source_ref import SourceRef
 
 
-def walk_chain(expression) -> tuple[list, object]:
+def walk_chain(
+    expression: SymbolicExpression,
+) -> tuple[list[MappedVariable], SymbolicExpression]:
     """
-    Walk a :class:`~krrood.entity_query_language.core.mapped_variable.MappedVariable`
-    chain outward-first and return ``(chain, root)``.
-
-    The chain is reversed so index 0 is the outermost (innermost to the call
-    site) node; the root is the first non-MappedVariable child.
+    Walk a ``MappedVariable`` chain outward-first.
 
     Example: for ``robot.arm.joint`` the chain is
-    ``[Attribute('joint'), Attribute('arm')]`` and root is the ``robot`` Variable.
+    ``[Attribute('joint'), Attribute('arm')]`` and root is the ``robot`` variable.
 
-    :param expression: Any expression; non-MappedVariable expressions return an
-        empty chain with *expression* as the root.
-    :return: Tuple ``(chain, root)`` where *chain* is the core
-        :attr:`~krrood.entity_query_language.core.mapped_variable.MappedVariable._access_path_`
-        (root-adjacent first, terminal last) and *root* is the chain base.
-    :rtype: tuple[list, object]
+    :param expression: Any expression; non-``MappedVariable`` expressions return an empty
+        chain with *expression* as the root.
+    :return: Tuple ``(chain, root)`` — the access path (root-adjacent first, terminal last)
+        and the chain base.
     """
     if isinstance(expression, MappedVariable):
         return list(expression._access_path_), expression._chain_root_
     return [], expression
 
 
-def is_temporal(expression) -> bool:
+def is_temporal(expression: SymbolicExpression) -> bool:
     """
-    Return ``True`` when *expression* denotes a :class:`datetime.datetime` value or variable.
-
-    Used by comparator verbalization to select temporal operator phrases
-    (*"is before"* / *"is after"*) instead of relational ones.  Inspects the
-    expression's ``_type_`` (or a :class:`~krrood.entity_query_language.core.variable.Literal`'s
-    value), so it is a pure structural/type check with no verbalization state.
-
     :param expression: Any EQL expression.
-    :return: ``True`` when the expression is datetime-typed.
-    :rtype: bool
+    :return: ``True`` when *expression* denotes a ``datetime`` value or variable.
     """
     if isinstance(expression, Literal):
         return isinstance(expression._value_, datetime.datetime)
@@ -71,17 +51,12 @@ def is_temporal(expression) -> bool:
     return False
 
 
-def chain_root(expression) -> object:
+def chain_root(expression: SymbolicExpression) -> SymbolicExpression:
     """
-    Return the non-:class:`~krrood.entity_query_language.core.mapped_variable.MappedVariable`
-    root of *expression* without building the full chain list.
-
-    Faster than :func:`walk_chain` when only the root is needed.
-
     :param expression: Any expression.
-    :return: The deepest non-MappedVariable node in the chain, or *expression* itself
-        when it is not a MappedVariable.
-    :rtype: object
+    :return: The non-``MappedVariable`` root of *expression* (the deepest non-``MappedVariable``
+        node, or *expression* itself when it is not a ``MappedVariable``), found without building
+        the full chain list.
     """
     return (
         expression._chain_root_
@@ -90,34 +65,32 @@ def chain_root(expression) -> object:
     )
 
 
-def chain_ends_in_boolean_attribute(chain: list) -> bool:
+def chain_ends_in_boolean_attribute(chain: list[MappedVariable]) -> bool:
     """
-    :return: ``True`` when the walked *chain* (from :func:`walk_chain`) ends in a
-        ``bool``-typed :class:`~krrood.entity_query_language.core.mapped_variable.Attribute`
-        (the predicative *"<navigation> is <attribute>"* form).
+    :param chain: A walked chain (root-adjacent first).
+    :return: ``True`` when the walked *chain* ends in a ``bool``-typed attribute (the
+        predicative *"<navigation> is <attribute>"* form).
     """
     return bool(chain) and isinstance(chain[-1], Attribute) and chain[-1]._type_ is bool
 
 
-def build_path_parts(chain: list) -> list[tuple[str, Optional[SourceRef]]]:
+def build_path_parts(
+    chain: list[MappedVariable],
+) -> list[tuple[str, Optional[SourceRef]]]:
     """
-    Convert a walked chain (from :func:`walk_chain`) into ``(display_name, SourceRef | None)`` pairs.
+    Convert a walked chain into ``(display_name, SourceRef | None)`` pairs.
 
     Merging rules:
 
     * Consecutive ``Attribute → Index`` pairs are merged into ``"attr[key]"`` with ``ref=None``
       (composite indexed access has no clean single-symbol anchor).
-    * Standalone :class:`~krrood.entity_query_language.core.mapped_variable.Index` nodes
-      appear as ``"[key]"`` with ``ref=None``.
-    * :class:`~krrood.entity_query_language.core.mapped_variable.Call` nodes appear as ``"()"``
-      with ``ref=None``.
-    * :class:`~krrood.entity_query_language.core.mapped_variable.FlatVariable` nodes are skipped.
+    * Standalone ``Index`` nodes appear as ``"[key]"`` with ``ref=None``.
+    * ``Call`` nodes appear as ``"()"`` with ``ref=None``.
+    * ``FlatVariable`` nodes are skipped.
 
-    :param chain: Outermost-first chain list from :func:`walk_chain`.
-    :type chain: list
-    :return: Ordered list of ``(display_name, SourceRef | None)`` pairs,
-        outermost attribute first.
-    :rtype: list[tuple[str, SourceRef | None]]
+    :param chain: Outermost-first chain list.
+    :return: Ordered list of ``(display_name, SourceRef | None)`` pairs, outermost attribute
+        first.
     """
     parts: list[tuple[str, Optional[SourceRef]]] = []
     i = 0
@@ -144,29 +117,29 @@ def build_path_parts(chain: list) -> list[tuple[str, Optional[SourceRef]]]:
 
 @dataclass(frozen=True)
 class ChainAnalysis:
-    """A MappedVariable chain analysed **once**.
-
-    The chain rendering needs the walked chain, its root, the display path-parts, and whether
-    it ends in a boolean attribute.  :meth:`of` computes them together (``walk_chain`` /
-    ``build_path_parts`` / ``chain_ends_in_boolean_attribute``) so the assembler branches off
-    one value instead of re-walking the same expression at each step.
+    """
+    A ``MappedVariable`` chain analysed once into the values its rendering needs: the walked
+    chain, its root, the display path-parts, and whether it ends in a boolean attribute.
     """
 
-    chain: List
-    """The access path, root-adjacent first (from :func:`walk_chain`)."""
+    chain: List[MappedVariable]
+    """The access path, root-adjacent first."""
 
-    root: object
-    """The chain root (first non-MappedVariable node)."""
+    root: SymbolicExpression
+    """The chain root (first non-``MappedVariable`` node)."""
 
     parts: List[Tuple[str, Optional[SourceRef]]]
-    """The display path-parts (from :func:`build_path_parts`)."""
+    """The display path-parts."""
 
     is_boolean_terminal: bool
-    """``True`` when the chain ends in a ``bool``-typed :class:`Attribute` (predicative form)."""
+    """``True`` when the chain ends in a ``bool``-typed attribute (predicative form)."""
 
     @classmethod
-    def of(cls, expression) -> ChainAnalysis:
-        """Analyse *expression* (a MappedVariable chain, or any root expression)."""
+    def of(cls, expression: SymbolicExpression) -> ChainAnalysis:
+        """
+        :param expression: A ``MappedVariable`` chain, or any root expression.
+        :return: The chain analysis of *expression*.
+        """
         chain, root = walk_chain(expression)
         return cls(
             chain=chain,

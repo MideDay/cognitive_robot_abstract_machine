@@ -1,15 +1,3 @@
-"""
-Aggregation value-subquery **assembler** — realise an aggregation used as a *value*
-(*"the maximum amount"*, or *"the sum of amounts among BankTransactions whose …"*).
-
-This is one of the query family's standalone surface forms:
-it is keyed on the plan's :attr:`QueryPlan.aggregation_data` and composes the aggregate noun
-with an optional *"among <plural source> [whose/such that] [having]"* scope.  It reuses the
-shared :class:`RestrictionAssembler` (source filter) and :class:`HavingAssembler`.
-
-Reference: Reiter & Dale (2000) — aggregation; Gatt & Reiter (2009), SimpleNLG — realisation.
-"""
-
 from __future__ import annotations
 
 from typing_extensions import List
@@ -49,13 +37,23 @@ from krrood.entity_query_language.verbalization.vocabulary.words import ChildFor
 
 
 class AggregationValueAssembler(Assembler[Query, QueryPlan]):
-    """Realise an aggregation value-subquery from its :class:`QueryPlan`."""
+    """
+    Realise an aggregation value-subquery from its query plan — an aggregation used as a *value*
+    (*"the maximum amount"*, or *"the sum of amounts among BankTransactions whose …"*).  The
+    aggregate noun is composed with an optional *"among <plural source> [whose/such that]
+    [having]"* scope.
+
+    Reference: Reiter & Dale (2000) — aggregation; Gatt & Reiter (2009), SimpleNLG — realisation.
+    """
 
     planner = QueryPlanner
 
-    def realize(self, node, plan: QueryPlan) -> Fragment:
-        """*"the <aggregation> <leaf>"*, optionally scoped *"among <source> …"* — runs inside
-        the query scope pushed by ``NestedEntityRule.enters_query_scope``."""
+    def realize(self, node: Query, plan: QueryPlan) -> Fragment:
+        """
+        :param node: The aggregation value-subquery.
+        :param plan: The query plan.
+        :return: *"the <aggregation> <leaf>"*, optionally scoped *"among <source> …"*.
+        """
         aggregation_data = plan.aggregation_data
         if aggregation_data.leaf is None:
             return self.ctx.child(aggregation_data.aggregator)
@@ -78,13 +76,16 @@ class AggregationValueAssembler(Assembler[Query, QueryPlan]):
             return aggregate
         return self._scope(node, plan, aggregate)
 
-    def _scope(self, node, plan: QueryPlan, aggregate) -> Fragment:
-        """*"<aggregate> among <plural source> [whose …] [such that … their …] [having …]"*.
+    def _scope(self, node: Query, plan: QueryPlan, aggregate: Fragment) -> Fragment:
+        """
+        The plural source population is the scope's discourse subject, so chains rooted at it
+        pronominalise to *"their …"*.
 
-        The plural source population is the scope's discourse subject (a plural
-        ``SubjectScope``), so chains rooted at it pronominalise to *"their …"* instead of the
-        ambiguous singular re-mention *"the <Type>"* (which would collide with an outer
-        same-type subject)."""
+        :param node: The aggregation value-subquery.
+        :param plan: The query plan.
+        :param aggregate: The already-built aggregate noun phrase.
+        :return: *"<aggregate> among <plural source> [whose …] [such that … their …] [having …]"*.
+        """
         source = plan.aggregation_data.source
         source_fragment = (
             self.ctx.child(source, number=Number.PLURAL)

@@ -1,25 +1,7 @@
-"""
-Condition **verbalizer** — the single owner of every surface form a condition can take.
-
-A Comparator/condition is said differently depending on where it sits: a standalone
-*predicate* (*"x is greater than 5"*), a post-nominal *attribute modifier* on a subject
-(the bare *"<attr> op <value>"* that a *"whose …"* envelope wraps), a *range* modifier
-(*"<attr> is between lo and hi"*), or the inference *whose-attribute* body (*"<attr> is
-<value>"* agreeing in number).  All of these forms are co-located here so one component
-owns *how a condition is verbalized*, and the consumers (the comparator rule, the
-restriction rules, the inference assembler) merely ask for a form.
-
-Realisation-only (``planner = None``), holding the per-node
-:class:`~krrood.entity_query_language.verbalization.grammar.phrase_rule.Ctx`; recursion is
-via ``self.ctx.child``.
-
-Reference: Gatt & Reiter (2009), SimpleNLG — surface realisation.
-"""
-
 from __future__ import annotations
 
-from typing_extensions import Any
-
+from krrood.entity_query_language.core.variable import Variable
+from krrood.entity_query_language.operators.comparator import Comparator
 from krrood.entity_query_language.verbalization.fragments.base import (
     PhraseFragment,
     RoleFragment,
@@ -38,6 +20,7 @@ from krrood.entity_query_language.verbalization.grammar.conditions.recognition i
     superlative_aggregation,
 )
 from krrood.entity_query_language.verbalization.microplanning.coordination import (
+    RangeFold,
     build_between,
 )
 from krrood.entity_query_language.verbalization.vocabulary.english import (
@@ -49,15 +32,33 @@ from krrood.entity_query_language.verbalization.vocabulary.english import (
 from krrood.entity_query_language.verbalization.vocabulary.words import Number
 
 
-class ConditionVerbalizer(Assembler[Any, None]):
-    """Render a condition in a requested surface form (predicate / modifier / …)."""
+class ConditionVerbalizer(Assembler[Comparator, None]):
+    """
+    Render a condition in a requested surface form (predicate / modifier / …) — the single owner
+    of every surface form a condition can take.
 
-    def realize(self, node, plan: None = None) -> Fragment:
-        """Default form — a standalone predicate (the :class:`Assembler` entry point)."""
+    A comparator/condition is said differently depending on where it sits: a standalone predicate
+    (*"x is greater than 5"*), a post-nominal attribute modifier on a subject (the bare *"<attr>
+    op <value>"* that a *"whose …"* envelope wraps), a range modifier (*"<attr> is between lo and
+    hi"*), or the inference whose-attribute body (*"<attr> is <value>"* agreeing in number).
+
+    Reference: Gatt & Reiter (2009), SimpleNLG — surface realisation.
+    """
+
+    def realize(self, node: Comparator, plan: None = None) -> Fragment:
+        """
+        :param node: The condition (comparator) to render.
+        :param plan: Unused (this assembler has no plan).
+        :return: The default form — a standalone predicate.
+        """
         return self.predicate(node)
 
-    def predicate(self, comparator, *, negated: bool = False) -> Fragment:
-        """*"<left> <operator> <right>"* — the standalone comparator form."""
+    def predicate(self, comparator: Comparator, *, negated: bool = False) -> Fragment:
+        """
+        :param comparator: The comparator to render.
+        :param negated: Whether an outer negation applies.
+        :return: The standalone comparator form *"<left> <operator> <right>"*.
+        """
         return PhraseFragment(
             parts=[
                 self.ctx.child(comparator.left),
@@ -66,9 +67,13 @@ class ConditionVerbalizer(Assembler[Any, None]):
             ]
         )
 
-    def attribute_modifier(self, comparator, subject) -> Fragment:
-        """Bare *"<attr> <operator> <value>"* on *subject*'s single-hop attribute — the
-        grouped predicate a *"whose …"* envelope wraps."""
+    def attribute_modifier(self, comparator: Comparator, subject: Variable) -> Fragment:
+        """
+        :param comparator: The comparator on *subject*'s single-hop attribute.
+        :param subject: The subject variable.
+        :return: The bare *"<attr> <operator> <value>"* grouped predicate a *"whose …"* envelope
+            wraps.
+        """
         attribute = single_hop_attribute(comparator.left, subject)
         return PhraseFragment(
             parts=[
@@ -80,10 +85,13 @@ class ConditionVerbalizer(Assembler[Any, None]):
             ]
         )
 
-    def superlative_modifier(self, comparator, subject) -> Fragment:
-        """*"with the maximum <leaf>"* / *"with the minimum <leaf>"* — a subject restriction
-        ``subject.<chain> == max/min(over all <Type>.<chain>)`` folded to its superlative
-        (recognised by :func:`superlative_aggregation`)."""
+    def superlative_modifier(self, comparator: Comparator, subject: Variable) -> Fragment:
+        """
+        :param comparator: The ``subject.<chain> == max/min(over all <Type>.<chain>)`` comparator.
+        :param subject: The subject variable.
+        :return: The superlative selection modifier *"with the maximum <leaf>"* / *"with the
+            minimum <leaf>"*.
+        """
         fold = superlative_aggregation(comparator, subject)
         leaf = fold.aggregator._leaf_attribute_
         return PhraseFragment(
@@ -95,8 +103,12 @@ class ConditionVerbalizer(Assembler[Any, None]):
             ]
         )
 
-    def range_modifier(self, range_fold, subject) -> Fragment:
-        """*"<attr> is between lo and hi"* on *subject*'s single-hop attribute."""
+    def range_modifier(self, range_fold: RangeFold, subject: Variable) -> Fragment:
+        """
+        :param range_fold: The folded lower/upper bound pair on *subject*'s single-hop attribute.
+        :param subject: The subject variable.
+        :return: The modifier *"<attr> is between lo and hi"*.
+        """
         attribute = single_hop_attribute(range_fold.chain_expression, subject)
         left = RoleFragment.for_attribute(
             attribute._owner_class_, attribute._attribute_name_
@@ -111,10 +123,13 @@ class ConditionVerbalizer(Assembler[Any, None]):
     def whose_attribute(
         self, attribute_name: str, number: Number, value: Fragment
     ) -> Fragment:
-        """Full *"whose <attr> <copula> <value>"* modifier, agreeing with *number*.
+        """
+        The attribute noun and copula agree with *number*.
 
-        The *value* fragment is supplied by the caller (it may itself be number-folded);
-        the attribute noun and copula agree with *number*.
+        :param attribute_name: The attribute's name.
+        :param number: The grammatical number the noun and copula agree with.
+        :param value: The value fragment (supplied by the caller; it may itself be number-folded).
+        :return: The full *"whose <attr> <copula> <value>"* modifier.
         """
         return PhraseFragment(
             parts=[
@@ -126,5 +141,9 @@ class ConditionVerbalizer(Assembler[Any, None]):
         )
 
     def _attribute_noun(self, name: str, number: Number) -> Fragment:
-        """A role-tagged attribute noun tagged with *number* (the pass inflects it)."""
+        """
+        :param name: The attribute's name.
+        :param number: The grammatical number to tag for inflection.
+        :return: A role-tagged attribute noun tagged with *number* for inflection.
+        """
         return RoleFragment(text=name, role=SemanticRole.ATTRIBUTE, number=number)

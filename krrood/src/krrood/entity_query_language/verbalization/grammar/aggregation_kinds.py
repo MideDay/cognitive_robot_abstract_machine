@@ -1,10 +1,3 @@
-"""
-The single mapping from each standard
-:class:`~krrood.entity_query_language.operators.aggregators.Aggregator` subtype to its
-lexicon phrase — a genuine cross-construct lookup shared by the aggregator rule and the
-query assembler (so the table is written once).
-"""
-
 from __future__ import annotations
 
 from typing_extensions import Dict, Type
@@ -22,8 +15,7 @@ from krrood.entity_query_language.operators.aggregators import (
 )
 from krrood.entity_query_language.verbalization.vocabulary.english import Aggregations
 
-#: Maps each standard aggregator subtype to its lexicon phrase.  ``CountAll`` is childless
-#: (``COUNT_ALL`` carries ``ChildForm.NONE``), so the aggregator rule renders it bare.
+#: Maps each standard aggregator subtype to its lexicon phrase.
 AGGREGATION_KIND: Dict[Type[Aggregator], Aggregations] = {
     Count: Aggregations.COUNT,
     CountAll: Aggregations.COUNT_ALL,

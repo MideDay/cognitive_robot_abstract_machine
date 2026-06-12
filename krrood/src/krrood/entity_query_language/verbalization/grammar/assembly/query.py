@@ -1,32 +1,12 @@
-"""
-Query **assembler** — realise a :class:`~krrood.entity_query_language.verbalization.grammar.planning.query.QueryPlan`
-into the *"Find … such that … grouped by … having … ordered by …"* block (and the nested
-noun-phrase form).
-
-This is the realisation half of the planner/assembler split.  It is the **orchestrator** of the
-query block: it dispatches on the selection shape (:class:`SelectionKind`), builds the selection
-and its restrictions, and combines the trailing clauses — delegating the cohesive sub-forms to
-their own components: the trailing clauses to
-:mod:`~krrood.entity_query_language.verbalization.grammar.assembly.clauses`, the subject's WHERE
-partition to
-:class:`~krrood.entity_query_language.verbalization.grammar.assembly.restrictions.RestrictionAssembler`,
-and the aggregation value-subquery to
-:class:`~krrood.entity_query_language.verbalization.grammar.assembly.aggregation_value.AggregationValueAssembler`.
-It owns recursion (``self.ctx.child``) and the render-scope mutations (query-depth, compact
-predicates).  Coreference is resolved later — the assembler emits referring ``NounPhrase`` s and
-``SubjectScope`` markers, and the document-order ``CoreferenceProcessor`` pass decides
-first/subsequent/pronoun afterwards (Reiter & Dale 2000).  All *what to say* decisions already
-live in the plan; the assembler only combines.
-
-Reference: Gatt & Reiter (2009), SimpleNLG — surface realisation.
-"""
-
 from __future__ import annotations
+
+import uuid
 
 from typing_extensions import List, Optional, Tuple
 
+from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.variable import Variable
-from krrood.entity_query_language.query.query import Query
+from krrood.entity_query_language.query.query import Query, SetOf
 from krrood.entity_query_language.verbalization.fragments.base import (
     BlockFragment,
     NounPhrase,
@@ -61,25 +41,35 @@ from krrood.entity_query_language.verbalization.vocabulary.english import (
 )
 
 
-def _subject_id(variable):
-    """The referent id for a subject variable (``None`` when *variable* is not a single
-    Variable, e.g. a ``SetOf`` — which suppresses pronominalisation)."""
+def _subject_id(variable: SymbolicExpression) -> Optional[uuid.UUID]:
+    """:return: The referent id for a subject variable (``None`` when *variable* is not a single
+    variable, which suppresses pronominalisation)."""
     return variable._id_ if isinstance(variable, Variable) else None
 
 
 class QueryAssembler(Assembler[Query, QueryPlan]):
-    """Realise a query / nested-entity / set-of from its :class:`QueryPlan`."""
+    """
+    Realise a query / nested-entity / set-of from its query plan into the *"Find … such that …
+    grouped by … having … ordered by …"* block (and the nested noun-phrase form).
+
+    It dispatches on the selection shape, builds the selection and its restrictions, and combines
+    the trailing clauses. Coreference is resolved later: the assembler emits referring noun
+    phrases and subject-scope markers, and a document-order pass decides first/subsequent/pronoun
+    afterwards (Reiter & Dale 2000).
+
+    Reference: Gatt & Reiter (2009), SimpleNLG — surface realisation.
+    """
 
     planner = QueryPlanner
 
     # ── entry points ─────────────────────────────────────────────────────────
 
-    def realize(self, node, plan: QueryPlan) -> Fragment:
-        """Top-level imperative form *"Find X such that …"*, dispatched on the selection shape
-        (a closed enum → handler table; ``SET_OF`` enters via :meth:`assemble_set_of`).
-
-        Runs inside the query scope (``TopLevelEntityRule.enters_query_scope`` — the engine
-        pushes it), so every Entity below renders as a nested noun phrase.
+    def realize(self, node: Query, plan: QueryPlan) -> Fragment:
+        """
+        :param node: The query being rendered.
+        :param plan: The query plan.
+        :return: The top-level imperative form *"Find X such that …"*, dispatched on the
+            selection shape.
         """
         handlers = {
             SelectionKind.ENTITY_SELECTOR: self._realize_entity_selector,
@@ -88,15 +78,15 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         }
         return handlers[plan.kind](node, plan)
 
-    def _realize_entity_selector(self, node, plan: QueryPlan) -> Fragment:
-        """*"Find <a Robot where …> such that …"* — the selected variable is itself an Entity."""
+    def _realize_entity_selector(self, node: Query, plan: QueryPlan) -> Fragment:
+        """:return: *"Find <a Robot where …> such that …"* — the selected variable is itself an entity."""
         selection = self._as_noun(node.selected_variable)
         return self._query_body(
             node, plan, selection, where_item=self._where_clause(plan)
         )
 
-    def _realize_empty(self, node, plan: QueryPlan) -> Fragment:
-        """*"Find entities such that …"* — no selected variable (the fallback form)."""
+    def _realize_empty(self, node: Query, plan: QueryPlan) -> Fragment:
+        """:return: *"Find entities such that …"* — no selected variable (the fallback form)."""
         return self._query_body(
             node,
             plan,
@@ -104,16 +94,21 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
             where_item=self._where_clause(plan),
         )
 
-    def assemble_nested(self, node) -> Fragment:
-        """Noun-phrase form for a nested Entity (never emits *"Find …"*)."""
+    def assemble_nested(self, node: Query) -> Fragment:
+        """
+        :param node: The nested entity.
+        :return: The noun-phrase form for a nested entity (never emits *"Find …"*).
+        """
         plan = self.plan(node)
         if plan.is_aggregation_subquery:
             return AggregationValueAssembler(self.ctx).realize(node, plan)
         return self._as_noun(node)
 
-    def assemble_set_of(self, node) -> Fragment:
-        """*"Find sets of (v1, v2, …) such that …"* for a SetOf query (in the query scope,
-        pushed by ``SetOfRule.enters_query_scope``)."""
+    def assemble_set_of(self, node: SetOf) -> Fragment:
+        """
+        :param node: The set-of query.
+        :return: *"Find sets of (v1, v2, …) such that …"* for a set-of query.
+        """
         plan = self.plan(node)
         variable_fragments = [
             self.ctx.child(variable) for variable in node._selected_variables_
@@ -139,9 +134,9 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
 
     # ── subject selection ──────────────────────────────────────────────────────
 
-    def _assemble_subject(self, node, plan: QueryPlan) -> Fragment:
-        """*"Find a Robot whose battery is high, such that … [clauses]"* — the plain-variable
-        selection with its WHERE woven in."""
+    def _assemble_subject(self, node: Query, plan: QueryPlan) -> Fragment:
+        """:return: *"Find a Robot whose battery is high, such that … [clauses]"* — the
+        plain-variable selection with its WHERE woven in."""
         variable = node.selected_variable
         selected = self._build_selection(node, variable, plan)
         selected, where_item = self._apply_subject_restrictions(plan, selected)
@@ -149,8 +144,11 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         # Mark the subject region so the coreference pass pronominalises chains rooted at it.
         return SubjectScope(subject_id=_subject_id(variable), child=body)
 
-    def _build_selection(self, node, variable, plan: QueryPlan) -> Fragment:
-        """*"the unique Robot"* (``eql.the``) or *"a Robot"* — the selection's referring NP."""
+    def _build_selection(
+        self, node: Query, variable: SymbolicExpression, plan: QueryPlan
+    ) -> Fragment:
+        """:return: *"the unique Robot"* (``eql.the``) or *"a Robot"* — the selection's referring
+        noun phrase."""
         if plan.is_the:
             # "the unique <type>" first mention; the coreference pass reduces a repeat to
             # "the <type>" (UNIQUE downgrades to DEFINITE) — so it is a referring NP.
@@ -165,8 +163,8 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
     def _apply_subject_restrictions(
         self, plan: QueryPlan, selected: Fragment
     ) -> Tuple[Fragment, Optional[Fragment]]:
-        """Weave the WHERE into the selection: *"<selected> whose <grouped>"* plus a separate
-        *"such that <residual>"* clause item (``None`` when absent)."""
+        """:return: The WHERE woven into the selection — *"<selected> whose <grouped>"* plus a
+        separate *"such that <residual>"* clause item (``None`` when absent)."""
         restriction = plan.subject_restriction
         if restriction is None:
             return selected, None
@@ -185,12 +183,13 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
 
     # ── noun forms ───────────────────────────────────────────────────────────
 
-    def _as_noun(self, entity) -> Fragment:
-        """Standalone-noun form: *"a Robot where …"* (for nested Entity selectors).
+    def _as_noun(self, entity: Query) -> Fragment:
+        """
+        A referring noun phrase — *"a/the unique <type>"* with the restrictions as appositive
+        modifiers.
 
-        A referring NP — *"a/the unique <type>"* first mention with the restrictions as
-        appositive modifiers; a repeat is reduced to *"the <type>"* by the coreference pass.
-        Wrapped in a ``SubjectScope`` so chains in the restrictions pronominalise to *"its …"*.
+        :param entity: The nested entity selector.
+        :return: The standalone-noun form *"a Robot where …"*.
         """
         plan = self.plan(entity)
         variable = entity.selected_variable
@@ -227,14 +226,14 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
 
     def _query_body(
         self,
-        node,
+        node: Query,
         plan: QueryPlan,
         selection: Fragment,
         where_item: Optional[Fragment],
         find_header: Optional[Fragment] = None,
     ) -> Fragment:
-        """*"Find <selection>"* + the present clauses (*such that … grouped by … having …
-        ordered by …*) as block items — absent clauses (``None``) are simply skipped."""
+        """:return: *"Find <selection>"* + the present clauses (*such that … grouped by … having
+        … ordered by …*) as block items — absent clauses (``None``) are simply skipped."""
         if find_header is None:
             find_header = Keywords.FIND.as_fragment()
         header = PhraseFragment(parts=[find_header, selection])
@@ -245,9 +244,8 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         ]
         return BlockFragment(header=header, items=clauses)
 
-    def _trailing_clauses(self, node) -> List[Optional[Fragment]]:
-        """The post-selection clauses, in canonical reading order, each rendered by its
-        own component (``None`` when absent)."""
+    def _trailing_clauses(self, node: Query) -> List[Optional[Fragment]]:
+        """:return: The post-selection clauses, in canonical reading order (``None`` when absent)."""
         return [
             GroupedByAssembler(self.ctx).clause(node),
             HavingAssembler(self.ctx).clause(node),
@@ -255,7 +253,7 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         ]
 
     def _where_clause(self, plan: QueryPlan) -> Optional[Fragment]:
-        """*"such that <condition>"*, or ``None`` when the query has no WHERE."""
+        """:return: *"such that <condition>"*, or ``None`` when the query has no WHERE."""
         if plan.where_condition is None:
             return None
         return PhraseFragment(
@@ -265,13 +263,13 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
             ]
         )
 
-    def inline_noun(self, entity) -> Fragment:
+    def inline_noun(self, entity: Query) -> Fragment:
         """
-        Inline-noun form used as a chain root inside an InstantiatedVariable.
+        The entity's WHERE condition is deferred to the binding scope so it can be emitted as a
+        *"such that …"* clause after all binding overrides are registered.
 
-        Defers the entity's WHERE condition to the binding scope so the enclosing rule
-        can emit it as a *"such that …"* clause after all binding overrides are
-        registered.  Used by the chain assembler for Entity-rooted chains.
+        :param entity: The entity used as a chain root inside an instantiated variable.
+        :return: The inline-noun form for *entity*.
         """
         entity.build()
         variable = entity.selected_variable

@@ -1,16 +1,3 @@
-"""
-Realisation pipeline — the **one** place the lowering passes and their order are defined.
-
-Both the whole-expression build and the local realisation of an opaque
-:class:`~krrood.entity_query_language.predicate.Verbalizable` template need the same
-ordered sequence of passes (lower the DP, then apply morphology).  Defining it once here —
-rather than re-spelling ``DeterminerProcessor`` → ``MorphologyProcessor`` at each call site —
-means the ordering lives in a single location, and a future pass (e.g. a coreference
-resolution stage) is inserted in exactly one spot.
-
-Reference: Gatt & Reiter (2009), SimpleNLG — the ordered realisation stages.
-"""
-
 from __future__ import annotations
 
 import uuid
@@ -44,9 +31,17 @@ def realize_tree(
     fragment: Fragment,
     already_seen: Optional[Iterable[uuid.UUID]] = None,
 ) -> Fragment:
-    """Run the ordered realisation passes over *fragment*: coreference resolution → DP lowering
-    → morphology → orthography (punctuation spacing).  *already_seen* carries referents
-    introduced by prior builds on a shared context (see :meth:`CoreferenceProcessor.process`).
+    """
+    Run the ordered realisation passes over *fragment* — the one place the lowering passes and
+    their order are defined: coreference resolution → determiner lowering → morphology →
+    orthography (punctuation spacing). Both the whole-expression build and the local realisation
+    of an opaque template need this same ordered sequence.
+
+    Reference: Gatt & Reiter (2009), SimpleNLG — the ordered realisation stages.
+
+    :param fragment: Root of the fragment tree.
+    :param already_seen: Referents introduced by prior builds on a shared context.
+    :return: The fully realised fragment tree.
     """
     resolved = CoreferenceProcessor().process(fragment, already_seen=already_seen)
     inflected = _MORPHOLOGY.process(_DETERMINER.process(resolved))
@@ -57,8 +52,10 @@ def realize_subtree(fragment: Fragment) -> str:
     """
     Fully realise a sub-tree to plain text — the realisation passes, then flatten.
 
-    For an **opaque leaf** (a user :class:`~krrood.entity_query_language.predicate.Verbalizable`
-    template that string-formats its children): the template's content is opaque text, so it
-    must realise its children *here*, locally, rather than deferring to the global passes.
+    For an opaque leaf (a user template that string-formats its children), the children must be
+    realised here, locally, rather than deferred to the global passes.
+
+    :param fragment: Root of the sub-tree.
+    :return: The realised plain-text string.
     """
     return flatten_fragment_to_plain_text(realize_tree(fragment))

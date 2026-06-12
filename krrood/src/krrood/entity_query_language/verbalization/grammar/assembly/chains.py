@@ -1,23 +1,8 @@
-"""
-Chain **assembler** — realise a
-:class:`~krrood.entity_query_language.core.mapped_variable.MappedVariable` chain
-(Attribute / Index / Call) into its surface phrase.
-
-Chains have no separate *plan*: there is no content selection to decide, only the
-surface form to render (a boolean terminal attribute → predicative *"<navigation> is [not]
-<attribute>"*; anything else → the possessive path *"the attribute of the Root"*, optionally
-pronominalised to *"its …"* when the root is the current coreference subject).  It is
-therefore a realisation-only :class:`Assembler` (``Assembler[None]``); its sub-steps are
-methods sharing ``self.ctx`` (recursion via ``self.ctx.child``).  Entity-rooted chains
-defer to :meth:`QueryAssembler.inline_noun`.
-
-Reference: Gatt & Reiter (2009), SimpleNLG — surface realisation.
-"""
-
 from __future__ import annotations
 
 from typing_extensions import Optional
 
+from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.mapped_variable import (
     Attribute,
     Index,
@@ -60,24 +45,35 @@ from krrood.entity_query_language.verbalization.vocabulary.english import (
 
 
 class ChainAssembler(Assembler[MappedVariable, None]):
-    """Realise a MappedVariable chain (possessive / predicative / pronominal forms).
+    """Realise a ``MappedVariable`` chain (possessive / predicative / pronominal forms).
 
-    Realisation-only (``planner = None``): a chain has no content to decide, only a surface
-    form, so there is no plan — :meth:`realize` ignores it.
+    Realisation-only (``planner = None``): a chain has no content to decide, only a surface form
+    to render — a boolean terminal attribute → predicative *"<navigation> is [not] <attribute>"*;
+    anything else → the possessive path *"the attribute of the Root"*, optionally pronominalised
+    to *"its …"* when the root is the current coreference subject.
+
+    Reference: Gatt & Reiter (2009), SimpleNLG — surface realisation.
     """
 
-    def realize(self, node, plan: None = None) -> Fragment:
-        """Default chain rendering (the :class:`Assembler` entry point)."""
+    def realize(self, node: MappedVariable, plan: None = None) -> Fragment:
+        """
+        :param node: The chain to render.
+        :param plan: Unused (this assembler has no plan).
+        :return: The default chain rendering.
+        """
         return self.chain(node)
 
     # ── entry forms ──────────────────────────────────────────────────────────
 
     def chain(self, expression: MappedVariable, *, negated: bool = False) -> Fragment:
-        """Boolean terminal → predicative *"<navigation> is [not] <attribute>"*; else possessive path.
+        """
+        When a plural is requested and this is a single attribute on a variable, build the bare
+        plural *"attrs of Roots"*; otherwise render singular.
 
-        When a plural is requested (``ctx.number``) and this is a single attribute on a
-        variable, build the bare plural *"attrs of Roots"*; otherwise render singular.  The
-        chain is analysed once (:class:`ChainAnalysis`) and each branch reads off that value.
+        :param expression: The chain to render.
+        :param negated: Whether to negate a boolean-terminal predicative.
+        :return: A boolean terminal → predicative *"<navigation> is [not] <attribute>"*; else the
+            possessive path *"the attribute of the Root"*.
         """
         analysis = ChainAnalysis.of(expression)
         if self.ctx.number is Number.PLURAL:
@@ -98,9 +94,10 @@ class ChainAssembler(Assembler[MappedVariable, None]):
         return possessive_path(analysis.parts, root_fragment)
 
     def _plural_attribute(self, analysis: ChainAnalysis) -> Optional[Fragment]:
-        """*"attributes of Roots"* when the chain is a single ``Attribute`` on a ``Variable``,
-        else ``None`` (caller falls through to the singular rendering).  Tags both leaves
-        plural for the morphology pass; marks the root introduced for cross-build seeding.
+        """
+        :param analysis: The analysed chain.
+        :return: *"attributes of Roots"* when the chain is a single attribute on a variable, else
+            ``None``.
         """
         root = analysis.root
         if not (
@@ -126,15 +123,24 @@ class ChainAssembler(Assembler[MappedVariable, None]):
             modifiers=[Prepositions.OF.as_fragment(), root_noun_phrase],
         )
 
-    def _chain_root(self, root: object) -> Fragment:
-        """Noun phrase for the chain root — inline-noun for Entity roots, else recurse."""
+    def _chain_root(self, root: SymbolicExpression) -> Fragment:
+        """
+        :param root: The chain root.
+        :return: The noun phrase for the chain root (an inline noun for entity roots).
+        """
         inner = unwrap_result_quantifiers(root)
         if isinstance(inner, Entity):
             return QueryAssembler(self.ctx).inline_noun(inner)
         return self.ctx.child(root)
 
     def _boolean_predicative(self, analysis: ChainAnalysis, negated: bool) -> Fragment:
-        """*"<navigation> is [not] <attribute>"* — chains ending in an integer Index get ordinal navigation."""
+        """
+        Chains ending in an integer index get ordinal navigation.
+
+        :param analysis: The analysed chain.
+        :param negated: Whether to negate the predicative.
+        :return: The predicative *"<navigation> is [not] <attribute>"*.
+        """
         chain = analysis.chain
         root_fragment = self._chain_root(analysis.root)
         navigation_chain = chain[:-1]

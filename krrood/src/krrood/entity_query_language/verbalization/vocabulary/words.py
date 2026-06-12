@@ -1,12 +1,3 @@
-"""
-Base word-type dataclasses and VocabEnum mixin for EQL verbalization.
-
-PlainWord / RoleWord are the two leaf types.  Fixed-role subclasses of RoleWord
-pin _role_ as a ClassVar so callers never re-declare the semantic role.
-VocabEnum is a thin Enum mixin that delegates as_fragment() and .text to the
-dataclass stored in each member's value.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -31,123 +22,98 @@ from krrood.entity_query_language.verbalization.fragments.roles import SemanticR
 @dataclass(frozen=True)
 class PlainWord:
     """
-    A neutral word/phrase with no semantic role — renders to
-    :class:`~krrood.entity_query_language.verbalization.fragments.base.WordFragment`.
+    A neutral word/phrase with no semantic role.
     """
 
     text: str
     """The raw English text (e.g. ``"of"``, ``"and"``, ``"the"``, ``"ascending"``)."""
 
     def as_fragment(self) -> WordFragment:
-        """
-        Convert to a :class:`~krrood.entity_query_language.verbalization.fragments.base.WordFragment`.
-
-        :return: Neutral word fragment.
-        :rtype: ~krrood.entity_query_language.verbalization.fragments.base.WordFragment
-        """
+        """:return: A neutral word fragment."""
         return WordFragment(text=self.text)
 
 
 @dataclass(frozen=True)
 class PunctuationWord(PlainWord):
     """
-    A punctuation token carrying an orthographic :class:`Glue` — so the orthography pass
-    drops the space adjacent to it and rules emit it as an ordinary, normally-separated token.
+    A punctuation token carrying an orthographic glue feature, so the orthography pass drops the
+    space adjacent to it.
     """
 
     glue: Glue = Glue.NONE
     """Which side hugs its neighbour (``LEFT`` for *","* / *")"*; ``RIGHT`` for *"("*)."""
 
     def as_fragment(self) -> WordFragment:
-        """A role-less :class:`WordFragment` carrying this token's :attr:`glue`."""
+        """:return: A role-less word fragment carrying this token's glue."""
         return WordFragment(text=self.text, glue=self.glue)
 
 
 @dataclass(frozen=True)
 class RoleWord:
     """
-    A word/phrase carrying a fixed
-    :class:`~krrood.entity_query_language.verbalization.fragments.roles.SemanticRole`
-    — renders to :class:`~krrood.entity_query_language.verbalization.fragments.base.RoleFragment`.
+    A word/phrase carrying a fixed semantic role.
 
-    Subclasses set :attr:`_role_` as a ``ClassVar``; ``ClassVar`` fields are invisible
-    to ``@dataclass`` so ``_role_`` never appears in ``__init__``.
-
-    ``frozen=True`` is inherited by subclasses via the ``__setattr__`` guard.
-
-    :cvar _role_: The semantic role for this word type (set by each subclass).
+    Subclasses set ``_role_`` as a ``ClassVar`` so it never appears in ``__init__``.
     """
 
     text: str
     """The raw English text."""
 
     _role_: ClassVar[SemanticRole]
+    """The semantic role for this word type (set by each subclass)."""
 
     def as_fragment(self) -> RoleFragment:
-        """
-        Convert to a :class:`~krrood.entity_query_language.verbalization.fragments.base.RoleFragment`
-        carrying :attr:`_role_`.
-
-        :return: Role-tagged fragment.
-        :rtype: ~krrood.entity_query_language.verbalization.fragments.base.RoleFragment
-        """
+        """:return: A role-tagged fragment."""
         return RoleFragment(text=self.text, role=self._role_)
 
 
 class KeyWord(RoleWord):
-    """EQL structure keyword with :attr:`~SemanticRole.KEYWORD` role."""
+    """EQL structure keyword with the ``KEYWORD`` role."""
 
     _role_ = SemanticRole.KEYWORD
 
 
 class LogicalWord(RoleWord):
-    """Logical connective with :attr:`~SemanticRole.LOGICAL` role."""
+    """Logical connective with the ``LOGICAL`` role."""
 
     _role_ = SemanticRole.LOGICAL
 
 
 class ChildForm(Enum):
-    """
-    How an :class:`AggregationWord` verbalizes its child expression.
-
-    * ``PLURAL`` — the aggregation word already ends with *"of"* (e.g. ``"sum of"``,
-      ``"number of"``); the child is rendered in plural form:
-      *"sum of amounts of BankTransactions"*.
-    * ``SINGULAR_OF`` — the aggregation word has no trailing *"of"* (``"maximum"``,
-      ``"minimum"``); a literal *"of"* preposition is inserted and the child is
-      rendered via the regular (singular, definite-article) chain verbalization:
-      *"maximum of the amount of the amount_details of a BankTransaction"*.
-    * ``NONE`` — the aggregation word takes **no** child (``"count of all"``); it renders
-      as the bare phrase with no child and no determiner.
-    """
+    """How an aggregation word verbalizes its child expression."""
 
     PLURAL = "plural"
+    """The aggregation word already ends with *"of"* (e.g. ``"sum of"``); the child is rendered
+    in plural form: *"sum of amounts of BankTransactions"*."""
     SINGULAR_OF = "singular_of"
+    """The aggregation word has no trailing *"of"* (e.g. ``"maximum"``); a literal *"of"* is
+    inserted and the child rendered via the regular singular chain: *"maximum of the amount of
+    …"*."""
     NONE = "none"
+    """The aggregation word takes no child (e.g. ``"count of all"``); it renders bare."""
 
 
 @dataclass(frozen=True)
 class AggregationWord(RoleWord):
     """
-    Aggregation phrase with :attr:`~SemanticRole.AGGREGATION` role.
+    Aggregation phrase with the ``AGGREGATION`` role.
     """
 
     _role_ = SemanticRole.AGGREGATION
     child_form: ChildForm = ChildForm.PLURAL
-    """Controls how the child expression is verbalized. Defaults to :attr:`ChildForm.PLURAL`."""
+    """Controls how the child expression is verbalized."""
 
 
 class OperatorWord(RoleWord):
-    """Comparison operator phrase with :attr:`~SemanticRole.OPERATOR` role."""
+    """Comparison operator phrase with the ``OPERATOR`` role."""
 
     _role_ = SemanticRole.OPERATOR
 
 
 class PronounWord(RoleWord):
     """
-    A coreference pronoun (e.g. *"its"*) standing in for a previously introduced
-    variable.  Carries the :attr:`~SemanticRole.VARIABLE` role so it is coloured
-    like the variable it refers to.
+    A coreference pronoun (e.g. *"its"*) standing in for a previously introduced variable.
+    Carries the ``VARIABLE`` role so it is coloured like the variable it refers to.
     """
 
     _role_ = SemanticRole.VARIABLE
@@ -158,9 +124,8 @@ class OperatorPhrase:
     """
     All eight text variants for one comparison operator, co-located.
 
-    The three boolean flags ``negated``, ``compact``, and ``temporal`` select
-    among the eight fields.  Use :meth:`select` to obtain the appropriate
-    :class:`OperatorWord` for a given combination.
+    The three boolean flags ``negated``, ``compact``, and ``temporal`` select among the eight
+    fields.
     """
 
     standard: str
@@ -191,19 +156,15 @@ class OperatorPhrase:
         self, *, negated: bool = False, compact: bool = False, temporal: bool = False
     ) -> OperatorWord:
         """
-        Select the appropriate :class:`OperatorWord` for the given flag combination.
+        Select the appropriate operator word for the given flag combination.
 
-        Falls back to :attr:`standard` when the corresponding temporal field is empty
-        (e.g. for operators without temporal variants).
+        Falls back to the standard form when the corresponding temporal field is empty (e.g. for
+        operators without temporal variants).
 
         :param negated: Use the negated variant.
-        :type negated: bool
         :param compact: Use the copula-less variant (for HAVING clauses).
-        :type compact: bool
         :param temporal: Use the temporal variant (for datetime comparisons).
-        :type temporal: bool
-        :return: The appropriate :class:`OperatorWord`.
-        :rtype: OperatorWord
+        :return: The appropriate operator word.
         """
         if temporal:
             if negated and compact:
@@ -227,31 +188,17 @@ class OperatorPhrase:
 
 class VocabEnum(Enum):
     """
-    Enum mixin for enums whose member values are :class:`PlainWord` / :class:`RoleWord` instances.
+    Enum mixin for enums whose member values are word instances.
 
-    Delegates :meth:`as_fragment` and :attr:`text` to the dataclass stored in
-    ``.value`` so callers never need to write ``.value`` explicitly.
-
-    All namespace enums (:class:`~krrood.entity_query_language.verbalization.vocabulary.english.Keywords`,
-    :class:`~krrood.entity_query_language.verbalization.vocabulary.english.Logicals`, etc.)
-    inherit this mixin.
+    Delegates ``as_fragment()`` and ``text`` to the dataclass stored in ``.value`` so callers
+    never write ``.value`` explicitly.
     """
 
     def as_fragment(self) -> Fragment:
-        """
-        Convert the member's value to its
-        :class:`~krrood.entity_query_language.verbalization.fragments.base.Fragment`.
-
-        :return: Fragment representing this vocabulary item.
-        :rtype: ~krrood.entity_query_language.verbalization.fragments.base.Fragment
-        """
+        """:return: The fragment representing this vocabulary item."""
         return self.value.as_fragment()
 
     @property
     def text(self) -> str:
-        """
-        The raw English text of this vocabulary item.
-
-        :rtype: str
-        """
+        """:return: The raw English text of this vocabulary item."""
         return self.value.text

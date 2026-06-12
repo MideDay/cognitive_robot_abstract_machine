@@ -1,22 +1,10 @@
-"""
-InstantiatedVariable **planner** — pure structural analysis of an
-:class:`~krrood.entity_query_language.core.variable.InstantiatedVariable` (a *"a TypeName
-where the field of the TypeName is …"* form) into an :class:`InstantiatedPlan`.
-
-It records the type name and, per field binding, the field name + grammatical number
-(plural detection) + the value expression — no fragments, no context, no recursion.  The
-constraint-deferral *dance* is a realisation concern owned by
-:class:`~krrood.entity_query_language.verbalization.grammar.assembly.instantiated.InstantiatedAssembler`.
-
-Reference: Reiter & Dale (2000) — content/structure determination (microplanning).
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from typing_extensions import Any, List
+from typing_extensions import List
 
+from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.variable import InstantiatedVariable
 from krrood.entity_query_language.predicate import Verbalizable
 from krrood.entity_query_language.verbalization import morphology
@@ -31,9 +19,9 @@ class BindingPlan:
     """The Python attribute name on the consequent type (e.g. ``"container"``)."""
 
     is_plural: bool
-    """``True`` when *field_name* is plural (drives copula + value number)."""
+    """``True`` when *field_name* is plural."""
 
-    value: Any
+    value: SymbolicExpression
     """The EQL expression providing the field's value."""
 
 
@@ -50,9 +38,18 @@ class InstantiatedPlan:
 
 @dataclass
 class InstantiatedPlanner(Planner[InstantiatedVariable, InstantiatedPlan]):
-    """Decompose an :class:`InstantiatedVariable` into an :class:`InstantiatedPlan`."""
+    """
+    Decompose an instantiated variable (a *"a TypeName where the field of the TypeName is …"*
+    form) into an ``InstantiatedPlan``.
+
+    It records the type name and, per field binding, the field name, grammatical number, and
+    value expression — no fragments, no context, no recursion.
+
+    Reference: Reiter & Dale (2000) — content/structure determination (microplanning).
+    """
 
     def plan(self) -> InstantiatedPlan:
+        """:return: The plan: the type name and its field bindings."""
         return InstantiatedPlan(type_name=self._type_name(), bindings=self._bindings())
 
     def _type_name(self) -> str:
@@ -70,7 +67,10 @@ class InstantiatedPlanner(Planner[InstantiatedVariable, InstantiatedPlan]):
 
     @staticmethod
     def has_template(node: InstantiatedVariable) -> bool:
-        """``True`` when *node*'s type implements :class:`Verbalizable` and supplies a template."""
+        """
+        :param node: The instantiated variable.
+        :return: ``True`` when *node*'s type implements ``Verbalizable`` and supplies a template.
+        """
         try:
             if isinstance(node._type_, type) and issubclass(node._type_, Verbalizable):
                 node._type_._verbalization_template_()

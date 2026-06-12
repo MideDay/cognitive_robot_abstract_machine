@@ -1,12 +1,3 @@
-"""
-Source-link resolution — maps Python class/attribute references to documentation URLs.
-
-:class:`SourceLinkResolver` is the protocol; :class:`AutoAPIResolver` resolves
-references to Sphinx AutoAPI-generated HTML pages.  ``AutoAPIResolver.for_package``
-auto-detects the base URL for a locally installed package whose docs are served
-by the JetBrains IDE built-in HTTP server.
-"""
-
 from __future__ import annotations
 
 import importlib
@@ -23,17 +14,8 @@ _log = logging.getLogger(__name__)
 
 class SourceLinkResolver(Protocol):
     """
-    Protocol: maps a
-    :class:`~krrood.entity_query_language.verbalization.fragments.source_ref.SourceRef`
-    to a URL string, or ``None`` when the class or attribute cannot be located.
-
-    Implementations are passed to
-    :class:`~krrood.entity_query_language.verbalization.rendering.renderer.FragmentRenderer`
-    and used to wrap
-    :class:`~krrood.entity_query_language.verbalization.fragments.base.RoleFragment`
-    text with hyperlinks.
-
-    Built-in implementation: :class:`AutoAPIResolver`.
+    Protocol: maps a source reference to a URL string, or ``None`` when the class or attribute
+    cannot be located.
     """
 
     def resolve(self, ref: SourceRef) -> Optional[str]:
@@ -41,9 +23,7 @@ class SourceLinkResolver(Protocol):
         Resolve *ref* to a URL string.
 
         :param ref: Source reference to resolve.
-        :type ref: ~krrood.entity_query_language.verbalization.fragments.source_ref.SourceRef
         :return: URL string, or ``None`` when the reference cannot be resolved.
-        :rtype: str or None
         """
         ...
 
@@ -52,22 +32,15 @@ class SourceLinkResolver(Protocol):
 class AutoAPIResolver:
     """
     Resolves source references to Sphinx AutoAPI documentation pages.
-
-    :param base_url: Root URL of the generated docs site, e.g.
-        ``"https://myproject.readthedocs.io/en/latest"`` or
-        ``"http://localhost:63342/project/doc/_build/html"``.
-    :type base_url: str
-    :param html_root: Optional local path to the Sphinx HTML output directory.
-        When set, :meth:`resolve` verifies that the AutoAPI page exists on disk
-        and logs a warning if it does not.
-    :type html_root: pathlib.Path or None
-
-    Use :meth:`for_package` to auto-detect the base URL for a locally installed
-    package whose docs are served by the JetBrains IDE built-in HTTP server.
     """
 
     base_url: str
+    """Root URL of the generated docs site, e.g. ``"https://myproject.readthedocs.io/en/latest"``
+    or ``"http://localhost:63342/project/doc/_build/html"``."""
+
     html_root: Optional[Path] = None
+    """Optional local path to the Sphinx HTML output directory.  When set, resolution verifies
+    that the AutoAPI page exists on disk and logs a warning if it does not."""
 
     def resolve(self, ref: SourceRef) -> Optional[str]:
         """
@@ -77,13 +50,11 @@ class AutoAPIResolver:
 
             {base_url}/autoapi/{module/path}/index.html#{module.QualName[.attr]}
 
-        When :attr:`html_root` is set and the page does not exist on disk,
-        logs a ``WARNING`` suggesting the docs be rebuilt.
+        When ``html_root`` is set and the page does not exist on disk, logs a warning suggesting
+        the docs be rebuilt.
 
         :param ref: Source reference to resolve.
-        :type ref: ~krrood.entity_query_language.verbalization.fragments.source_ref.SourceRef
         :return: AutoAPI page URL, or ``None`` when *ref.owner_type* has no ``__module__``.
-        :rtype: str or None
         """
         try:
             module = ref.owner_type.__module__
@@ -111,16 +82,12 @@ class AutoAPIResolver:
 
     @classmethod
     def for_package(cls, package_name: str, port: int = 63342) -> AutoAPIResolver:
-        """Build an :class:`AutoAPIResolver` for *package_name*'s locally built Sphinx docs.
+        """Build a resolver for *package_name*'s locally built Sphinx docs, with the base URL
+        targeting the JetBrains IDE built-in HTTP server.
 
-        The base URL targets the JetBrains IDE built-in HTTP server using this algorithm:
-
-        1. Import *package_name* to locate its source tree.
-        2. Walk up to the directory containing ``pyproject.toml`` (the package root).
-        3. Expect the Sphinx HTML output at ``{package_root}/doc/_build/html``.
-        4. Walk up to the git root (directory containing ``.git``).
-        5. Construct ``http://localhost:{port}/{git_root_name}/{relative_html_path}``.
-
+        :param package_name: The installed package whose docs to resolve against.
+        :param port: Port of the JetBrains IDE built-in HTTP server.
+        :return: A resolver pointing at the package's local Sphinx HTML output.
         :raises ImportError: if *package_name* cannot be imported.
         :raises FileNotFoundError: if ``doc/_build/html`` does not exist —
             build the docs first with ``sphinx-build doc doc/_build/html``.

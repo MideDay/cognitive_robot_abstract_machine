@@ -1,19 +1,3 @@
-"""
-The English grammar — one :class:`~krrood.entity_query_language.verbalization.grammar.phrase_rule.PhraseRule`
-subclass per EQL construct.
-
-Each rule is a Montague rule-to-rule clause: *for this construct, build this phrase*
-(Montague 1970; Bach 1976, the rule-to-rule hypothesis).  A rule only **combines** —
-recursion is delegated to ``ctx.child`` (the fold), and cross-cutting decisions to the
-microplanning services (``ctx.refer`` / ``ctx.scope`` / ``ctx.config``), morphology, the
-coordination module, and the lexicon — so each rule is responsible for a single
-construct's surface composition.
-
-:data:`RULES` lists one instance per rule — plain data, so the grammar itself is
-EQL-queryable (e.g. ``entity(rule).where(rule.construct == Comparator)`` over
-``domain=RULES``).  ``select`` decides specificity, so the list order is irrelevant.
-"""
-
 from __future__ import annotations
 
 import sys
@@ -121,7 +105,7 @@ class ComparatorRule(PhraseRule):
     construct = Comparator
     name = "comparator"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: Comparator, ctx: Ctx) -> Fragment:
         return ConditionVerbalizer(ctx).predicate(node)
 
 
@@ -134,7 +118,7 @@ class VariableRule(PhraseRule):
     construct = Variable
     name = "variable"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: Variable, ctx: Ctx) -> Fragment:
         if ctx.number is Number.PLURAL:
             return self._plural(node, ctx)
         definiteness, label = ctx.refer.noun_for_parts(node)
@@ -145,7 +129,7 @@ class VariableRule(PhraseRule):
         )
 
     @staticmethod
-    def _plural(node, ctx: Ctx):
+    def _plural(node: Variable, ctx: Ctx) -> Fragment:
         """Bare plural variable NP (*"Robots"*); the determiner phase drops the article and
         the morphology pass inflects the head.
 
@@ -162,12 +146,12 @@ class VariableRule(PhraseRule):
 
 
 class LiteralRule(PhraseRule):
-    """A literal value (``Literal <: Variable`` — deeper construct wins via ``select``)."""
+    """A literal value (e.g. ``42``, ``"hello"``, ``True``)."""
 
     construct = Literal
     name = "literal"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: Literal, ctx: Ctx) -> Fragment:
         return RoleFragment(
             text=ctx.context.type_name_of_value(node._value_),
             role=SemanticRole.LITERAL,
@@ -180,7 +164,7 @@ class ExternalVariableRule(PhraseRule):
     construct = ExternallySetVariable
     name = "external-variable"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: ExternallySetVariable, ctx: Ctx) -> Fragment:
         type_name = (
             node._type_.__name__
             if getattr(node, "_type_", None)
@@ -198,7 +182,7 @@ class AndRule(PhraseRule):
     construct = AND
     name = "and"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: AND, ctx: Ctx) -> Fragment:
         parts = [ctx.child(conjunct) for conjunct in flatten_operands(node, AND)]
         if len(parts) == 1:
             return parts[0]
@@ -211,10 +195,10 @@ class RangeConjunctionRule(PhraseRule):
     construct = AND
     name = "and-range"
 
-    def when(self, node, ctx: Ctx):
+    def when(self, node: AND, ctx: Ctx) -> bool:
         return has_pair(flatten_operands(node, AND))
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: AND, ctx: Ctx) -> Fragment:
         parts: List[Fragment] = [
             fragment_for_folded_conjunct(
                 item, ctx.child, compact=ctx.config.compact_predicates
@@ -232,7 +216,7 @@ class OrRule(PhraseRule):
     construct = OR
     name = "or"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: OR, ctx: Ctx) -> Fragment:
         parts = [ctx.child(conjunct) for conjunct in flatten_operands(node, OR)]
         if len(parts) == 1:
             return parts[0]
@@ -256,7 +240,7 @@ class NotRule(PhraseRule):
     construct = Not
     name = "not"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: Not, ctx: Ctx) -> Fragment:
         child_fragment = ctx.child(node._child_)
         # The parens glue to the child via the orthography pass → "not (child)".
         return PhraseFragment(
@@ -275,10 +259,10 @@ class NotComparatorRule(PhraseRule):
     construct = Not
     name = "not-comparator"
 
-    def when(self, node, ctx: Ctx):
+    def when(self, node: Not, ctx: Ctx) -> bool:
         return isinstance(node._child_, Comparator)
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: Not, ctx: Ctx) -> Fragment:
         return ConditionVerbalizer(ctx).predicate(node._child_, negated=True)
 
 
@@ -288,10 +272,10 @@ class NotBoolAttrRule(PhraseRule):
     construct = Not
     name = "not-bool-attr"
 
-    def when(self, node, ctx: Ctx):
+    def when(self, node: Not, ctx: Ctx) -> bool:
         return is_boolean_attribute_chain(node._child_)
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: Not, ctx: Ctx) -> Fragment:
         return ChainAssembler(ctx).chain(node._child_, negated=True)
 
 
@@ -304,7 +288,7 @@ class MappedVariableRule(PhraseRule):
     construct = MappedVariable
     name = "mapped-variable"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: MappedVariable, ctx: Ctx) -> Fragment:
         return ChainAssembler(ctx).chain(node)
 
 
@@ -314,7 +298,7 @@ class FlatVariableRule(PhraseRule):
     construct = FlatVariable
     name = "flat-variable"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: FlatVariable, ctx: Ctx) -> Fragment:
         return ctx.child(node._child_, number=ctx.number)
 
 
@@ -327,7 +311,7 @@ class AggregatorRule(PhraseRule):
     construct = Aggregator
     name = "aggregator"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: Aggregator, ctx: Ctx) -> Fragment:
         aggregation_kind = AGGREGATION_KIND[type(node)]
         aggregation_word = aggregation_kind.value
         aggregation_fragment = aggregation_kind.as_fragment()
@@ -356,7 +340,7 @@ class ForAllRule(PhraseRule):
     construct = ForAll
     name = "for-all"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: ForAll, ctx: Ctx) -> Fragment:
         variable_fragment = ctx.child(node.variable, number=Number.PLURAL)
         condition_fragment = ctx.child(node.condition)
         return PhraseFragment(
@@ -375,7 +359,7 @@ class ExistsRule(PhraseRule):
     construct = Exists
     name = "exists"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: Exists, ctx: Ctx) -> Fragment:
         variable_fragment = ctx.child(node.variable)
         condition_fragment = ctx.child(node.condition)
         return PhraseFragment(
@@ -399,10 +383,10 @@ class TopLevelEntityRule(PhraseRule):
     name = "top-level-entity"
     enters_query_scope = True
 
-    def when(self, node, ctx: Ctx):
+    def when(self, node: Entity, ctx: Ctx) -> bool:
         return ctx.config.query_depth == 0
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: Entity, ctx: Ctx) -> Fragment:
         return QueryAssembler(ctx).assemble(node)
 
 
@@ -413,10 +397,10 @@ class NestedEntityRule(PhraseRule):
     name = "nested-entity"
     enters_query_scope = True
 
-    def when(self, node, ctx: Ctx):
+    def when(self, node: Entity, ctx: Ctx) -> bool:
         return ctx.config.query_depth > 0
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: Entity, ctx: Ctx) -> Fragment:
         return QueryAssembler(ctx).assemble_nested(node)
 
 
@@ -427,10 +411,10 @@ class InferenceRuleRule(PhraseRule):
     name = "inference-rule"
     tiebreak = 1  # beats TopLevelEntityRule when both match (same construct + depth 0)
 
-    def when(self, node, ctx: Ctx):
+    def when(self, node: Entity, ctx: Ctx) -> bool:
         return ctx.config.query_depth == 0 and InferencePlanner.can_handle(node)
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: Entity, ctx: Ctx) -> Fragment:
         return InferenceAssembler(ctx).assemble(node)
 
 
@@ -441,7 +425,7 @@ class SetOfRule(PhraseRule):
     name = "set-of"
     enters_query_scope = True
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: SetOf, ctx: Ctx) -> Fragment:
         return QueryAssembler(ctx).assemble_set_of(node)
 
 
@@ -451,7 +435,7 @@ class ResultQuantifierRule(PhraseRule):
     construct = ResultQuantifier
     name = "result-quantifier"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: ResultQuantifier, ctx: Ctx) -> Fragment:
         return ctx.child(node._child_)
 
 
@@ -461,7 +445,7 @@ class FilterRule(PhraseRule):
     construct = Filter
     name = "filter"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: Filter, ctx: Ctx) -> Fragment:
         return ctx.child(node.condition)
 
 
@@ -471,7 +455,7 @@ class GroupedByRule(PhraseRule):
     construct = GroupedBy
     name = "grouped-by"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: GroupedBy, ctx: Ctx) -> Fragment:
         return GroupedByAssembler(ctx).assemble(node)
 
 
@@ -481,7 +465,7 @@ class OrderedByRule(PhraseRule):
     construct = OrderedBy
     name = "ordered-by"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: OrderedBy, ctx: Ctx) -> Fragment:
         return OrderedByAssembler(ctx).assemble(node)
 
 
@@ -494,7 +478,7 @@ class InstantiatedVariableRule(PhraseRule):
     construct = InstantiatedVariable
     name = "instantiated-variable"
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: InstantiatedVariable, ctx: Ctx) -> Fragment:
         return InstantiatedAssembler(ctx).assemble(node)
 
 
@@ -504,10 +488,10 @@ class InstantiatedVerbalizableRule(PhraseRule):
     construct = InstantiatedVariable
     name = "instantiated-verbalizable"
 
-    def when(self, node, ctx: Ctx):
+    def when(self, node: InstantiatedVariable, ctx: Ctx) -> bool:
         return InstantiatedPlanner.has_template(node)
 
-    def build(self, node, ctx: Ctx):
+    def build(self, node: InstantiatedVariable, ctx: Ctx) -> Fragment:
         # An opaque format string: it consumes finalized child text, so it realizes its
         # children locally (morphology pass + flatten) rather than deferring to the global pass.
         template = node._type_._verbalization_template_()

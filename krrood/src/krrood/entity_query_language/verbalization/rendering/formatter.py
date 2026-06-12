@@ -1,17 +1,3 @@
-"""
-Format-specific colour and spacing markup for fragment rendering.
-
-:class:`Formatter` subclasses determine how colours, spaces, newlines,
-and hyperlinks are encoded:
-
-* :class:`PlainFormatter` — no colour, ASCII space/newline.
-* :class:`ANSIFormatter` — 24-bit ANSI escape sequences with optional OSC 8 links.
-* :class:`HTMLFormatter` — ``<span style=\"color:...\">`` tags and ``<a href=\"...\">`` links.
-
-Also defines :class:`BulletStyle` and :class:`IndentSize` enums used by
-:class:`~krrood.entity_query_language.verbalization.rendering.renderer.HierarchicalRenderer`.
-"""
-
 from __future__ import annotations
 
 import html
@@ -33,39 +19,29 @@ _log = logging.getLogger(__name__)
 
 
 class BulletStyle(Enum):
-    """
-    Bullet character used by
-    :class:`~krrood.entity_query_language.verbalization.rendering.renderer.HierarchicalRenderer`
-    for list items.
-
-    :cvar DASH: ``"-"``
-    :cvar DOT: ``"•"``
-    :cvar ASTERISK: ``"*"``
-    """
+    """Bullet character used for hierarchical list items."""
 
     DASH = "-"
+    """A hyphen bullet."""
     DOT = "•"
+    """A round bullet."""
     ASTERISK = "*"
+    """An asterisk bullet."""
 
 
 class IndentSize(Enum):
-    """
-    Indentation string used by
-    :class:`~krrood.entity_query_language.verbalization.rendering.renderer.HierarchicalRenderer`
-    per nesting level.
-
-    :cvar TWO_SPACES: Two-space indent (default).
-    :cvar FOUR_SPACES: Four-space indent.
-    :cvar TAB: Hard tab character.
-    """
+    """Indentation string used per nesting level in hierarchical rendering."""
 
     TWO_SPACES = "  "
+    """Two-space indent (the default)."""
     FOUR_SPACES = "    "
+    """Four-space indent."""
     TAB = "\t"
+    """Hard tab character."""
 
 
 def detect_osc8_support() -> bool:
-    """Return ``True`` when the current terminal is known to support OSC 8 hyperlinks."""
+    """:return: ``True`` when the current terminal is known to support OSC 8 hyperlinks."""
     if os.environ.get("VTE_VERSION"):  # GNOME Terminal, Tilix, …
         return True
     term_prog = os.environ.get("TERM_PROGRAM", "")
@@ -81,10 +57,12 @@ class Formatter(ABC):
     """
     Single source of truth for all format-specific characters and colour markup.
 
-    Concrete subclasses determine how colours, spaces, newlines, and hyperlinks
-    are encoded in the output string.
+    Concrete subclasses determine how colours, spaces, newlines, and hyperlinks are encoded in
+    the output string:
 
-    Subclasses: :class:`PlainFormatter`, :class:`ANSIFormatter`, :class:`HTMLFormatter`.
+    * ``PlainFormatter`` — no colour, ASCII space/newline.
+    * ``ANSIFormatter`` — 24-bit ANSI escape sequences with optional OSC 8 links.
+    * ``HTMLFormatter`` — ``<span style="color:...">`` tags and ``<a href="...">`` links.
     """
 
     @abstractmethod
@@ -93,49 +71,33 @@ class Formatter(ABC):
         Wrap *text* in format-specific colour markup for *role*.
 
         :param text: Plain display text to colourize.
-        :type text: str
         :param role: Semantic role determining the colour.
-        :type role: ~krrood.entity_query_language.verbalization.fragments.roles.SemanticRole
         :return: Coloured string (or *text* unchanged when no colour is defined for *role*).
-        :rtype: str
         """
         ...
 
     @property
     @abstractmethod
     def space(self) -> str:
-        """
-        Inline word separator character(s) (e.g. ``" "`` or ``"&nbsp;"``).
-
-        :rtype: str
-        """
+        """Inline word separator character(s) (e.g. ``" "`` or ``"&nbsp;"``)."""
         ...
 
     @property
     @abstractmethod
     def newline(self) -> str:
-        """
-        Line break character(s) (e.g. ``"\\n"`` or ``"<br>"``).
-
-        :rtype: str
-        """
+        """Line break character(s) (e.g. ``"\\n"`` or ``"<br>"``)."""
         ...
 
     def wrap_link(self, text: str, url: str, tooltip: Optional[str] = None) -> str:
         """
         Wrap already-rendered *text* with a hyperlink to *url*.
 
-        The base implementation is a no-op (hyperlinks not supported for this format).
-        Subclasses override when the output format supports clickable links.
+        The base implementation is a no-op (hyperlinks are not supported for this format).
 
         :param text: Already-colourized display text.
-        :type text: str
         :param url: Destination URL.
-        :type url: str
         :param tooltip: Optional single-line docstring summary shown on hover (HTML-escaped).
-        :type tooltip: str or None
         :return: *text* unchanged (base); linked string (subclasses).
-        :rtype: str
         """
         return text
 
@@ -144,10 +106,6 @@ class Formatter(ABC):
 class PlainFormatter(Formatter):
     """
     No colour markup; standard ASCII space (``" "``) and newline (``"\\n"``).
-
-    The default formatter used by
-    :class:`~krrood.entity_query_language.verbalization.rendering.renderer.ParagraphRenderer`
-    and :meth:`~krrood.entity_query_language.verbalization.pipeline.VerbalizationPipeline.plain`.
     """
 
     def colorize(self, text: str, role: SemanticRole) -> str:
@@ -173,8 +131,8 @@ class ANSIFormatter(Formatter):
 
     OSC 8 hyperlinks are enabled automatically when the terminal is detected as
     capable (``VTE_VERSION``, ``TERM_PROGRAM`` in ``{vscode, WezTerm, iTerm.app}``,
-    or ``TERM=xterm-kitty``).  On unsupported terminals :meth:`wrap_link` falls
-    back to returning plain coloured text with no link markup.
+    or ``TERM=xterm-kitty``).  On unsupported terminals links fall back to plain
+    coloured text with no link markup.
     """
 
     _RESET: ClassVar[str] = "\033[0m"
@@ -221,8 +179,6 @@ class HTMLFormatter(Formatter):
 
     Suitable for Jupyter notebooks, GitLab Markdown, and any renderer that
     passes through inline HTML.  Hyperlinks use standard ``<a href="…">`` anchors.
-
-    Used by :meth:`~krrood.entity_query_language.verbalization.pipeline.VerbalizationPipeline.html`.
     """
 
     def colorize(self, text: str, role: SemanticRole) -> str:

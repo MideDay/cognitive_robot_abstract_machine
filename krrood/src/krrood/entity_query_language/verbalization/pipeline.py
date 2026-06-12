@@ -1,20 +1,3 @@
-"""
-Verbalization pipeline — **the** entry point for turning an EQL expression into text.
-
-:class:`VerbalizationPipeline` combines the fragment builder
-(:class:`~krrood.entity_query_language.verbalization.verbalizer.EQLVerbalizer`, an internal
-detail) with a renderer, and is the single public surface for every output mode.  Factory class
-methods cover the common configurations:
-
-* :meth:`~VerbalizationPipeline.plain` — prose, no colour.
-* :meth:`~VerbalizationPipeline.ansi` — ANSI true-colour terminal output.
-* :meth:`~VerbalizationPipeline.html` — HTML ``<span>`` colours for Jupyter.
-
-All accept an optional *link_resolver* for source hyperlinks, and :meth:`~VerbalizationPipeline.verbalize`
-accepts an optional shared context for coreference across calls.  :func:`verbalize_expression` is
-the one-line plain-text shortcut (``VerbalizationPipeline.plain().verbalize``).
-"""
-
 from __future__ import annotations
 
 import logging
@@ -24,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing_extensions import TYPE_CHECKING, Optional
 
+from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.verbalization.context import VerbalizationContext
 from krrood.entity_query_language.verbalization.fragments.base import Fragment
 from krrood.entity_query_language.verbalization.rendering.formatter import (
@@ -91,48 +75,34 @@ def _is_ipython() -> bool:
 @dataclass
 class VerbalizationPipeline:
     """
-    Combines an :class:`~krrood.entity_query_language.verbalization.verbalizer.EQLVerbalizer`
-    (fragment builder) with a
-    :class:`~krrood.entity_query_language.verbalization.rendering.renderer.FragmentRenderer`
-    (format + colour) to produce a final string.
+    Pairs a fragment builder with a renderer to produce a finished string in one output mode:
 
-    Usage::
+    * plain — prose, no colour;
+    * ANSI — true-colour terminal output;
+    * HTML — coloured ``<span>`` markup for Jupyter.
 
-        pipeline = VerbalizationPipeline(HierarchicalRenderer(HTMLFormatter()))
-        text = pipeline.verbalize(query)
-
-    Factory class methods cover the most common configurations:
-
-    * :meth:`plain` — no colour, paragraph prose (used by :func:`verbalize_expression`).
-    * :meth:`ansi`  — ANSI true-colour terminal output.
-    * :meth:`html`  — HTML ``<span>`` colours for Jupyter / inline HTML.
-
-    All factory methods accept an optional *link_resolver* that maps class and
-    attribute names to hyperlinks.  Built-in resolver:
-
-    * :class:`~krrood.entity_query_language.verbalization.rendering.source_link_resolver.AutoAPIResolver`
-      — Sphinx AutoAPI documentation pages (local build or hosted).
+    Each mode accepts an optional source-link resolver for hyperlinks, and an optional shared
+    context so repeated mentions corefer across calls.
     """
 
     renderer: FragmentRenderer = field(default_factory=ParagraphRenderer)
-    """Renderer used to convert the fragment tree to a string."""
+    """Renderer that converts the fragment tree to a string."""
 
     _verbalizer: EQLVerbalizer = field(default_factory=EQLVerbalizer, init=False)
     """The verbalizer that builds fragment trees from EQL expressions."""
 
     def verbalize(
         self,
-        expression,
+        expression: SymbolicExpression,
         context: Optional[VerbalizationContext] = None,
     ) -> str:
         """
         Verbalize *expression* to a string using this pipeline's renderer.
 
-        :param expression: Any EQL expression or :class:`~krrood.entity_query_language.query.query.Query`.
+        :param expression: Any EQL expression or query.
         :param context: Shared verbalization state; created automatically when omitted.  Pass the
-            same context across calls for coreference (a Robot … the Robot).
-        :return: Formatted natural-language string (plain, ANSI, or HTML depending on renderer).
-        :rtype: str
+            same context across calls so repeated mentions corefer (a Robot … the Robot).
+        :return: Formatted natural-language string (plain, ANSI, or HTML, per the renderer).
         """
         if isinstance(expression, Query):
             expression.build()
@@ -140,48 +110,37 @@ class VerbalizationPipeline:
         return self.verbalize_fragment(fragment)
 
     def _is_html_renderer(self) -> bool:
-        """Return ``True`` when this pipeline's renderer uses :class:`HTMLFormatter`."""
+        """:return: ``True`` when this pipeline's renderer emits HTML."""
         return isinstance(self.renderer.formatter, HTMLFormatter)
 
     def verbalize_fragment(self, fragment: Fragment) -> str:
         """
-        Render a pre-built :class:`~krrood.entity_query_language.verbalization.fragments.base.Fragment`
-        using this pipeline's renderer.
+        Render a pre-built fragment using this pipeline's renderer.
 
-        HTML pipelines wrap the result in a dark ``<div>`` suitable for Jupyter output.
+        HTML output is wrapped in a dark container suitable for inline display.
 
         :param fragment: Root of the fragment tree to render.
-        :type fragment: ~krrood.entity_query_language.verbalization.fragments.base.Fragment
         :return: Formatted string.
-        :rtype: str
         """
         result = self.renderer.render(fragment)
         if self._is_html_renderer():
             return _HTML_CELL_WRAPPER.format(body=result)
         return result
 
-    def display(self, expression) -> None:
+    def display(self, expression: SymbolicExpression) -> None:
         """
-        Render *expression* and display it in the current environment.
+        Render *expression* and display it in the current environment — inline in
+        Jupyter / IPython, or in the default browser elsewhere.
 
-        * **Jupyter / IPython** — renders inline via ``IPython.display.HTML``.
-        * **Elsewhere** — writes a temporary ``.html`` file and opens it in the
-          default system browser.
-
-        Designed for use with :meth:`html` pipelines.  Calling it on a plain-text
-        or ANSI pipeline will open a browser tab with raw text.
-
-        :param expression: Any EQL expression or :class:`~krrood.entity_query_language.query.query.Query`.
+        :param expression: Any EQL expression or query.
         """
         self.display_fragment(self._verbalizer.build(expression))
 
     def display_fragment(self, fragment: Fragment) -> None:
         """
-        Display a pre-built :class:`~krrood.entity_query_language.verbalization.fragments.base.Fragment`
-        — same environment routing as :meth:`display`.
+        Display a pre-built fragment, with the same environment routing as ``display``.
 
         :param fragment: Root of the fragment tree to display.
-        :type fragment: ~krrood.entity_query_language.verbalization.fragments.base.Fragment
         """
         raw_html = self.renderer.render(fragment)
         if _is_ipython():
@@ -212,10 +171,7 @@ class VerbalizationPipeline:
         """
         Create a plain-text, paragraph-prose pipeline with no colour markup.
 
-        :return: A :class:`VerbalizationPipeline` backed by
-            :class:`~krrood.entity_query_language.verbalization.rendering.renderer.ParagraphRenderer`
-            and :class:`~krrood.entity_query_language.verbalization.rendering.formatter.PlainFormatter`.
-        :rtype: VerbalizationPipeline
+        :return: A plain-text pipeline.
         """
         return cls(ParagraphRenderer(PlainFormatter()))
 
@@ -228,19 +184,13 @@ class VerbalizationPipeline:
         """
         Create an ANSI true-colour (24-bit) pipeline for terminal display.
 
-        When *link_resolver* is provided and the terminal supports OSC 8
-        hyperlinks (detected via environment variables), class and attribute names
-        become clickable.  On unsupported terminals a warning is logged and the
-        resolver is silently disabled.
+        When *link_resolver* is given and the terminal supports OSC 8 hyperlinks, class and
+        attribute names become clickable; on unsupported terminals the resolver is disabled
+        with a warning.
 
-        :param hierarchical: When ``True`` use
-            :class:`~krrood.entity_query_language.verbalization.rendering.renderer.HierarchicalRenderer`
-            (indented bullets); otherwise use paragraph prose.
-        :type hierarchical: bool
+        :param hierarchical: When ``True``, render indented bullets instead of paragraph prose.
         :param link_resolver: Optional resolver mapping source references to URLs.
-        :type link_resolver: ~krrood.entity_query_language.verbalization.rendering.source_link_resolver.SourceLinkResolver or None
-        :return: An ANSI-coloured :class:`VerbalizationPipeline`.
-        :rtype: VerbalizationPipeline
+        :return: An ANSI-coloured pipeline.
         """
         formatter = ANSIFormatter()
         if link_resolver is not None and not detect_osc8_support():
@@ -266,17 +216,12 @@ class VerbalizationPipeline:
         """
         Create an HTML ``<span>`` colour pipeline for Jupyter / inline-HTML rendering.
 
-        When *link_resolver* is provided, class and attribute names are wrapped in
-        ``<a href="…">`` anchors pointing to documentation pages.
+        When *link_resolver* is given, class and attribute names are wrapped in anchors
+        pointing to documentation pages.
 
-        :param hierarchical: When ``True`` use
-            :class:`~krrood.entity_query_language.verbalization.rendering.renderer.HierarchicalRenderer`
-            (indented bullets); otherwise use paragraph prose.
-        :type hierarchical: bool
+        :param hierarchical: When ``True``, render indented bullets instead of paragraph prose.
         :param link_resolver: Optional resolver mapping source references to URLs.
-        :type link_resolver: ~krrood.entity_query_language.verbalization.rendering.source_link_resolver.SourceLinkResolver or None
-        :return: An HTML-coloured :class:`VerbalizationPipeline`.
-        :rtype: VerbalizationPipeline
+        :return: An HTML-coloured pipeline.
         """
         formatter = HTMLFormatter()
         renderer = (
@@ -287,20 +232,15 @@ class VerbalizationPipeline:
         return cls(renderer)
 
 
-#: Shared plain-text pipeline reused by :func:`verbalize_expression` (stateless, so safe to reuse).
+#: Shared, stateless plain-text pipeline.
 _PLAIN_PIPELINE = VerbalizationPipeline.plain()
 
 
-def verbalize_expression(expression) -> str:
+def verbalize_expression(expression: SymbolicExpression) -> str:
     """
-    Verbalize any EQL expression into a plain-text English phrase — the simplest entry point.
+    Verbalize any EQL expression into a plain-text English phrase.
 
-    Equivalent to ``VerbalizationPipeline.plain().verbalize(expression)`` (no colour markup).
-    For coloured / hierarchical / hyperlinked output use a :class:`VerbalizationPipeline`
-    (``.ansi()`` / ``.html()``).
-
-    :param expression: Any EQL expression or :class:`~krrood.entity_query_language.query.query.Query`.
+    :param expression: Any EQL expression or query.
     :return: Plain-text natural-language string.
-    :rtype: str
     """
     return _PLAIN_PIPELINE.verbalize(expression)

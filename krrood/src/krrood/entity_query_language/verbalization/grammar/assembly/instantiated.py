@@ -1,20 +1,3 @@
-"""
-InstantiatedVariable **assembler** — realise an :class:`InstantiatedPlan` into
-*"a TypeName where the field of the TypeName is … such that …"*.
-
-It owns the order-dependent **constraint-deferral dance** (push a frame → build every
-binding value → register the field-reference overrides → pop the frame → render the
-deferred constraints): the order matters because no binding's value may be rendered
-under a sibling binding's override, and the deferred constraints reference the overrides
-(verified order-dependent — it cannot be pre-planned).  Number is only *tagged* here
-(``Copulas.for_number`` for the copula, ``ctx.child(value, number=…)`` for the value); the
-copula agreement and noun pluralisation are applied later by the
-:class:`~krrood.entity_query_language.verbalization.rendering.morphology_processor.MorphologyProcessor`
-pass.
-
-Reference: Gatt & Reiter (2009), SimpleNLG — surface realisation.
-"""
-
 from __future__ import annotations
 
 import uuid
@@ -51,15 +34,25 @@ from krrood.entity_query_language.verbalization.vocabulary.words import Number
 
 
 class InstantiatedAssembler(Assembler[InstantiatedVariable, InstantiatedPlan]):
-    """Realise an InstantiatedVariable from its :class:`InstantiatedPlan`."""
+    """
+    Realise an instantiated variable from its plan into *"a TypeName where the field of the
+    TypeName is … such that …"*.
+
+    It owns the order-dependent constraint-deferral handling: a binding's value must not be
+    rendered under a sibling binding's override, and the deferred constraints reference those
+    overrides.
+
+    Reference: Gatt & Reiter (2009), SimpleNLG — surface realisation.
+    """
 
     planner = InstantiatedPlanner
 
-    def realize(self, node, plan: InstantiatedPlan) -> Fragment:
-        """*"a TypeName, where the <field> of the TypeName is <value> …, such that <deferred>"*.
-
-        A referring NP (referent_id below) — the CoreferenceProcessor reduces a repeat
-        mention to *"the <type>"* in document order, so no build-time seen check here.
+    def realize(self, node: InstantiatedVariable, plan: InstantiatedPlan) -> Fragment:
+        """
+        :param node: The instantiated variable.
+        :param plan: The instantiated plan.
+        :return: *"a TypeName, where the <field> of the TypeName is <value> …, such that
+            <deferred>"*.
         """
         self.ctx.scope.push_constraint_frame()
         binding_fragments, overrides = self._bindings(plan, node._type_)
@@ -74,9 +67,9 @@ class InstantiatedAssembler(Assembler[InstantiatedVariable, InstantiatedPlan]):
     # ── bindings ───────────────────────────────────────────────────────────────
 
     def _bindings(
-        self, plan: InstantiatedPlan, instantiated_type
+        self, plan: InstantiatedPlan, instantiated_type: type
     ) -> Tuple[List[Fragment], Dict[uuid.UUID, Fragment]]:
-        """Build every binding fragment and collect overrides (registered together after)."""
+        """:return: Every binding fragment and the field-reference overrides."""
         binding_fragments: List[Fragment] = []
         overrides: Dict[uuid.UUID, Fragment] = {}
         for binding in plan.bindings:
@@ -92,11 +85,9 @@ class InstantiatedAssembler(Assembler[InstantiatedVariable, InstantiatedPlan]):
         return binding_fragments, overrides
 
     def _field_reference(
-        self, field_name: str, type_name: str, instantiated_type
+        self, field_name: str, type_name: str, instantiated_type: type
     ) -> Fragment:
-        """*"the <field> of the <Type>"* — a single-hop possessive, built by the shared
-        :func:`~krrood.entity_query_language.verbalization.microplanning.possessive.possessive_path`
-        so the genitive structure lives in exactly one place."""
+        """:return: *"the <field> of the <Type>"* — a single-hop possessive."""
         type_root = PhraseFragment(
             parts=[
                 Articles.THE.as_fragment(),
@@ -114,24 +105,24 @@ class InstantiatedAssembler(Assembler[InstantiatedVariable, InstantiatedPlan]):
         return possessive_path([(field_name, None)], type_root)
 
     def _copula(self, binding: BindingPlan) -> Fragment:
-        """*"is"* / *"are"* agreeing with the binding's plurality (inflected by morphology)."""
+        """:return: *"is"* / *"are"* agreeing with the binding's plurality."""
         return Copulas.for_number(Number.of(binding.is_plural))
 
     def _value(self, binding: BindingPlan) -> Fragment:
-        """The binding's value expression, rendered in the binding's number."""
+        """:return: The binding's value expression, rendered in the binding's number."""
         return self.ctx.child(binding.value, number=Number.of(binding.is_plural))
 
     # ── phrase assembly ──────────────────────────────────────────────────────────
 
     def _phrase(
         self,
-        node,
+        node: InstantiatedVariable,
         type_name: str,
         binding_fragments: List[Fragment],
         constraint_fragments: List[Fragment],
     ) -> Fragment:
-        """*"a <type>, where <bindings>, such that <constraints>"* — the referring NP with
-        its appositive clauses as droppable modifiers."""
+        """:return: *"a <type>, where <bindings>, such that <constraints>"* — the referring noun
+        phrase with its appositive clauses as droppable modifiers."""
         modifiers: List[Fragment] = []
         if binding_fragments:
             joined = oxford_and(binding_fragments, Conjunctions.AND.as_fragment())

@@ -1,23 +1,10 @@
-"""
-Fragment tree data model for verbalized output.
-
-The fragment hierarchy forms the output IR that renderers traverse:
-
-* :class:`WordFragment` — plain text (no semantic role).
-* :class:`RoleFragment` — text with a :class:`SemanticRole` (drives colour / hyperlinks).
-* :class:`PhraseFragment` — inline sequence of fragments joined by a separator.
-* :class:`BlockFragment` — named structural block with header + bullet items.
-
-The joining utility :func:`oxford_and` produces a :class:`PhraseFragment` tree from a list
-of fragments (Oxford-comma style).
-"""
-
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
 from typing_extensions import Callable, List, Optional, Tuple, TypeVar
 
+from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.verbalization.fragments.features import (
     Definiteness,
     Glue,
@@ -34,96 +21,64 @@ class Fragment:
     """
     Abstract base for all verbalized output fragments.
 
-    The fragment hierarchy forms a tree:
-
-    * Leaf nodes: :class:`WordFragment`, :class:`RoleFragment`.
-    * Inline composition: :class:`PhraseFragment`.
-    * Block structure: :class:`BlockFragment`.
-
-    Renderers traverse this tree to produce strings.
+    The hierarchy forms a tree: leaf nodes (``WordFragment``, ``RoleFragment``), inline
+    composition (``PhraseFragment``), and block structure (``BlockFragment``).
     """
 
 
 @dataclass
 class HasText:
-    """Mixin contributing the display :attr:`text` field — its **one** definition, shared by
-    :class:`WordFragment` and :class:`RoleFragment` instead of being redeclared on each.
-
-    ``text`` is a regular (positional) field so the existing positional constructions
-    (``WordFragment("the")``, ``RoleFragment("Robot", role)``) keep working unchanged.
-    """
+    """Mixin contributing the display ``text`` field shared by text-bearing fragments."""
 
     text: str
-    """The display text string (e.g. ``"the"``, ``"Robot"``, ``"is greater than"``)."""
+    """The display text as a string (e.g. ``"the"``, ``"Robot"``)."""
 
 
 @dataclass
 class HasNumber:
-    """Mixin contributing the grammatical :attr:`number` field — its **one** definition, shared by
-    every fragment whose *own* surface text the
-    :class:`~krrood.entity_query_language.verbalization.rendering.morphology_processor.MorphologyProcessor`
-    pluralises (:class:`WordFragment`, :class:`RoleFragment`, :class:`NounPhrase`).
-
-    Declared ``kw_only`` so it never disturbs the positional / required-field ordering of the
-    concrete fragments (e.g. ``RoleFragment``'s required ``role``) — and every call site already
-    passes ``number=`` by keyword, so this is transparent.  Note this is deliberately *not* used
-    by :class:`SubjectScope`, whose ``subject_number`` is the *antecedent's* agreement number (a
-    different concept the morphology pass never reads), not this node's own number.
-    """
+    """Mixin contributing the grammatical ``number`` field shared by fragments whose own
+    surface text is inflected for number."""
 
     number: Number = field(default=Number.SINGULAR, kw_only=True)
-    """Grammatical number *feature* — the morphology pass pluralises a ``PLURAL`` node's text."""
+    """Grammatical number of this fragment's surface text."""
 
 
 @dataclass
 class WordFragment(HasText, HasNumber, Fragment):
-    """Plain neutral text with no semantic role: articles, connectives, punctuation.
+    """
+    Plain neutral text with no semantic role: articles, connectives, punctuation.
 
-    May also carry a noun rendered role-lessly (e.g. a group-key root); such a leaf can be
-    tagged :attr:`number` (from :class:`HasNumber`) for the morphology pass to pluralise, like a
-    ``RoleFragment``.  :attr:`text` comes from :class:`HasText`.
+    May also carry a role-less noun (e.g. a group-key root), which can be tagged with a
+    grammatical ``number`` for inflection.
     """
 
     glue: Glue = Glue.NONE
-    """Orthographic spacing — the orthography pass removes the space adjacent to a ``LEFT`` /
-    ``RIGHT`` token (punctuation), so rules need not manage punctuation spacing themselves."""
+    """Orthographic spacing of this token relative to its neighbours."""
 
 
 @dataclass
 class RoleFragment(HasText, HasNumber, Fragment):
     """
-    Text carrying a :class:`~krrood.entity_query_language.verbalization.fragments.roles.SemanticRole`
-    — drives colour markup and optional source hyperlinking.
-
-    :attr:`text` comes from :class:`HasText`; the grammatical :attr:`number` feature (pluralised by
-    the :class:`~krrood.entity_query_language.verbalization.rendering.morphology_processor.MorphologyProcessor`
-    pass) comes from :class:`HasNumber`.
+    Text carrying a semantic role — drives colour markup and optional source hyperlinking.
     """
 
     role: SemanticRole
-    """Semantic role determining the colour applied by the formatter."""
+    """Semantic role that determines this token's colour markup."""
 
     source_ref: Optional[SourceRef] = None
-    """Optional reference to the Python class or attribute this fragment represents;
-    used by
-    :class:`~krrood.entity_query_language.verbalization.rendering.source_link_resolver.SourceLinkResolver`
-    to build hyperlinks."""
+    """Optional reference to the Python class or attribute this fragment represents."""
 
     @classmethod
     def for_variable(
-        cls, label: str, expression, number: Number = Number.SINGULAR
+        cls, label: str, expression: SymbolicExpression, number: Number = Number.SINGULAR
     ) -> RoleFragment:
         """
-        Build a fragment for a
-        :class:`~krrood.entity_query_language.core.variable.Variable`,
-        :class:`~krrood.entity_query_language.core.variable.InstantiatedVariable`,
-        or :class:`~krrood.entity_query_language.query.query.Entity`, linked to its type.
+        Build a fragment for a variable, instantiated variable, or entity, linked to its type.
 
         :param label: Display text (type name or disambiguated label).
-        :type label: str
         :param expression: Expression whose ``_type_`` attribute supplies the source reference.
-        :return: :class:`RoleFragment` with :attr:`~SemanticRole.VARIABLE` role.
-        :rtype: RoleFragment
+        :param number: Grammatical-number feature.
+        :return: A fragment with the ``VARIABLE`` role.
         """
         return cls(
             text=label,
@@ -134,20 +89,18 @@ class RoleFragment(HasText, HasNumber, Fragment):
 
     @classmethod
     def for_attribute(
-        cls, owner, attribute_name: str, number: Number = Number.SINGULAR
+        cls, owner: type, attribute_name: str, number: Number = Number.SINGULAR
     ) -> RoleFragment:
         """
         Build a fragment for an attribute access, linked to its owner class.
 
-        Inflection is **not** applied here — a ``PLURAL`` *number* is a feature the
-        morphology pass realises later (the source link always uses the canonical name).
+        Inflection is not applied here; a plural *number* is a feature realised later, and the
+        source link always uses the canonical name.
 
         :param owner: Owner class of the attribute (used for source linking).
         :param attribute_name: Canonical attribute name on *owner*.
-        :type attribute_name: str
-        :param number: Grammatical-number feature (pluralised by the morphology pass).
-        :return: :class:`RoleFragment` with :attr:`~SemanticRole.ATTRIBUTE` role.
-        :rtype: RoleFragment
+        :param number: Grammatical-number feature.
+        :return: A fragment with the ``ATTRIBUTE`` role.
         """
         return cls(
             text=attribute_name,
@@ -162,9 +115,7 @@ class RoleFragment(HasText, HasNumber, Fragment):
         Build a fragment for an operator or copula (no source link).
 
         :param label: Display text (e.g. ``"is"``, ``"not"``, ``"greater than"``).
-        :type label: str
-        :return: :class:`RoleFragment` with :attr:`~SemanticRole.OPERATOR` role.
-        :rtype: RoleFragment
+        :return: A fragment with the ``OPERATOR`` role.
         """
         return cls(text=label, role=SemanticRole.OPERATOR)
 
@@ -183,25 +134,17 @@ class PhraseFragment(Fragment):
 @dataclass
 class NounPhrase(HasNumber, Fragment):
     """
-    A **noun-phrase specification** (a determiner phrase / DP) — carries the grammatical
-    features of a noun phrase, *not* its surface determiner.
+    A noun-phrase specification (a determiner phrase) — the grammatical features of a noun
+    phrase, *not* its surface determiner.
 
-    A rule emits this whenever it means *"a noun phrase"*; the
-    :class:`~krrood.entity_query_language.verbalization.rendering.determiner_processor.DeterminerProcessor`
-    pass lowers it to a :class:`PhraseFragment`, choosing the determiner from
-    :attr:`definiteness` × :attr:`number` (the concord table) and tagging the head's
-    :class:`Number` so the morphology pass inflects it.  Centralising the determiner decision
-    here means it lives in exactly one place instead of being re-decided at every NP site.
+    The determiner is chosen later from its definiteness and number, so that decision lives in
+    exactly one place.
 
-    The grammatical :attr:`number` feature (driving head inflection and determiner concord) comes
-    from :class:`HasNumber`.
-
-    Reference: Gatt & Reiter (2009), SimpleNLG — ``NPPhraseSpec`` (a phrase spec carrying
-    number / definiteness features, realised by a downstream processor).
+    Reference: Gatt & Reiter (2009), SimpleNLG — ``NPPhraseSpec``.
     """
 
     head: Fragment
-    """The noun leaf/sub-phrase the determiner attaches to (e.g. a ``VARIABLE``-role noun)."""
+    """The noun leaf or sub-phrase the determiner attaches to."""
 
     definiteness: Definiteness = Definiteness.INDEFINITE
     """Determiner-system feature — selects *"a/an"* / *"the"* / no determiner."""
@@ -210,66 +153,46 @@ class NounPhrase(HasNumber, Fragment):
     """Post-modifiers following the head (e.g. *"of the Root"*, *"where … such that …"*)."""
 
     modifier_separator: str = " "
-    """Separator between the determiner+head group and the :attr:`modifiers`.  Default ``" "``
+    """Separator between the determiner-and-head group and the modifiers.  Default ``" "``
     (*"drawers of Cabinets"*); ``""`` lets an appositive clause attach without a spurious space
-    (*"a Robot"* + *", where …"* → *"a Robot, where …"*)."""
+    (*"a Robot, where …"*)."""
 
     referent_id: Optional[uuid.UUID] = None
-    """When set, this NP is a **referring expression** for that entity.  :attr:`definiteness`
-    then holds the *first-mention* form; the
-    :class:`~krrood.entity_query_language.verbalization.rendering.coreference_processor.CoreferenceProcessor`
-    pass downgrades a *repeat* mention to definite (dropping :attr:`modifiers`, keeping only
-    :attr:`head` as the label) or to a pronoun — the discourse decision, made in one place."""
+    """When set, this noun phrase is a referring expression for that entity, and its
+    definiteness holds the first-mention form."""
 
 
 @dataclass
 class SubjectScope(Fragment):
     """
-    Marks the region in which :attr:`subject_id` is the pronoun-eligible discourse subject.
-
-    A structural wrapper (the document-order replacement for the build-time
-    ``push_subject``/``pop_subject`` stack): the
-    :class:`~krrood.entity_query_language.verbalization.rendering.coreference_processor.CoreferenceProcessor`
-    pushes :attr:`subject_id` on entry and pops it on exit, so a referring NP whose referent is
-    the current subject can be pronominalised.  After that pass it is replaced by its (resolved)
-    :attr:`child`; all other passes recurse through it transparently.
+    Marks the region in which ``subject_id`` is the pronoun-eligible discourse subject.
     """
 
     subject_id: Optional[uuid.UUID]
-    """The subject's referent id, or ``None`` for a scope with no single subject (e.g. ``SetOf``),
-    which suppresses pronominalisation."""
+    """The subject's referent id, or ``None`` for a scope with no single subject (which
+    suppresses pronominalisation)."""
 
     child: Fragment
     """The wrapped fragment the scope applies to."""
 
     subject_number: Number = Number.SINGULAR
     """The subject's grammatical number — selects the possessive pronoun (*"its"* for a singular
-    subject, *"their"* for a plural population, e.g. an aggregation source *"among
-    BankTransactions such that … their …"*)."""
+    subject, *"their"* for a plural population)."""
 
 
 @dataclass
 class PossessiveChain(Fragment):
     """
-    A navigation chain whose **pronominal-vs-possessive** surface form is decided by coreference.
-
-    Emitted by the chain rule instead of pre-rendering, because the choice between
-    *"the amount of its amount_details"* (root is the current subject) and
-    *"the amount of the amount_details of the BankTransaction"* (otherwise) is a discourse
-    decision the :class:`~krrood.entity_query_language.verbalization.rendering.coreference_processor.CoreferenceProcessor`
-    makes — it then calls the
-    :mod:`~krrood.entity_query_language.verbalization.microplanning.possessive` builders to render
-    the chosen form.  Bool-predicative chains never pronominalise and so render directly without
-    this node.
+    A navigation chain whose pronominal-vs-possessive surface form is decided by coreference
+    (e.g. *"the amount of its amount_details"* vs. *"the amount of the amount_details of the
+    BankTransaction"*).
     """
 
     parts: List[Tuple[str, Optional[SourceRef]]]
-    """The chain's ``(attr_name, source_ref)`` path, innermost-last (the same shape the
-    possessive/pronominal builders consume)."""
+    """The chain's ``(attr_name, source_ref)`` path, innermost-last."""
 
     root_fragment: Fragment
-    """The referring noun phrase for the chain root, used by the *possessive* rendering (and
-    resolved for first/subsequent mention by the same pass)."""
+    """The referring noun phrase for the chain root."""
 
     root_referent_id: Optional[uuid.UUID] = None
     """The root variable's referent id — the chain pronominalises only when this is the current
@@ -280,11 +203,6 @@ class PossessiveChain(Fragment):
 class BlockFragment(Fragment):
     """
     A named structural block with an optional header and a list of sub-items.
-
-    * :class:`~krrood.entity_query_language.verbalization.rendering.renderer.ParagraphRenderer`
-      flattens header + items into a single comma-separated prose string.
-    * :class:`~krrood.entity_query_language.verbalization.rendering.renderer.HierarchicalRenderer`
-      renders the header on one line, then each item as a bullet at the next indent level.
     """
 
     header: Optional[Fragment]
@@ -298,10 +216,10 @@ class BlockFragment(Fragment):
 
 
 class UnloweredFragmentError(TypeError):
-    """A fragment kind with no :func:`fold_fragment` handler reached a renderer.
-
-    Raised instead of silently rendering nothing: an un-lowered :class:`NounPhrase` or
-    :class:`PossessiveChain` in a folded tree means a realisation pass was skipped."""
+    """
+    A fragment kind with no fold handler reached a renderer — a realisation pass was skipped,
+    leaving an un-lowered ``NounPhrase`` or ``PossessiveChain`` in the tree.
+    """
 
 
 def fold_fragment(
@@ -313,37 +231,29 @@ def fold_fragment(
     block: Callable[[BlockFragment], _T],
 ) -> _T:
     """
-    Fold a :class:`Fragment` tree into a value of type ``_T`` by supplying one
-    handler per node kind — the single, shared structural recursion over the IR.
+    Fold a fragment tree into a value of type ``_T`` by supplying one handler per node kind —
+    the single, shared structural recursion over the IR.
 
-    This is the *catamorphism* (the unique homomorphism from the fragment tree into
-    a target algebra): the recursion scheme lives here once; each caller provides an
-    *algebra* (the four handlers) describing how to combine results. Every consumer
-    of the IR — plain-text flattening and each
-    :class:`~krrood.entity_query_language.verbalization.rendering.renderer.FragmentRenderer`
-    — is expressed as one such fold, so the Word/Role/Phrase traversal is written
-    exactly once instead of being copied per consumer.
-
-    ``word``, ``role`` and ``phrase`` receive already-folded children; ``block``
-    receives the raw :class:`BlockFragment` because block layout is genuinely
-    consumer-specific (flat prose vs. indented bullets) and must control its own
-    recursion (e.g. with depth).
+    This is the catamorphism over the fragment tree: the recursion scheme lives here once, and
+    each caller provides an algebra (the four handlers) describing how to combine results.
+    ``word``, ``role`` and ``phrase`` receive already-folded children; ``block`` receives the
+    raw ``BlockFragment`` because block layout is consumer-specific and controls its own
+    recursion.
 
     Concept references:
 
-    * Catamorphism / F-algebra — Meijer, Fokkinga & Paterson (1991), "Functional
-      Programming with Bananas, Lenses, Envelopes and Barbed Wire", FPCA; Bird & de
-      Moor (1997), "Algebra of Programming".
-    * Phrase specification traversed by realisation processors — Gatt & Reiter
-      (2009), "SimpleNLG: A realisation engine for practical applications", ENLG.
+    * Catamorphism / F-algebra — Meijer, Fokkinga & Paterson (1991), "Functional Programming
+      with Bananas, Lenses, Envelopes and Barbed Wire", FPCA; Bird & de Moor (1997), "Algebra
+      of Programming".
+    * Phrase specification traversed by realisation processors — Gatt & Reiter (2009),
+      "SimpleNLG: A realisation engine for practical applications", ENLG.
 
     :param fragment: Root of the fragment tree.
-    :param word: Handler for :class:`WordFragment` text.
-    :param role: Handler for :class:`RoleFragment` ``(text, role, source_ref)``.
-    :param phrase: Handler for :class:`PhraseFragment` ``(folded_parts, separator)``.
-    :param block: Handler for a raw :class:`BlockFragment` (controls its own recursion).
+    :param word: Handler for ``WordFragment`` text.
+    :param role: Handler for ``RoleFragment`` ``(text, role, source_ref)``.
+    :param phrase: Handler for ``PhraseFragment`` ``(folded_parts, separator)``.
+    :param block: Handler for a raw ``BlockFragment`` (controls its own recursion).
     :return: The folded value.
-    :rtype: _T
     """
     match fragment:
         case WordFragment(text=text):
@@ -377,17 +287,9 @@ def map_structural_children(
     fragment: Fragment, recurse: Callable[[Fragment], Fragment]
 ) -> Optional[Fragment]:
     """
-    Rebuild a **structural container** (the nodes that merely hold children —
-    :class:`PhraseFragment`, :class:`BlockFragment`, :class:`SubjectScope`) by applying *recurse*
-    to each child, or return ``None`` for anything else (a leaf, or a node the caller treats
-    specially).
-
-    This is the one definition of *"how the recursive containers are rebuilt"*, shared by every
-    tree→tree pass (:func:`map_fragment` and the stateful
-    :class:`~krrood.entity_query_language.verbalization.rendering.coreference_processor.CoreferenceProcessor`
-    walk) so the container shapes are enumerated once.  Each pass supplies its own *recurse*
-    (plain self-recursion for ``map_fragment``; a scope-tracking walk for coreference) and keeps
-    its own handling of the *non*-container nodes it cares about.
+    Rebuild a structural container (``PhraseFragment``, ``BlockFragment``, ``SubjectScope`` —
+    the nodes that merely hold children) by applying *recurse* to each child, or return
+    ``None`` for anything else (a leaf, or a node the caller treats specially).
 
     :param fragment: Node to rebuild.
     :param recurse: Transform applied to each child.
@@ -417,20 +319,15 @@ def map_structural_children(
 
 def map_fragment(fragment: Fragment, leaf: Callable[[Fragment], Fragment]) -> Fragment:
     """
-    Rebuild a :class:`Fragment` tree, replacing each **leaf** (``WordFragment`` /
-    ``RoleFragment``) by ``leaf(node)`` and reconstructing the structural containers
-    (:func:`map_structural_children`) around the transformed children.
+    Rebuild a fragment tree, replacing each leaf (``WordFragment`` / ``RoleFragment``) by
+    ``leaf(node)`` and reconstructing the structural containers around the transformed children.
 
-    The structural dual of :func:`fold_fragment` (which folds *to a value*): this maps a
-    tree *to a tree*, the recursion scheme a realisation pass (e.g. the
-    :class:`~krrood.entity_query_language.verbalization.rendering.morphology_processor.MorphologyProcessor`)
-    needs.  Fragments are immutable in spirit here — new nodes are returned, the input is
-    left untouched, so shared sub-trees (e.g. a reused coreference label) are safe.
+    The structural dual of ``fold_fragment``: it maps a tree to a tree rather than to a value.
+    New nodes are returned and the input is left untouched, so shared sub-trees are safe.
 
     :param fragment: Root of the tree to transform.
     :param leaf: Transform applied to each leaf fragment (identity for unaffected leaves).
     :return: The rebuilt tree.
-    :rtype: ~krrood.entity_query_language.verbalization.fragments.base.Fragment
     """
     rebuilt = map_structural_children(fragment, lambda f: map_fragment(f, leaf))
     return rebuilt if rebuilt is not None else leaf(fragment)
@@ -441,15 +338,10 @@ def map_fragment(fragment: Fragment, leaf: Callable[[Fragment], Fragment]) -> Fr
 
 def flatten_fragment_to_plain_text(fragment: Fragment) -> str:
     """
-    Flatten a :class:`Fragment` tree to a plain string (no colour markup).
-
-    Used for internal comparisons, logging, and plain-text verbalization output.
-    Expressed as a :func:`fold_fragment` over the plain-text algebra.
+    Flatten a fragment tree to a plain string (no colour markup).
 
     :param fragment: Root of the fragment tree to flatten.
-    :type fragment: Fragment
     :return: Plain-text representation with spaces between tokens.
-    :rtype: str
     """
 
     def _block(b: BlockFragment) -> str:
@@ -476,11 +368,8 @@ def oxford_and(parts: list[Fragment], conjunction: Fragment) -> Fragment:
     Join *parts* with Oxford-comma style: ``f1, f2, conj f3``.
 
     :param parts: Fragments to join.
-    :type parts: list[Fragment]
     :param conjunction: Conjunction fragment (e.g. *"and"*, *"or"*).
-    :type conjunction: Fragment
     :return: A single fragment representing the joined sequence.
-    :rtype: Fragment
     """
     if not parts:
         return WordFragment(text="")

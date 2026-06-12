@@ -1,23 +1,12 @@
-"""
-Clause **planners** — pure analysis for the individual query clauses that are
-constituents both of a query body and (for GROUP BY / ORDER BY) of a standalone
-:class:`~krrood.entity_query_language.core.base_expressions.SymbolicExpression`.
-
-Only GROUP BY carries real analysis (which selected expressions are *aggregated* vs.
-group keys); ORDER BY and HAVING are pure surface (their assemblers read the node
-directly and have no planner).
-
-Reference: Reiter & Dale (2000) — content/structure determination (microplanning).
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 import uuid
 
-from typing_extensions import Any, List, Optional, Set
+from typing_extensions import List, Optional, Set, Union
 
+from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.variable import InstantiatedVariable, Variable
 from krrood.entity_query_language.query.operations import GroupedBy
 from krrood.entity_query_language.query.query import Entity, Query
@@ -29,12 +18,12 @@ from krrood.entity_query_language.verbalization.grammar.planning.base import Pla
 class GroupPlan:
     """The GROUP BY keys and the expressions aggregated over them."""
 
-    keys: List[Any]
+    keys: List[SymbolicExpression]
     """The group-by key expressions (empty ⇒ a bare *"grouped"* / no clause)."""
 
-    aggregated: List[Any]
-    """Selected expressions aggregated (not group keys) — rendered plural; empty for a
-    bare :class:`GroupedBy` node (no selection context)."""
+    aggregated: List[SymbolicExpression]
+    """Selected expressions aggregated (not group keys) — rendered plural; empty for a bare
+    grouped-by node."""
 
     @property
     def has_keys(self) -> bool:
@@ -43,13 +32,15 @@ class GroupPlan:
 
 
 @dataclass
-class GroupedByPlanner(Planner[Any, GroupPlan]):
+class GroupedByPlanner(Planner[Union[Query, GroupedBy], GroupPlan]):
     """
-    Decompose the GROUP BY of *node* — either a query (``_grouped_by_expression_`` + its
-    selection) or a bare :class:`GroupedBy` node — into a :class:`GroupPlan`.
+    Decompose the GROUP BY of *node* (a query or a bare grouped-by node) into a ``GroupPlan``.
+
+    Reference: Reiter & Dale (2000) — content/structure determination (microplanning).
     """
 
     def plan(self) -> GroupPlan:
+        """:return: The group plan: the group-by keys and the expressions aggregated over them."""
         grouped = self._grouped_by()
         if grouped is None or not grouped.variables_to_group_by:
             return GroupPlan(keys=[], aggregated=[])
@@ -64,7 +55,9 @@ class GroupedByPlanner(Planner[Any, GroupPlan]):
         return getattr(self.node, "_grouped_by_expression_", None)
 
     @staticmethod
-    def _root_variable_ids(expressions) -> Set[uuid.UUID]:
+    def _root_variable_ids(
+        expressions: List[SymbolicExpression],
+    ) -> Set[uuid.UUID]:
         ids: Set[uuid.UUID] = set()
         for expression in expressions:
             root = chain_root(expression)
@@ -72,8 +65,13 @@ class GroupedByPlanner(Planner[Any, GroupPlan]):
                 ids.add(root._id_)
         return ids
 
-    def _aggregated(self, group_key_root_ids: Set[uuid.UUID]) -> List[Any]:
-        """Selected expressions that are aggregated (not group keys); ``[]`` off a query."""
+    def _aggregated(
+        self, group_key_root_ids: Set[uuid.UUID]
+    ) -> List[SymbolicExpression]:
+        """
+        :param group_key_root_ids: Root variable ids of the group-by keys.
+        :return: Selected expressions that are aggregated (not group keys); ``[]`` off a query.
+        """
         selected = (
             self.node.selected_variable if isinstance(self.node, Entity) else None
         )

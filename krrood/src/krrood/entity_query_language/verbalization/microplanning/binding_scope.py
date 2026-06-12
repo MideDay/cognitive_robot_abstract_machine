@@ -1,19 +1,3 @@
-"""
-Binding scope — deferred-constraint frames and field-reference overrides used
-when verbalizing an
-:class:`~krrood.entity_query_language.core.variable.InstantiatedVariable`.
-
-An instantiated variable such as ``inference(Drawer)(container=fc.parent)`` is
-rendered as *"a Drawer where the container of the Drawer is …"*: the field
-bindings are rendered first, any constraints on those fields are **deferred**
-into a frame, and the pre-rendered field fragments are registered as
-**overrides** so the deferred constraints reuse them instead of re-verbalizing.
-This is a single bookkeeping responsibility, separate from coreference
-(:mod:`~krrood.entity_query_language.verbalization.microplanning.referring`) and
-from render-mode flags
-(:mod:`~krrood.entity_query_language.verbalization.microplanning.config`).
-"""
-
 from __future__ import annotations
 
 import uuid
@@ -27,7 +11,16 @@ if TYPE_CHECKING:
 
 @dataclass
 class BindingScope:
-    """Holds the deferred-constraint frame stack and the field-reference override map."""
+    """
+    The deferred-constraint frame stack and the field-reference override map used when
+    verbalizing an instantiated variable.
+
+    An instantiated variable such as ``inference(Drawer)(container=fc.parent)`` is rendered as
+    *"a Drawer where the container of the Drawer is …"*: the field bindings are rendered first,
+    any constraints on those fields are deferred into a frame, and the pre-rendered field
+    fragments are registered as overrides so the deferred constraints reuse them instead of
+    re-verbalizing.
+    """
 
     constraint_frames: List[List[SymbolicExpression]] = field(default_factory=list)
     """Stack of deferred-expression frames.  Each frame belongs to one nesting
@@ -47,7 +40,6 @@ class BindingScope:
         Close the current frame and return its deferred expressions (empty when none open).
 
         :return: Deferred expressions from the closed frame, in deferral order.
-        :rtype: list
         """
         return self.constraint_frames.pop() if self.constraint_frames else []
 

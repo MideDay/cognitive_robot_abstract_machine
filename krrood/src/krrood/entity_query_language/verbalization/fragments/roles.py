@@ -1,19 +1,10 @@
-"""
-Semantic roles for fragment colour markup and the EQL-type-to-role mapping.
-
-:class:`SemanticRole` tags a
-:class:`~krrood.entity_query_language.verbalization.fragments.base.RoleFragment`
-with a semantic category; :data:`ROLE_COLORS` maps each role to a hex colour.
-The colours match the ``QueryGraph.ColorLegend`` palette so that verbalization
-output is visually consistent with query graph visualizations.
-"""
-
 from __future__ import annotations
 
 from enum import Enum
 
 from typing_extensions import Optional
 
+from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.mapped_variable import MappedVariable
 from krrood.entity_query_language.core.variable import Variable, Literal
 from krrood.entity_query_language.operators.aggregators import Aggregator
@@ -25,40 +16,28 @@ from krrood.entity_query_language.query.query import Entity, SetOf
 
 
 class SemanticRole(Enum):
-    """
-    Semantic role attached to a
-    :class:`~krrood.entity_query_language.verbalization.fragments.base.RoleFragment`.
-
-    The role determines the colour applied by the active
-    :class:`~krrood.entity_query_language.verbalization.rendering.formatter.Formatter`
-    (see :data:`ROLE_COLORS`).
-
-    :cvar KEYWORD: EQL structure words — *If*, *Then*, *Find*, *Where*, *Such that*.
-    :cvar VARIABLE: Type and instance names — *Robot*, *Employee 1*.
-    :cvar AGGREGATION: Aggregation phrases — *sum of*, *number of*, *average of*.
-    :cvar OPERATOR: Comparator phrases — *is greater than*, *equals*.
-    :cvar LOGICAL: Logical connectives — *and*, *or*, *not*, *for all*, *there exists*.
-    :cvar LITERAL: Literal values — ``42``, ``"hello"``, ``True``.
-    :cvar ATTRIBUTE: Attribute and field names — *battery*, *tasks*, *name*.
-    :cvar PLAIN: Neutral connecting text with no special colour.
-    """
+    """Semantic category of a fragment, determining its colour markup."""
 
     KEYWORD = "keyword"
+    """EQL structure words — *If*, *Then*, *Find*, *Where*, *Such that*."""
     VARIABLE = "variable"
+    """Type and instance names — *Robot*, *Employee 1*."""
     AGGREGATION = "aggregation"
+    """Aggregation phrases — *sum of*, *number of*, *average of*."""
     OPERATOR = "operator"
+    """Comparator phrases — *is greater than*, *equals*."""
     LOGICAL = "logical"
+    """Logical connectives — *and*, *or*, *not*, *for all*, *there exists*."""
     LITERAL = "literal"
+    """Literal values — ``42``, ``"hello"``, ``True``."""
     ATTRIBUTE = "attribute"
+    """Attribute and field names — *battery*, *tasks*, *name*."""
     PLAIN = "plain"
+    """Neutral connecting text with no special colour."""
 
 
-#: Hex colour strings (or ``None`` for no colour) for each :class:`SemanticRole`.
-#:
-#: Colours are taken from ``QueryGraph.ColorLegend`` to keep verbalization output
-#: visually consistent with query graph visualizations.
-#:
-#: :type: dict[SemanticRole, str | None]
+#: Hex colour string (or ``None`` for no colour) for each semantic role, matching the
+#: query-graph palette.
 ROLE_COLORS: dict[SemanticRole, Optional[str]] = {
     SemanticRole.KEYWORD: "#eded18",  # ConclusionSelector yellow
     SemanticRole.VARIABLE: "cornflowerblue",
@@ -72,7 +51,7 @@ ROLE_COLORS: dict[SemanticRole, Optional[str]] = {
 
 
 def _build_role_map() -> dict[type, SemanticRole]:
-    """Return the mapping of EQL expression types to their :class:`SemanticRole`."""
+    """:return: The mapping of EQL expression types to their semantic role."""
     return {
         LogicalOperator: SemanticRole.LOGICAL,
         Aggregator: SemanticRole.AGGREGATION,
@@ -88,17 +67,12 @@ def _build_role_map() -> dict[type, SemanticRole]:
 _role_map: dict[type, SemanticRole] = _build_role_map()
 
 
-def role_for(expression) -> SemanticRole:
+def role_for(expression: SymbolicExpression) -> SemanticRole:
     """
-    Return the :class:`SemanticRole` for an EQL expression instance using MRO lookup.
-
-    Traverses the MRO of ``type(expression)`` and returns the role of the first ancestor
-    found in the role map.  Falls back to :attr:`~SemanticRole.PLAIN` when no
-    match is found (e.g. for custom expression types).
+    Falls back to ``PLAIN`` when the expression's type matches no known role.
 
     :param expression: Any EQL expression instance.
-    :return: The most-specific matching :class:`SemanticRole`.
-    :rtype: SemanticRole
+    :return: The most-specific matching semantic role for an EQL expression instance.
     """
     for cls in type(expression).__mro__:
         if cls in _role_map:

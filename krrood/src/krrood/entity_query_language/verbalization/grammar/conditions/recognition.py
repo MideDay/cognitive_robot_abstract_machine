@@ -1,13 +1,3 @@
-"""
-Condition **recognizers** — the single source of truth for the structural shapes a
-condition (a :class:`~krrood.entity_query_language.operators.comparator.Comparator` or a
-:class:`~krrood.entity_query_language.core.mapped_variable.MappedVariable` chain) can take.
-
-They are pure structural predicates — no fragments, no context — so they live here
-once, and every surface-form decision (restriction rules, inference planner, chain
-assembler, grammar guards) consults them instead of re-implementing the shape test.
-"""
-
 from __future__ import annotations
 
 import operator
@@ -15,6 +5,7 @@ from dataclasses import dataclass
 
 from typing_extensions import List, Optional
 
+from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.mapped_variable import Attribute, MappedVariable
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.operators.aggregators import Aggregator, Extreme
@@ -33,8 +24,11 @@ from krrood.entity_query_language.verbalization.subquery import (
 )
 
 
-def attribute_names(left) -> List[str]:
-    """The attribute names along a MappedVariable chain, outermost last (``[]`` if none)."""
+def attribute_names(left: SymbolicExpression) -> List[str]:
+    """
+    :param left: A ``MappedVariable`` chain (or any expression).
+    :return: The attribute names along the chain, outermost last (``[]`` if none).
+    """
     names: List[str] = []
     current = left
     while isinstance(current, MappedVariable):
@@ -44,8 +38,15 @@ def attribute_names(left) -> List[str]:
     return names
 
 
-def single_hop_attribute(expression, subject_variable) -> Optional[Attribute]:
-    """The :class:`Attribute` node when *expression* is exactly ``subject_variable.<attr>``, else ``None``."""
+def single_hop_attribute(
+    expression: SymbolicExpression, subject_variable: Optional[Variable]
+) -> Optional[Attribute]:
+    """
+    :param expression: Candidate expression.
+    :param subject_variable: The variable the attribute must be on.
+    :return: The attribute node when *expression* is exactly ``subject_variable.<attr>``, else
+        ``None``.
+    """
     if subject_variable is None or not isinstance(expression, MappedVariable):
         return None
     chain, root = walk_chain(expression)
@@ -56,8 +57,13 @@ def single_hop_attribute(expression, subject_variable) -> Optional[Attribute]:
     return chain[0]
 
 
-def references(expression, subject_variable) -> bool:
-    """``True`` when *expression* mentions *subject_variable* (so it is not a clean RHS value)."""
+def references(expression: SymbolicExpression, subject_variable: Variable) -> bool:
+    """
+    :param expression: Candidate expression.
+    :param subject_variable: The variable to look for.
+    :return: ``True`` when *expression* mentions *subject_variable* (so it is not a clean RHS
+        value).
+    """
     try:
         return any(
             getattr(variable, "_id_", None) == subject_variable._id_
@@ -67,8 +73,12 @@ def references(expression, subject_variable) -> bool:
         return chain_root(expression) is subject_variable
 
 
-def is_boolean_attribute_chain(expression) -> bool:
-    """``True`` when *expression* is a MappedVariable chain ending in a bool-typed Attribute."""
+def is_boolean_attribute_chain(expression: SymbolicExpression) -> bool:
+    """
+    :param expression: Candidate expression.
+    :return: ``True`` when *expression* is a ``MappedVariable`` chain ending in a ``bool``-typed
+        attribute.
+    """
     if not isinstance(expression, MappedVariable):
         return False
     chain, _ = walk_chain(expression)
@@ -77,26 +87,29 @@ def is_boolean_attribute_chain(expression) -> bool:
 
 @dataclass(frozen=True)
 class SuperlativeFold:
-    """A subject restriction of the form ``subject.<chain> == max/min(<same-type>.<same chain>)``
+    """
+    A subject restriction of the form ``subject.<chain> == max/min(<same-type>.<same chain>)``
     folded to a superlative selection modifier — *"with the maximum <leaf>"*.
 
-    English's superlative *is* the meaning of "equal to the extreme value over the whole
-    population", so this fold is meaning-preserving — **not** an optimisation — under the guard
-    in :func:`superlative_aggregation`: an ``==`` against an *unconstrained* ``Max``/``Min``
-    sub-query over the *same type* and the *same attribute chain*."""
+    English's superlative is the meaning of "equal to the extreme value over the whole
+    population", so this fold is meaning-preserving, not an optimisation.
+    """
 
     aggregator: Aggregator
-    """The ``Max`` / ``Min`` aggregator — supplies the superlative word (via ``AGGREGATION_KIND``)
-    and the leaf attribute (``aggregator._leaf_attribute_``) for the *"… <leaf>"* tail."""
+    """The ``Max`` / ``Min`` aggregator — supplies the superlative word and the leaf attribute
+    for the *"… <leaf>"* tail."""
 
 
-def superlative_aggregation(comparator, subject) -> Optional[SuperlativeFold]:
-    """Recognise a superlative restriction on *subject* — see :class:`SuperlativeFold`.
+def superlative_aggregation(
+    comparator: SymbolicExpression, subject: Optional[Variable]
+) -> Optional[SuperlativeFold]:
+    """Recognise a superlative restriction on *subject*.  The guard is strict so it never fires
+    on a self-join, a constrained sub-query, a different chain, or a non-extreme aggregation.
 
-    Returns the fold when *comparator* is ``subject.<chain> == <unconstrained Max/Min over a
-    different same-type variable's identical chain>``, else ``None`` (the conjunct then renders
-    normally).  Pure structural analysis; the guard is deliberately strict so it never fires on a
-    self-join, a constrained sub-query, a different chain, or a non-extreme aggregation.
+    :param comparator: Candidate ``==`` comparator.
+    :param subject: The variable the restriction is on.
+    :return: The fold when *comparator* is ``subject.<chain> == <unconstrained Max/Min over a
+        different same-type variable's identical chain>``, else ``None``.
     """
     if subject is None or not isinstance(comparator, Comparator):
         return None

@@ -1,21 +1,3 @@
-"""
-English vocabulary for EQL verbalization.
-
-Every English word or phrase used in the verbalization output is defined here
-as a named constant on one of the namespace Enums.  No natural-language strings
-exist outside this module.
-
-Namespace Enums (Keywords, Logicals, …) have frozen-dataclass instances as
-member values; the VocabEnum mixin exposes .as_fragment() and .text directly on
-the member so callers never write .value explicitly.
-
-Parameterised phrases (ExistentialPhrase, GroupKeyPhrases, FallbackNouns) add
-delegation methods on the Enum that forward to build_phrase() / plural_fragment()
-on the underlying dataclass value.
-
-Operators uses OperatorPhrase values and exposes .select() + .from_callable().
-"""
-
 from __future__ import annotations
 
 import operator
@@ -69,16 +51,11 @@ class SingularExistential(PlainWord):
         self, type_name: str, referent_id: Optional[uuid.UUID] = None
     ) -> Fragment:
         """
-        Build *"there's a/an <type_name>"* as a
-        :class:`~krrood.entity_query_language.verbalization.fragments.base.PhraseFragment`.
+        Build *"there's a/an <type_name>"*.
 
         :param type_name: English noun in singular form (e.g. ``"Robot"``, ``"Apple"``).
-        :type type_name: str
-        :param referent_id: When given, the noun is a **referring** ``NounPhrase`` for that
-            entity (so the coreference pass marks it introduced and reduces later mentions to
-            *"the <type>"*); the indefinite article is then chosen by the determiner concord.
+        :param referent_id: When given, the noun is a referring noun phrase for that entity.
         :return: Phrase fragment with the correct indefinite article.
-        :rtype: ~krrood.entity_query_language.verbalization.fragments.base.Fragment
         """
         if referent_id is not None:
             return PhraseFragment(
@@ -107,13 +84,10 @@ class PluralExistential(PlainWord):
 
     def build_phrase(self, type_name: str) -> Fragment:
         """
-        Build *"there are <plural_type_name>"* as a
-        :class:`~krrood.entity_query_language.verbalization.fragments.base.PhraseFragment`.
+        Build *"there are <plural_type_name>"*.
 
         :param type_name: English noun in singular form; pluralised automatically.
-        :type type_name: str
         :return: Phrase fragment with pluralised type name.
-        :rtype: ~krrood.entity_query_language.verbalization.fragments.base.Fragment
         """
         return PhraseFragment(
             parts=[
@@ -132,17 +106,11 @@ class FallbackNounWord(PlainWord):
     """
     A fallback noun used when no type information is available from the expression.
 
-    Provides both :meth:`as_fragment` (singular) and :meth:`plural_fragment`.
+    Provides both a singular and a plural fragment.
     """
 
     def plural_fragment(self) -> WordFragment:
-        """
-        Return a :class:`~krrood.entity_query_language.verbalization.fragments.base.WordFragment`
-        tagged plural — the morphology pass pluralises it (e.g. ``"entity"`` → ``"entities"``).
-
-        :return: Plural-tagged noun fragment.
-        :rtype: ~krrood.entity_query_language.verbalization.fragments.base.WordFragment
-        """
+        """:return: A noun fragment tagged plural (e.g. ``"entity"`` → ``"entities"``)."""
         return WordFragment(text=self.text, number=Number.PLURAL)
 
 
@@ -150,24 +118,15 @@ class FallbackNounWord(PlainWord):
 class CommonGroupKeyWord(PlainWord):
     """
     Group-key binding phrase: *"the common <field> of the <plural_root>"*.
-
-    Used in the THEN clause when a consequent binding refers to a GROUP BY key.
     """
 
     def build_phrase(self, field_name: str, root: str) -> Fragment:
         """
         Build *"the common <field_name> of the <plural root>"*.
 
-        The root type name is pluralised here (this fixed lexicon frame owns its own
-        inflection, like the existential frames).
-
         :param field_name: Name of the grouped field (e.g. ``"location"``).
-        :type field_name: str
-        :param root: Singular root type name (e.g. ``"Robot"``); the morphology pass
-            pluralises the tagged root leaf.
-        :type root: str
+        :param root: Singular root type name (e.g. ``"Robot"``); pluralised in the phrase.
         :return: Phrase fragment.
-        :rtype: ~krrood.entity_query_language.verbalization.fragments.base.Fragment
         """
         return PhraseFragment(
             parts=[
@@ -231,9 +190,8 @@ class Copulas(VocabEnum):
 
     @classmethod
     def for_number(cls, number: Number) -> RoleFragment:
-        """The copula tagged with *number* (``OPERATOR`` role) for a directly-built leaf; the
-        morphology pass agrees it (*is* / *are*).  This is the one seam for copulas not produced
-        via ``ctx.child`` recursion (e.g. an InstantiatedVariable field binding)."""
+        """:return: The copula tagged with *number* for a directly-built leaf; the morphology
+        pass agrees it (*is* / *are*)."""
         return RoleFragment(text=cls.IS.text, role=SemanticRole.OPERATOR, number=number)
 
 
@@ -254,18 +212,15 @@ class Conjunctions(VocabEnum):
 
 
 class Punctuation(VocabEnum):
-    """Structural punctuation tokens — role-less, like the brackets around a SetOf tuple
-    (*"(v1, v2)"*) and the comma in a coordinated list (*"a, b, or c"*).  Kept in the lexicon
-    so no punctuation literal is hard-coded in the grammar.  :attr:`COMMA`'s ``text`` also seeds
-    the *", "* list separator passed to :class:`PhraseFragment`."""
+    """Structural punctuation tokens — role-less, like the brackets around a tuple (*"(v1, v2)"*)
+    and the comma in a coordinated list (*"a, b, or c"*)."""
 
     COMMA = PunctuationWord(",", glue=Glue.LEFT)
     OPEN_PAREN = PunctuationWord("(", glue=Glue.RIGHT)
     CLOSE_PAREN = PunctuationWord(")", glue=Glue.LEFT)
 
 
-#: The inline list separator (``", "``) seeded from :attr:`Punctuation.COMMA` — the
-#: ``separator`` of a comma-joined :class:`~krrood.entity_query_language.verbalization.fragments.base.PhraseFragment`.
+#: The inline list separator (``", "``).
 COMMA_SEPARATOR: str = Punctuation.COMMA.text + " "
 
 
@@ -278,15 +233,14 @@ class Pronouns(VocabEnum):
 
 class RangePhrases(VocabEnum):
     """
-    Range (``between``) operator phrases produced when a lower-bound and an
-    upper-bound comparison on the same attribute are folded together.
-
-    * :attr:`IS_BETWEEN` — standard form keeping the copula (*"is between"*).
-    * :attr:`BETWEEN` — copula-less form for HAVING / post-nominal use (*"between"*).
+    Range (``between``) operator phrases produced when a lower-bound and an upper-bound
+    comparison on the same attribute are folded together.
     """
 
     IS_BETWEEN = OperatorWord("is between")
+    """Standard form keeping the copula (*"is between"*)."""
     BETWEEN = OperatorWord("between")
+    """Copula-less form for HAVING / post-nominal use (*"between"*)."""
 
 
 class SortDirections(VocabEnum):
@@ -307,13 +261,9 @@ class Articles(VocabEnum):
     @staticmethod
     def indefinite(following_word: str) -> WordFragment:
         """
-        Return a :class:`~krrood.entity_query_language.verbalization.fragments.base.WordFragment`
-        containing *"a"* or *"an"* based on the phonological context of *following_word*.
-
         :param following_word: The word immediately following the article.
-        :type following_word: str
-        :return: ``WordFragment("a")`` or ``WordFragment("an")``.
-        :rtype: ~krrood.entity_query_language.verbalization.fragments.base.WordFragment
+        :return: A word fragment containing *"a"* or *"an"* based on the phonological context of
+            *following_word* — ``WordFragment("a")`` or ``WordFragment("an")``.
         """
         text = morphology.indefinite_article(following_word) if following_word else "a"
         return WordFragment(text=text)
@@ -322,8 +272,6 @@ class Articles(VocabEnum):
 class ExistentialPhrase(VocabEnum):
     """
     Parameterised existential phrases (*"there's a/an TypeName"*, *"there are TypeNames"*).
-
-    Call :meth:`build_phrase` on a member to produce the full fragment.
     """
 
     THERE_IS_A = SingularExistential("there's")
@@ -331,21 +279,18 @@ class ExistentialPhrase(VocabEnum):
 
     @classmethod
     def for_number(cls, number: Number) -> ExistentialPhrase:
-        """The existential frame agreeing with *number*: ``THERE_ARE`` / ``THERE_IS_A``."""
+        """:return: The existential frame agreeing with *number*: ``THERE_ARE`` / ``THERE_IS_A``."""
         return cls.THERE_ARE if number is Number.PLURAL else cls.THERE_IS_A
 
     def build_phrase(
         self, type_name: str, referent_id: Optional[uuid.UUID] = None
     ) -> Fragment:
         """
-        Delegate to the underlying :class:`SingularExistential` or :class:`PluralExistential`.
+        Build the existential phrase for *type_name*.
 
         :param type_name: English noun in singular form.
-        :type type_name: str
-        :param referent_id: Optional referent for coreference (singular only; see
-            :meth:`SingularExistential.build_phrase`).
+        :param referent_id: Optional referent for coreference (singular only).
         :return: Existential phrase fragment.
-        :rtype: ~krrood.entity_query_language.verbalization.fragments.base.Fragment
         """
         if referent_id is not None and self is ExistentialPhrase.THERE_IS_A:
             return self.value.build_phrase(type_name, referent_id=referent_id)
@@ -361,12 +306,7 @@ class FallbackNouns(VocabEnum):
     VARIABLE = FallbackNounWord("variable")
 
     def plural_fragment(self) -> WordFragment:
-        """
-        Return a plural :class:`~krrood.entity_query_language.verbalization.fragments.base.WordFragment`.
-
-        :return: Pluralised noun fragment (e.g. ``"entities"``).
-        :rtype: ~krrood.entity_query_language.verbalization.fragments.base.WordFragment
-        """
+        """:return: A pluralised noun fragment (e.g. ``"entities"``)."""
         return self.value.plural_fragment()
 
 
@@ -379,14 +319,11 @@ class GroupKeyPhrases(VocabEnum):
 
     def build_phrase(self, field_name: str, plural_root: str) -> Fragment:
         """
-        Delegate to :meth:`CommonGroupKeyWord.build_phrase`.
+        Build the group-key phrase.
 
         :param field_name: Grouped field name.
-        :type field_name: str
         :param plural_root: Plural root type name.
-        :type plural_root: str
         :return: Group-key phrase fragment.
-        :rtype: ~krrood.entity_query_language.verbalization.fragments.base.Fragment
         """
         return self.value.build_phrase(field_name, plural_root)
 
@@ -395,14 +332,7 @@ class Operators(Enum):
     """
     Comparison operator phrases.
 
-    Each member's value is an :class:`~krrood.entity_query_language.verbalization.vocabulary.words.OperatorPhrase`
-    holding all eight text variants.
-
-    * Use :meth:`select` to obtain the appropriate
-      :class:`~krrood.entity_query_language.verbalization.vocabulary.words.OperatorWord`
-      for given ``negated``, ``compact``, and ``temporal`` flags.
-    * Use :meth:`from_callable` to map a Python ``operator`` module callable
-      (e.g. ``operator.gt``) to the correct :class:`Operators` member.
+    Each member's value holds all eight text variants for one operator.
     """
 
     EQ = OperatorPhrase(
@@ -488,36 +418,29 @@ class Operators(Enum):
         self, *, negated: bool = False, compact: bool = False, temporal: bool = False
     ) -> OperatorWord:
         """
-        Delegate flag selection to the underlying
-        :class:`~krrood.entity_query_language.verbalization.vocabulary.words.OperatorPhrase`.
+        Select the operator word for the given flag combination.
 
         :param negated: Use the negated text variant.
-        :type negated: bool
         :param compact: Use the copula-less variant for HAVING clauses.
-        :type compact: bool
         :param temporal: Use the temporal variant for datetime comparisons.
-        :type temporal: bool
-        :return: Selected :class:`~krrood.entity_query_language.verbalization.vocabulary.words.OperatorWord`.
-        :rtype: ~krrood.entity_query_language.verbalization.vocabulary.words.OperatorWord
+        :return: Selected operator word.
         """
         return self.value.select(negated=negated, compact=compact, temporal=temporal)
 
     @classmethod
     def from_callable(cls, function) -> Operators:
         """
-        Map a Python ``operator`` module callable to the matching :class:`Operators` member.
+        Map a Python ``operator`` module callable to the matching member.
 
         :param function: A callable from the ``operator`` module (e.g. ``operator.gt``,
             ``operator.eq``) or the custom ``not_contains`` comparator.
-        :return: The corresponding :class:`Operators` member.
-        :rtype: Operators
+        :return: The corresponding member.
         :raises KeyError: If *function* has no registered mapping.
         """
         return _OPERATOR_CALLABLE_MAP[function]
 
 
-#: Map Python ``operator`` callables to :class:`Operators` members.
-#: Built once at module load time — avoids rebuilding on every call.
+#: Map Python ``operator`` callables to ``Operators`` members.
 _OPERATOR_CALLABLE_MAP: Dict[Callable, Operators] = {
     operator.eq: Operators.EQ,
     operator.ne: Operators.NE,

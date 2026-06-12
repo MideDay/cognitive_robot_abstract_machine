@@ -1,14 +1,3 @@
-"""
-Source documentation lookup — extracts the first docstring line for the class or
-attribute a :class:`~krrood.entity_query_language.verbalization.fragments.source_ref.SourceRef`
-points at.
-
-Used by the renderers to attach a one-line tooltip to source hyperlinks.  Attribute
-documentation follows the project convention of a bare string expression immediately
-below the field definition (a PEP 257 attribute docstring), which is extracted by
-parsing the class source with :mod:`ast`.
-"""
-
 from __future__ import annotations
 
 import ast
@@ -59,12 +48,10 @@ def _string_expression_first_line(node: ast.AST) -> Optional[str]:
 
 @lru_cache(maxsize=None)
 def _attribute_docstrings(cls: type) -> Dict[str, str]:
-    """Map field name to its first PEP 257 attribute docstring line for *cls*'s own body.
-
-    Parses the class source with :mod:`ast` and detects the pattern where an
-    annotated assignment is immediately followed by a bare string expression.
-    Returns an empty mapping when source is unavailable (e.g. C-extension classes).
-    Cached per class since AST parsing is comparatively costly.
+    """
+    :param cls: The class whose own body to scan.
+    :return: A mapping of field name to its first PEP 257 attribute docstring line, or an empty
+        mapping when the source is unavailable (e.g. C-extension classes).
     """
     try:
         source = textwrap.dedent(inspect.getsource(cls))
@@ -86,14 +73,13 @@ def _attribute_docstrings(cls: type) -> Dict[str, str]:
 
 
 def docstring_for_source_ref(source_ref: SourceRef) -> Optional[str]:
-    """The first docstring line for the class or field a :class:`SourceRef` points at.
-
-    For class-level references (``source_ref.attribute is None``), delegates to
-    :func:`first_docstring_line` on the class.  For attribute references, walks the MRO
-    looking for a PEP 257 attribute docstring extracted via :func:`_attribute_docstrings`.
+    """
+    Attribute documentation follows the project convention of a bare string expression
+    immediately below the field definition (a PEP 257 attribute docstring).
 
     :param source_ref: The source reference to document.
-    :return: The first docstring line, or ``None`` when no documentation is found.
+    :return: The first docstring line for the class or field *source_ref* points at, or ``None``
+        when no documentation is found.
     """
     if source_ref.attribute is None:
         return first_docstring_line(source_ref.owner_type)

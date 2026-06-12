@@ -1,16 +1,3 @@
-"""
-EQL verbalizer — the internal fragment **builder**.
-
-:class:`EQLVerbalizer` dispatches an EQL expression tree through the grammar
-:func:`~krrood.entity_query_language.verbalization.engine.fold` and runs the realisation passes,
-returning a :class:`~krrood.entity_query_language.verbalization.fragments.base.Fragment` tree.
-It is used by the
-:class:`~krrood.entity_query_language.verbalization.pipeline.VerbalizationPipeline`, which is the
-public entry point (and exposes the plain-text shortcut
-:func:`~krrood.entity_query_language.verbalization.pipeline.verbalize_expression`).  Use this
-class directly only when you need the fragment tree itself (e.g. fragment-level tests).
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -30,14 +17,7 @@ from krrood.entity_query_language.verbalization.rendering.realization import (
 @dataclass
 class EQLVerbalizer:
     """
-    Builds a :class:`~krrood.entity_query_language.verbalization.fragments.base.Fragment` tree
-    from an EQL expression — the fragment-producing core behind
-    :class:`~krrood.entity_query_language.verbalization.pipeline.VerbalizationPipeline`.
-
-    Dispatches via the grammar :func:`~krrood.entity_query_language.verbalization.engine.fold`:
-    a single catamorphism over the EQL tree that selects the most-specific
-    :class:`~krrood.entity_query_language.verbalization.grammar.phrase_rule.PhraseRule`
-    for each node (see :mod:`~krrood.entity_query_language.verbalization.grammar`).
+    Builds the natural-language fragment tree that represents an EQL expression.
     """
 
     def build(
@@ -46,19 +26,14 @@ class EQLVerbalizer:
         context: Optional[VerbalizationContext] = None,
     ) -> Fragment:
         """
-        Translate *expression* into a :class:`~krrood.entity_query_language.verbalization.fragments.base.Fragment` tree
-        via the grammar :func:`~krrood.entity_query_language.verbalization.engine.fold`, then run
-        the realisation passes.
+        Translate *expression* into its natural-language fragment tree.
 
         A fresh context is created when *context* is ``None``; pass a shared context across calls
-        for coreference (a Robot … the Robot).
+        so repeated mentions corefer (a Robot … the Robot).
 
         :param expression: Any EQL symbolic expression.
-        :type expression: ~krrood.entity_query_language.core.base_expressions.SymbolicExpression
         :param context: Shared verbalization state; created automatically when omitted.
-        :type context: ~krrood.entity_query_language.verbalization.context.VerbalizationContext or None
         :return: Root of the fragment tree representing *expression* in natural language.
-        :rtype: ~krrood.entity_query_language.verbalization.fragments.base.Fragment
         """
         if context is None:
             context = VerbalizationContext.from_expression(expression)

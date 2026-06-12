@@ -1,11 +1,3 @@
-"""
-Comparator **operator** selection — the single source of truth for the operator phrase of
-a :class:`~krrood.entity_query_language.operators.comparator.Comparator` (e.g. *"is greater
-than"*, *"is not equal to"*, *"is before"*).  The full *"<left> <operator> <right>"* phrase
-is assembled by
-:meth:`~krrood.entity_query_language.verbalization.grammar.conditions.verbalizer.ConditionVerbalizer.predicate`.
-"""
-
 from __future__ import annotations
 
 import operator
@@ -51,7 +43,6 @@ def comparator_operator(
     :param compact: Copula-less variant (HAVING clauses).  Defaults to
         ``context.config.compact_predicates`` when ``None``.
     :return: The operator fragment.
-    :rtype: ~krrood.entity_query_language.verbalization.fragments.base.Fragment
     """
     if compact is None:
         compact = context.config.compact_predicates

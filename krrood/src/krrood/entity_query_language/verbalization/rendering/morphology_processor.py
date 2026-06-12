@@ -1,22 +1,3 @@
-"""
-MorphologyProcessor — the single realisation pass that **applies grammatical agreement**.
-
-Assemblers and lexicon frames *tag* a leaf with
-:attr:`~krrood.entity_query_language.verbalization.fragments.features.Number` (a decision);
-this one pass walks the finished fragment tree (via
-:func:`~krrood.entity_query_language.verbalization.fragments.base.map_fragment`) and
-realises every leaf tagged :attr:`Number.PLURAL`:
-
-* a **noun** (any role-tagged or role-less content leaf) → pluralised text;
-* a **copula** (an ``OPERATOR`` leaf, i.e. *"is"* / *"is not"*) → its plural suppletion
-  (*"are"* / *"are not"*).
-
-So number *inflection* and copula *agreement* are applied in exactly one place instead of
-inline at every assembler / lexicon frame.
-
-Reference: Gatt & Reiter (2009), SimpleNLG — the MorphologyProcessor realisation stage.
-"""
-
 from __future__ import annotations
 
 from dataclasses import replace
@@ -40,10 +21,25 @@ _COPULA_PLURAL = {
 
 
 class MorphologyProcessor:
-    """Realise grammatical number on every leaf tagged :attr:`Number.PLURAL`."""
+    """
+    Realise grammatical number on every leaf tagged plural — the single realisation pass that
+    applies grammatical agreement.
+
+    Assemblers and lexicon frames tag a leaf with a grammatical number (a decision); this pass
+    walks the finished fragment tree and realises every leaf tagged plural:
+
+    * a noun (any role-tagged or role-less content leaf) → pluralised text;
+    * a copula (an ``OPERATOR`` leaf, i.e. *"is"* / *"is not"*) → its plural suppletion (*"are"*
+      / *"are not"*).
+
+    Reference: Gatt & Reiter (2009), SimpleNLG — the MorphologyProcessor realisation stage.
+    """
 
     def process(self, fragment: Fragment) -> Fragment:
-        """Return a new tree with all plural-tagged leaves agreed/inflected (idempotent)."""
+        """
+        :param fragment: Root of the fragment tree.
+        :return: A new tree with all plural-tagged leaves agreed/inflected (idempotent).
+        """
         return map_fragment(fragment, self._inflect)
 
     @staticmethod

@@ -1,18 +1,3 @@
-"""
-Inference-rule **planner** — pure structural analysis of an
-:class:`~krrood.entity_query_language.query.query.Entity` whose selected variable is an
-:class:`~krrood.entity_query_language.core.variable.InstantiatedVariable` (an inference
-rule) into a :class:`RuleStructure` (the IF/THEN decomposition).
-
-This is the analysis half of the planner/assembler split (see
-:class:`~krrood.entity_query_language.verbalization.grammar.planning.base.Planner`):
-it produces a plain data record of decisions and never builds fragments, touches the
-context, or recurses.  The realisation lives in
-:class:`~krrood.entity_query_language.verbalization.grammar.assembly.inference.InferenceAssembler`.
-
-Reference: Reiter & Dale (2000) — content/structure determination (microplanning).
-"""
-
 from __future__ import annotations
 
 import operator
@@ -20,8 +5,9 @@ import uuid
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-from typing_extensions import Any, Dict, FrozenSet, List, Optional, Tuple
+from typing_extensions import Dict, FrozenSet, List, Optional, Tuple, Union
 
+from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.mapped_variable import Attribute
 from krrood.entity_query_language.core.variable import InstantiatedVariable, Variable
 from krrood.entity_query_language.operators.comparator import Comparator
@@ -45,28 +31,25 @@ from krrood.entity_query_language.verbalization.vocabulary.english import Fallba
 class AggregationStatus(Enum):
     """
     How a consequent binding or antecedent relates to the GROUP BY clause.
-
-    :cvar GROUP_KEY: This expression is one of the ``grouped_by`` key variables.
-    :cvar AGGREGATED: Present in the query but not a group key — rendered in plural form.
-    :cvar NONE: No grouping context in this query.
     """
 
     GROUP_KEY = auto()
+    """This expression is one of the ``grouped_by`` key variables."""
     AGGREGATED = auto()
+    """Present in the query but not a group key — rendered in plural form."""
     NONE = auto()
+    """No grouping context in this query."""
 
 
 @dataclass
 class ConditionPlan:
-    """One antecedent WHERE condition, with the foldability decided up front.
+    """One antecedent WHERE condition, with its foldability decided up front.
 
-    ``whose_attribute_name`` is the (singular) attribute name when the condition is a single-hop
-    attribute equality that folds into a *"whose <attr> is …"* modifier, else ``None``
-    (render the condition normally).  Deciding this here keeps the assembler free of
-    analysis.
+    ``whose_attribute_name`` is the singular attribute name when the condition is a single-hop
+    attribute equality that folds into a *"whose <attr> is …"* modifier, else ``None``.
     """
 
-    expression: Any
+    expression: SymbolicExpression
     """The raw EQL condition expression."""
 
     whose_attribute_name: Optional[str]
@@ -77,7 +60,7 @@ class ConditionPlan:
 class AntecedentInfo:
     """Descriptor for one antecedent variable in the IF clause."""
 
-    root: Any
+    root: Union[Variable, Entity]
     """The underlying Variable/Entity (unwrapped from any ResultQuantifier)."""
 
     type_name: str
@@ -97,7 +80,7 @@ class ConsequentBinding:
     field_name: str
     """Python attribute name on the consequent type (e.g. ``"tasks"``)."""
 
-    value_expression: Any
+    value_expression: SymbolicExpression
     """EQL expression providing the value for *field_name*."""
 
     is_plural_field: bool
@@ -123,7 +106,7 @@ class RuleStructure:
     consequent_bindings: List[ConsequentBinding]
     """Ordered field bindings for the THEN clause."""
 
-    unmatched_conditions: List[Any]
+    unmatched_conditions: List[SymbolicExpression]
     """Outer WHERE conditions not attributable to any antecedent."""
 
     group_key_ids: FrozenSet[uuid.UUID]
@@ -133,22 +116,23 @@ class RuleStructure:
 @dataclass
 class InferencePlanner(Planner[Entity, RuleStructure]):
     """
-    Decompose an inference-rule :class:`~krrood.entity_query_language.query.query.Entity`
-    into a :class:`RuleStructure`.
+    Decompose an inference-rule query (an entity whose selected variable is an instantiated
+    variable) into a ``RuleStructure`` (the IF/THEN decomposition).
 
-    Algorithm: collect GROUP BY key ids; walk each consequent field binding to build
-    :class:`ConsequentBinding` entries and discover antecedent roots; attribute outer
-    WHERE conditions to antecedents by matching the left-hand root id; split antecedents
-    into primary (have conditions) and secondary (none).
+    Reference: Reiter & Dale (2000) — content/structure determination (microplanning).
     """
 
     @staticmethod
-    def can_handle(entity) -> bool:
-        """Return ``True`` when *entity*'s selected variable is an InstantiatedVariable."""
+    def can_handle(entity: Entity) -> bool:
+        """
+        :param entity: Candidate query.
+        :return: ``True`` when *entity*'s selected variable is an instantiated variable.
+        """
         entity.build()
         return isinstance(entity.selected_variable, InstantiatedVariable)
 
     def plan(self) -> RuleStructure:
+        """:return: The IF/THEN decomposition: antecedents, consequent bindings, and grouping."""
         self.node.build()
         group_key_ids = self._group_key_ids()
         antecedents, unmatched = self._plan_antecedents(group_key_ids)
@@ -169,7 +153,7 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
 
     @property
     def _inferred(self) -> InstantiatedVariable:
-        """The InstantiatedVariable selected by the entity (after build)."""
+        """:return: The instantiated variable selected by the entity (after build)."""
         return self.node.selected_variable
 
     def _consequent_type(self) -> str:
@@ -186,9 +170,9 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
 
     @staticmethod
     def _aggregation_status(
-        node_id, group_key_ids: FrozenSet[uuid.UUID]
+        node_id: uuid.UUID, group_key_ids: FrozenSet[uuid.UUID]
     ) -> AggregationStatus:
-        """GROUP_KEY if a group key, else AGGREGATED when grouping is present, else NONE."""
+        """:return: GROUP_KEY if a group key, else AGGREGATED when grouping is present, else NONE."""
         if node_id in group_key_ids:
             return AggregationStatus.GROUP_KEY
         return AggregationStatus.AGGREGATED if group_key_ids else AggregationStatus.NONE
@@ -212,11 +196,11 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
 
     def _plan_antecedents(
         self, group_key_ids: FrozenSet[uuid.UUID]
-    ) -> Tuple[List[AntecedentInfo], List[Any]]:
+    ) -> Tuple[List[AntecedentInfo], List[SymbolicExpression]]:
         """Discover antecedent roots, then attribute outer-WHERE conditions to them.
 
-        Returns the antecedents (their ``conditions`` mutated in place) and the
-        conditions that matched no antecedent.
+        :return: The antecedents (their ``conditions`` mutated in place) and the conditions that
+            matched no antecedent.
         """
         antecedents = self._discover_antecedents(group_key_ids)
         unmatched = self._attribute_conditions(antecedents, self._outer_conditions())
@@ -239,19 +223,24 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
             )
         return list(antecedents_by_root_id.values())
 
-    def _outer_conditions(self) -> List[Any]:
+    def _outer_conditions(self) -> List[SymbolicExpression]:
         where = self.node._where_expression_
         return flatten_operands(where.condition, AND) if where is not None else []
 
     def _attribute_conditions(
-        self, antecedents: List[AntecedentInfo], extra_conditions: List[Any]
-    ) -> List[Any]:
-        """Distribute outer-WHERE conditions to owning antecedents (in place); return unmatched."""
+        self,
+        antecedents: List[AntecedentInfo],
+        extra_conditions: List[SymbolicExpression],
+    ) -> List[SymbolicExpression]:
+        """Distribute outer-WHERE conditions to owning antecedents (in place).
+
+        :return: The conditions that matched no antecedent.
+        """
         id_to_antecedent = {
             self._antecedent_variable_id(antecedent): antecedent
             for antecedent in antecedents
         }
-        unmatched: List[Any] = []
+        unmatched: List[SymbolicExpression] = []
         for condition in extra_conditions:
             owner_id = self._condition_left_owner_id(condition)
             if owner_id is not None and owner_id in id_to_antecedent:
@@ -263,15 +252,18 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
     def _antecedent_variable_id(
         self, antecedent: AntecedentInfo
     ) -> Optional[uuid.UUID]:
-        """Stable ``_id_`` of the underlying variable for an antecedent."""
+        """:return: The stable ``_id_`` of the underlying variable for an antecedent."""
         root = antecedent.root
         if isinstance(root, Entity):
             root.build()
             return getattr(root.selected_variable, "_id_", None)
         return getattr(root, "_id_", None)
 
-    def _condition_left_owner_id(self, condition) -> Optional[uuid.UUID]:
-        """``_id_`` of the root variable on the LHS of an equality condition, else ``None``."""
+    def _condition_left_owner_id(
+        self, condition: SymbolicExpression
+    ) -> Optional[uuid.UUID]:
+        """:return: The ``_id_`` of the root variable on the LHS of an equality condition, else
+        ``None``."""
         if (
             not isinstance(condition, Comparator)
             or condition.operation is not operator.eq
@@ -280,14 +272,18 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
         current = unwrap_result_quantifiers(chain_root(condition.left))
         return getattr(current, "_id_", None)
 
-    def _find_root(self, expression) -> Optional[Any]:
+    def _find_root(
+        self, expression: SymbolicExpression
+    ) -> Optional[Union[Variable, Entity]]:
         current = unwrap_result_quantifiers(chain_root(expression))
         if isinstance(current, (Variable, Entity)):
             return current
         return None
 
-    def _extract_root_info(self, root) -> Tuple[str, List[ConditionPlan]]:
-        """Return ``(type_name, own_conditions)`` for a root Variable or Entity."""
+    def _extract_root_info(
+        self, root: Union[Variable, Entity]
+    ) -> Tuple[str, List[ConditionPlan]]:
+        """:return: ``(type_name, own_conditions)`` for a root variable or entity."""
         if isinstance(root, Entity):
             root.build()
             selected = root.selected_variable
@@ -316,18 +312,19 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
 
     # ── condition foldability (the *whose* analysis — decided here, not in assembly) ──
 
-    def _planned(self, condition) -> ConditionPlan:
-        """Wrap a raw condition with its pre-decided *whose*-foldability."""
+    def _planned(self, condition: SymbolicExpression) -> ConditionPlan:
+        """:return: *condition* wrapped with its pre-decided *whose*-foldability."""
         return ConditionPlan(
             expression=condition,
             whose_attribute_name=self._whose_attribute_name(condition),
         )
 
-    def _whose_attribute_name(self, condition) -> Optional[str]:
-        """Singular attribute name when *condition* folds to *"whose <attr> is …"*, else ``None``.
-
-        Foldable iff it is an attribute equality (``Attribute == value``); the modifier
+    def _whose_attribute_name(self, condition: SymbolicExpression) -> Optional[str]:
+        """Foldable iff it is an attribute equality (``Attribute == value``); the modifier
         attribute is the last hop of the attribute chain.
+
+        :return: The singular attribute name when *condition* folds to *"whose <attr> is …"*,
+            else ``None``.
         """
         if (
             not isinstance(condition, Comparator)

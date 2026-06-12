@@ -1,31 +1,3 @@
-"""
-Coordination — the microplanning task of combining several clauses/constituents
-into more concise English by joining them with coordinating conjunctions.
-
-In the Reiter & Dale microplanning model this is the **aggregation** task; its
-principal linguistic realisation is *coordination* (joining constituents with
-*and* / *or*, plus conjunction reduction such as folding ``x >= lo`` and
-``x <= hi`` into ``x is between lo and hi``).  The module is named
-**coordination** rather than *aggregation* to avoid collision with EQL's own
-:class:`~krrood.entity_query_language.operators.aggregators.Aggregator`
-operators (Count / Sum / …), which are a different concept entirely.
-
-This module owns the EQL-level coordination decisions — detecting complementary
-bound comparisons on the same attribute chain and folding them into a single
-:class:`RangeFold` — rendered as a *between* phrase by :func:`build_between`.
-Fragment-level conjunction joining (Oxford-comma assembly) lives with the phrase
-IR as
-:func:`~krrood.entity_query_language.verbalization.fragments.base.oxford_and`.
-
-References:
-
-* Reiter, E. & Dale, R. (2000), "Building Natural Language Generation Systems",
-  CUP — *aggregation* as a microplanning task.
-* Dalianis, H. (1999), "Aggregation in Natural Language Generation",
-  *Computational Intelligence* 15(4) — aggregation realised via coordination /
-  conjunction reduction.
-"""
-
 from __future__ import annotations
 
 import operator
@@ -83,8 +55,9 @@ class _Bound(Enum):
     UPPER = auto()
 
 
-def _chain_key(expression) -> Optional[ChainKey]:
-    """Hashable identity of a pure attribute chain: ``(root_id, ((name, owner), …))`` or ``None``."""
+def _chain_key(expression: SymbolicExpression) -> Optional[ChainKey]:
+    """:return: The hashable identity of a pure attribute chain — ``(root_id, ((name, owner),
+    …))`` — or ``None``."""
     if not isinstance(expression, MappedVariable):
         return None
     chain, root = walk_chain(expression)
@@ -98,8 +71,11 @@ def _chain_key(expression) -> Optional[ChainKey]:
     return (root._id_, tuple(parts))
 
 
-def _classify(conjunct) -> Optional[Tuple[ChainKey, _Bound]]:
-    """Return ``(chain_key, _Bound)`` when *conjunct* is a bound comparison, else ``None``."""
+def _classify(conjunct: SymbolicExpression) -> Optional[Tuple[ChainKey, _Bound]]:
+    """
+    :param conjunct: A candidate conjunct.
+    :return: ``(chain_key, _Bound)`` when *conjunct* is a bound comparison, else ``None``.
+    """
     if not isinstance(conjunct, Comparator):
         return None
     key = _chain_key(conjunct.left)
@@ -112,21 +88,27 @@ def _classify(conjunct) -> Optional[Tuple[ChainKey, _Bound]]:
     return None
 
 
-def fold_range_pairs(conjuncts: List) -> List[Union[SymbolicExpression, RangeFold]]:
+def fold_range_pairs(
+    conjuncts: List[SymbolicExpression],
+) -> List[Union[SymbolicExpression, RangeFold]]:
     """
-    Fold complementary lower/upper bound comparisons on the same chain into
-    :class:`RangeFold` items, preserving the order of everything else.
+    Fold complementary lower/upper bound comparisons on the same chain into range items,
+    preserving the order of everything else.
 
-    Direction (not position) decides which operand is the lower vs upper bound, so
-    ``t.x <= hi`` written before ``t.x >= lo`` still yields ``between lo and hi``.  A single
-    forward pass keeps, per chain, a queue of bounds still awaiting their complement (always
-    one direction at a time — an opposite bound folds rather than enqueues).  The fold replaces
-    the *earlier* member's slot and drops the later one, so output order is the input order.
+    This is the coordination (aggregation) microplanning task — conjunction reduction folding
+    ``x >= lo`` and ``x <= hi`` into ``x is between lo and hi``. Direction (not position) decides
+    which operand is the lower vs upper bound, so ``t.x <= hi`` written before ``t.x >= lo`` still
+    yields ``between lo and hi``.
+
+    References:
+
+    * Reiter, E. & Dale, R. (2000), "Building Natural Language Generation Systems", CUP —
+      aggregation as a microplanning task.
+    * Dalianis, H. (1999), "Aggregation in Natural Language Generation", *Computational
+      Intelligence* 15(4) — aggregation realised via coordination / conjunction reduction.
 
     :param conjuncts: A flat list of conjuncts (e.g. the operands of an ``AND``).
-    :return: A list whose items are either the original expressions or
-        :class:`RangeFold` instances.
-    :rtype: list
+    :return: A list whose items are either the original expressions or range folds.
     """
     infos = [_classify(conjunct) for conjunct in conjuncts]
     slots: List[Union[SymbolicExpression, RangeFold]] = list(conjuncts)
@@ -157,8 +139,11 @@ def fold_range_pairs(conjuncts: List) -> List[Union[SymbolicExpression, RangeFol
     return [slot for index, slot in enumerate(slots) if not dropped[index]]
 
 
-def has_pair(conjuncts: List) -> bool:
-    """Return ``True`` when :func:`fold_range_pairs` would produce at least one :class:`RangeFold`."""
+def has_pair(conjuncts: List[SymbolicExpression]) -> bool:
+    """
+    :param conjuncts: A flat list of conjuncts.
+    :return: ``True`` when range folding would produce at least one range fold.
+    """
     return any(isinstance(item, RangeFold) for item in fold_range_pairs(conjuncts))
 
 
@@ -169,13 +154,10 @@ def fragment_for_folded_conjunct(
     compact: bool,
 ) -> Fragment:
     """
-    Render one item of a :func:`fold_range_pairs` result: a :class:`RangeFold` becomes a
-    *between* phrase (:func:`build_between`); any other conjunct is rendered via *child*.
+    Render one folded conjunct: a range fold becomes a *between* phrase; any other conjunct is
+    rendered via *child*.
 
-    The single home of the fold-or-recurse decision, shared by the range conjunction rule
-    and the residual-restriction renderer.
-
-    :param item: A folded conjunct (a :class:`RangeFold` or a raw expression).
+    :param item: A folded conjunct (a range fold or a raw expression).
     :param child: The fold continuation rendering a raw expression.
     :param compact: Drop the copula in the *between* phrase (HAVING / post-nominal contexts).
     :return: The fragment for *item*.
@@ -200,15 +182,11 @@ def build_between(
     """
     Build *"<left> is between <lo> and <hi>"* (or copula-less *"<left> between …"* when *compact*).
 
-    Bounds are joined with :func:`~krrood.entity_query_language.verbalization.fragments.base.oxford_and`
-    to match the codebase's Oxford-comma style (e.g. *"between May 15, 2026, and May 30, 2026"*).
-
     :param left_fragment: The already-rendered left side (a full chain, or a bare attribute).
     :param lower_fragment: Rendered lower-bound value.
     :param upper_fragment: Rendered upper-bound value.
     :param compact: Drop the copula (for HAVING / post-nominal contexts).
     :return: The range phrase fragment.
-    :rtype: ~krrood.entity_query_language.verbalization.fragments.base.Fragment
     """
     op = (RangePhrases.BETWEEN if compact else RangePhrases.IS_BETWEEN).as_fragment()
     bounds = oxford_and(

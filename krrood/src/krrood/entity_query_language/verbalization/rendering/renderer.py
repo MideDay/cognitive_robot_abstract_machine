@@ -1,16 +1,3 @@
-"""
-Fragment renderers — convert a :class:`~krrood.entity_query_language.verbalization.fragments.base.Fragment`
-tree into a string.
-
-* :class:`ParagraphRenderer` — flattens everything into one prose line.
-* :class:`HierarchicalRenderer` — indented bullet list, one bullet per block item.
-
-Both accept a :class:`~krrood.entity_query_language.verbalization.rendering.formatter.Formatter`
-for colour / spacing control and an optional
-:class:`~krrood.entity_query_language.verbalization.rendering.source_link_resolver.SourceLinkResolver`
-for hyperlinks.
-"""
-
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -41,47 +28,37 @@ if TYPE_CHECKING:
 @dataclass
 class FragmentRenderer(ABC):
     """
-    Abstract base that converts a
-    :class:`~krrood.entity_query_language.verbalization.fragments.base.Fragment`
-    tree into a string.
+    Abstract base that converts a fragment tree into a string.
 
-    Subclasses differ in how they handle
-    :class:`~krrood.entity_query_language.verbalization.fragments.base.BlockFragment` nesting:
-
-    * :class:`ParagraphRenderer` — flattens everything into one prose string.
-    * :class:`HierarchicalRenderer` — renders blocks as indented bullet lists.
+    Subclasses differ in how they handle block nesting: paragraph rendering flattens into one
+    prose string; hierarchical rendering renders blocks as indented bullet lists.
     """
 
     formatter: Formatter = field(default_factory=PlainFormatter)
     """Format-specific markup logic (plain, ANSI, HTML)."""
 
     link_resolver: Optional[SourceLinkResolver] = field(default=None)
-    """Optional resolver that maps SourceRef instances to URL strings."""
+    """Optional resolver that maps source references to URL strings."""
 
     @abstractmethod
     def render(self, fragment: Fragment) -> str:
         """
-        Render a :class:`~krrood.entity_query_language.verbalization.fragments.base.Fragment`
-        tree into a string.
+        Render a fragment tree into a string.
 
         :param fragment: Root of the fragment tree to render.
-        :type fragment: ~krrood.entity_query_language.verbalization.fragments.base.Fragment
         :return: Formatted string representation.
-        :rtype: str
         """
         ...
 
     def _render_role(self, text: str, role, source_ref) -> str:
         """
-        Colorise *text* for *role* and, when a resolver and source ref are present,
-        wrap the result with a hyperlink.
+        Colorise *text* for *role* and, when a resolver and source ref are present, wrap the
+        result with a hyperlink.
 
         :param text: Plain display text.
-        :type text: str
         :param role: Semantic role for colour lookup.
         :param source_ref: Source reference for link resolution; may be ``None``.
         :return: Coloured (and optionally linked) string.
-        :rtype: str
         """
         colored = self.formatter.colorize(text, role)
         if source_ref is not None and self.link_resolver is not None:
@@ -97,13 +74,8 @@ class ParagraphRenderer(FragmentRenderer):
     """
     Flattens the entire fragment tree into a single prose string.
 
-    :class:`~krrood.entity_query_language.verbalization.fragments.base.BlockFragment`
-    headers and items are joined with the formatter's space character; nesting
-    adds no visual structure — only content is preserved.
-
-    This is the default renderer used by
-    :func:`~krrood.entity_query_language.verbalization.pipeline.verbalize_expression`
-    and :meth:`~krrood.entity_query_language.verbalization.pipeline.VerbalizationPipeline.plain`.
+    Block headers and items are joined with the formatter's space character; nesting adds no
+    visual structure — only content is preserved.
     """
 
     def render(self, fragment: Fragment) -> str:
@@ -111,9 +83,7 @@ class ParagraphRenderer(FragmentRenderer):
         Render *fragment* and all descendants into a flat prose string.
 
         :param fragment: Root of the fragment tree.
-        :type fragment: ~krrood.entity_query_language.verbalization.fragments.base.Fragment
         :return: Plain or coloured prose string (no newlines or bullets).
-        :rtype: str
         """
 
         def _block(block: BlockFragment) -> str:
@@ -135,12 +105,9 @@ class ParagraphRenderer(FragmentRenderer):
 @dataclass
 class HierarchicalRenderer(FragmentRenderer):
     """
-    Renders :class:`~krrood.entity_query_language.verbalization.fragments.base.BlockFragment`
-    trees as indented bullet lists.
+    Renders block trees as indented bullet lists.
 
-    Each level of :class:`~krrood.entity_query_language.verbalization.fragments.base.BlockFragment`
-    nesting adds one :attr:`indent_size` step.  Non-block fragments are rendered
-    inline using :meth:`_inline`.
+    Each level of block nesting adds one indent step; non-block fragments are rendered inline.
 
     Example output (plain)::
 
@@ -163,11 +130,8 @@ class HierarchicalRenderer(FragmentRenderer):
         Render *fragment* with indented bullet structure.
 
         :param fragment: Root of the fragment tree.
-        :type fragment: ~krrood.entity_query_language.verbalization.fragments.base.Fragment
-        :param depth: Current indentation depth (incremented for each BlockFragment level).
-        :type depth: int
+        :param depth: Current indentation depth (incremented for each block level).
         :return: Multi-line string with bullets and indentation.
-        :rtype: str
         """
         match fragment:
             case BlockFragment(header=header, items=items):
@@ -183,7 +147,7 @@ class HierarchicalRenderer(FragmentRenderer):
 
     @property
     def formatted_indent(self) -> str:
-        """The indentation string, with spaces replaced by the formatter's space character."""
+        """:return: The indentation string, with spaces replaced by the formatter's space character."""
         return self.indent_size.value.replace(" ", self.formatter.space)
 
     def _render_item(self, fragment: Fragment, depth: int) -> str:
@@ -200,12 +164,7 @@ class HierarchicalRenderer(FragmentRenderer):
                 return prefix + self._inline(fragment)
 
     def _inline(self, fragment: Fragment) -> str:
-        """Render a non-block fragment as a flat inline string.
-
-        Expressed as a :func:`~krrood.entity_query_language.verbalization.fragments.base.fold_fragment`;
-        a nested block falls back to the depth-aware :meth:`render` so its indented
-        layout is preserved.
-        """
+        """Render a non-block fragment as a flat inline string."""
         return fold_fragment(
             fragment,
             word=lambda text: text,
