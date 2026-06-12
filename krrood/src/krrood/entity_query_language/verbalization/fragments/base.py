@@ -49,18 +49,44 @@ class Fragment:
 
 
 @dataclass
-class WordFragment(Fragment):
-    """Plain neutral text with no semantic role: articles, connectives, punctuation.
+class HasText:
+    """Mixin contributing the display :attr:`text` field — its **one** definition, shared by
+    :class:`WordFragment` and :class:`RoleFragment` instead of being redeclared on each.
 
-    May also carry a noun rendered role-lessly (e.g. a group-key root); such a leaf can be
-    tagged :attr:`number` for the morphology pass to pluralise, like a ``RoleFragment``.
+    ``text`` is a regular (positional) field so the existing positional constructions
+    (``WordFragment("the")``, ``RoleFragment("Robot", role)``) keep working unchanged.
     """
 
     text: str
-    """The raw text string (e.g. ``"the"``, ``"and"``, ``","``)."""
+    """The display text string (e.g. ``"the"``, ``"Robot"``, ``"is greater than"``)."""
 
-    number: Number = Number.SINGULAR
-    """Grammatical number *feature* — the morphology pass pluralises a ``PLURAL`` leaf's text."""
+
+@dataclass
+class HasNumber:
+    """Mixin contributing the grammatical :attr:`number` field — its **one** definition, shared by
+    every fragment whose *own* surface text the
+    :class:`~krrood.entity_query_language.verbalization.rendering.morphology_processor.MorphologyProcessor`
+    pluralises (:class:`WordFragment`, :class:`RoleFragment`, :class:`NounPhrase`).
+
+    Declared ``kw_only`` so it never disturbs the positional / required-field ordering of the
+    concrete fragments (e.g. ``RoleFragment``'s required ``role``) — and every call site already
+    passes ``number=`` by keyword, so this is transparent.  Note this is deliberately *not* used
+    by :class:`SubjectScope`, whose ``subject_number`` is the *antecedent's* agreement number (a
+    different concept the morphology pass never reads), not this node's own number.
+    """
+
+    number: Number = field(default=Number.SINGULAR, kw_only=True)
+    """Grammatical number *feature* — the morphology pass pluralises a ``PLURAL`` node's text."""
+
+
+@dataclass
+class WordFragment(HasText, HasNumber, Fragment):
+    """Plain neutral text with no semantic role: articles, connectives, punctuation.
+
+    May also carry a noun rendered role-lessly (e.g. a group-key root); such a leaf can be
+    tagged :attr:`number` (from :class:`HasNumber`) for the morphology pass to pluralise, like a
+    ``RoleFragment``.  :attr:`text` comes from :class:`HasText`.
+    """
 
     glue: Glue = Glue.NONE
     """Orthographic spacing — the orthography pass removes the space adjacent to a ``LEFT`` /
@@ -68,14 +94,15 @@ class WordFragment(Fragment):
 
 
 @dataclass
-class RoleFragment(Fragment):
+class RoleFragment(HasText, HasNumber, Fragment):
     """
     Text carrying a :class:`~krrood.entity_query_language.verbalization.fragments.roles.SemanticRole`
     — drives colour markup and optional source hyperlinking.
-    """
 
-    text: str
-    """Display text (e.g. ``"Robot"``, ``"is greater than"``)."""
+    :attr:`text` comes from :class:`HasText`; the grammatical :attr:`number` feature (pluralised by
+    the :class:`~krrood.entity_query_language.verbalization.rendering.morphology_processor.MorphologyProcessor`
+    pass) comes from :class:`HasNumber`.
+    """
 
     role: SemanticRole
     """Semantic role determining the colour applied by the formatter."""
@@ -85,11 +112,6 @@ class RoleFragment(Fragment):
     used by
     :class:`~krrood.entity_query_language.verbalization.rendering.source_link_resolver.SourceLinkResolver`
     to build hyperlinks."""
-
-    number: Number = Number.SINGULAR
-    """Grammatical number *feature* (not yet applied to :attr:`text`).  The
-    :class:`~krrood.entity_query_language.verbalization.rendering.morphology_processor.MorphologyProcessor`
-    pass pluralises the text of leaves tagged :attr:`Number.PLURAL`."""
 
     @classmethod
     def for_variable(
@@ -163,7 +185,7 @@ class PhraseFragment(Fragment):
 
 
 @dataclass
-class NounPhrase(Fragment):
+class NounPhrase(HasNumber, Fragment):
     """
     A **noun-phrase specification** (a determiner phrase / DP) — carries the grammatical
     features of a noun phrase, *not* its surface determiner.
@@ -175,15 +197,15 @@ class NounPhrase(Fragment):
     :class:`Number` so the morphology pass inflects it.  Centralising the determiner decision
     here means it lives in exactly one place instead of being re-decided at every NP site.
 
+    The grammatical :attr:`number` feature (driving head inflection and determiner concord) comes
+    from :class:`HasNumber`.
+
     Reference: Gatt & Reiter (2009), SimpleNLG — ``NPPhraseSpec`` (a phrase spec carrying
     number / definiteness features, realised by a downstream processor).
     """
 
     head: Fragment
     """The noun leaf/sub-phrase the determiner attaches to (e.g. a ``VARIABLE``-role noun)."""
-
-    number: Number = Number.SINGULAR
-    """Grammatical number — drives both head inflection and the determiner concord."""
 
     definiteness: Definiteness = Definiteness.INDEFINITE
     """Determiner-system feature — selects *"a/an"* / *"the"* / no determiner."""
