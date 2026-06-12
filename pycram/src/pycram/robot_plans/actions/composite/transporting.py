@@ -132,7 +132,9 @@ class TransportAction(ActionDescription):
                 ParkArmsAction(Arms.BOTH).action_plan_for_context(self.context),
                 MoveTorsoAction(TorsoState.HIGH).action_plan_for_context(self.context),
                 self._make_navigate_action_for_placing(self.grasp_description),
-                PlaceAction(self.object_designator, self.target_location, self.arm).action_plan_for_context(self.context),
+                PlaceAction(
+                    self.object_designator, self.target_location, self.arm
+                ).action_plan_for_context(self.context),
                 ParkArmsAction(Arms.BOTH).action_plan_for_context(self.context),
             ]
         )
@@ -189,7 +191,9 @@ class PickAndPlaceAction(ActionDescription):
                     grasp_description=self.grasp_description,
                 ).action_plan_for_context(self.context),
                 ParkArmsAction(Arms.BOTH).action_plan_for_context(self.context),
-                PlaceAction(self.object_designator, self.target_location, self.arm).action_plan_for_context(self.context),
+                PlaceAction(
+                    self.object_designator, self.target_location, self.arm
+                ).action_plan_for_context(self.context),
                 ParkArmsAction(Arms.BOTH).action_plan_for_context(self.context),
             ]
         )
@@ -230,9 +234,15 @@ class MoveAndPlaceAction(ActionDescription):
     def _action_plan(self) -> PlanNode:
         return sequential(
             [
-                NavigateAction(self.standing_position, self.keep_joint_states).action_plan_for_context(self.context),
-                FaceAtAction(self.target_location, self.keep_joint_states).action_plan_for_context(self.context),
-                PlaceAction(self.object_designator, self.target_location, self.arm).action_plan_for_context(self.context),
+                NavigateAction(
+                    self.standing_position, self.keep_joint_states
+                ).action_plan_for_context(self.context),
+                FaceAtAction(
+                    self.target_location, self.keep_joint_states
+                ).action_plan_for_context(self.context),
+                PlaceAction(
+                    self.object_designator, self.target_location, self.arm
+                ).action_plan_for_context(self.context),
             ]
         )
 
@@ -272,10 +282,14 @@ class MoveAndPickUpAction(ActionDescription):
     def _action_plan(self) -> PlanNode:
         return sequential(
             [
-                NavigateAction(self.standing_position, self.keep_joint_states).action_plan_for_context(self.context),
+                NavigateAction(
+                    self.standing_position, self.keep_joint_states
+                ).action_plan_for_context(self.context),
                 FaceAtAction(
                     self.object_designator.global_pose, self.keep_joint_states
                 ).action_plan_for_context(self.context),
-                PickUpAction(self.object_designator, self.arm, self.grasp_description).action_plan_for_context(self.context),
+                PickUpAction(
+                    self.object_designator, self.arm, self.grasp_description
+                ).action_plan_for_context(self.context),
             ]
         )
