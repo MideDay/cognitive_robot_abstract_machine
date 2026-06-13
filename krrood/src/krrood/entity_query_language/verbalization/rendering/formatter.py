@@ -5,7 +5,7 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing_extensions import ClassVar, Optional
 
 from krrood.entity_query_language.verbalization.fragments.roles import (
@@ -18,7 +18,7 @@ _TOOLTIP_ATTR = "title"
 _log = logging.getLogger(__name__)
 
 
-class BulletStyle(Enum):
+class BulletStyle(StrEnum):
     """Bullet character used for hierarchical list items."""
 
     DASH = "-"
@@ -29,7 +29,7 @@ class BulletStyle(Enum):
     """An asterisk bullet."""
 
 
-class IndentSize(Enum):
+class IndentSize(StrEnum):
     """Indentation string used per nesting level in hierarchical rendering."""
 
     TWO_SPACES = "  "

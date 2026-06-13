@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from enum import Enum, StrEnum
+from enum import StrEnum
 
 
 class Separator(StrEnum):
@@ -18,7 +18,7 @@ class Separator(StrEnum):
     """A comma and space for inline coordinated lists (*"a, b, or c"*) and tuple selections."""
 
 
-class Number(Enum):
+class Number(StrEnum):
     """Grammatical number of a noun or verb (singular vs. plural)."""
 
     SINGULAR = "singular"
@@ -35,7 +35,7 @@ class Number(Enum):
         return cls.PLURAL if is_plural else cls.SINGULAR
 
 
-class Definiteness(Enum):
+class Definiteness(StrEnum):
     """Grammatical definiteness of a noun phrase (*"a/an"* vs. *"the"* vs. no determiner)."""
 
     BARE = "bare"
@@ -48,7 +48,7 @@ class Definiteness(Enum):
     """A uniqueness-quantified first mention — *"the unique Robot"*."""
 
 
-class Glue(Enum):
+class Glue(StrEnum):
     """Orthographic spacing of a token relative to its neighbours."""
 
     NONE = "none"

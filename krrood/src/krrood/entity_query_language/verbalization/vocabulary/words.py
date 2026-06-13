@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, StrEnum
 from typing_extensions import ClassVar
 
 from krrood.entity_query_language.verbalization.fragments.base import (
@@ -79,7 +79,7 @@ class LogicalWord(RoleWord):
     _role_ = SemanticRole.LOGICAL
 
 
-class ChildForm(Enum):
+class ChildForm(StrEnum):
     """How an aggregation word verbalizes its child expression."""
 
     PLURAL = "plural"

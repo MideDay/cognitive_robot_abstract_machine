@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from typing_extensions import Optional
 
@@ -15,7 +15,7 @@ from krrood.entity_query_language.operators.core_logical_operators import (
 from krrood.entity_query_language.query.query import Entity, SetOf
 
 
-class SemanticRole(Enum):
+class SemanticRole(StrEnum):
     """Semantic category of a fragment, determining its colour markup."""
 
     KEYWORD = "keyword"
