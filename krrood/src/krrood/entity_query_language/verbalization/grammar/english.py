@@ -34,6 +34,7 @@ from krrood.entity_query_language.verbalization.fragments.base import (
 from krrood.entity_query_language.verbalization.fragments.features import (
     Definiteness,
     Number,
+    Separator,
 )
 from krrood.entity_query_language.verbalization.fragments.roles import SemanticRole
 from krrood.entity_query_language.verbalization.grammar.conditions.recognition import (
@@ -58,7 +59,6 @@ from krrood.entity_query_language.verbalization.grammar.assembly.chains import (
     ChainAssembler,
 )
 from krrood.entity_query_language.verbalization.vocabulary.english import (
-    COMMA_SEPARATOR,
     Conjunctions,
     FallbackNouns,
     Keywords,
@@ -222,7 +222,7 @@ class OrRule(PhraseRule):
             return parts[0]
         # "either a, b, or c": the head items are comma-joined, then a trailing comma that the
         # orthography pass hugs to the last head item — no separator="" bookkeeping here.
-        head = PhraseFragment(parts=parts[:-1], separator=COMMA_SEPARATOR)
+        head = PhraseFragment(parts=parts[:-1], separator=Separator.COMMA)
         return PhraseFragment(
             parts=[
                 Logicals.EITHER.as_fragment(),

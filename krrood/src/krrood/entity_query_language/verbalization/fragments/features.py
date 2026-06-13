@@ -1,6 +1,21 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import Enum, StrEnum
+
+
+class Separator(StrEnum):
+    """How the parts of a phrase are joined in the rendered output — the closed set of inline
+    separators a :class:`~krrood.entity_query_language.verbalization.fragments.base.PhraseFragment`
+    uses (consistent with the formatter-side ``BulletStyle`` / ``IndentSize`` enums).  A
+    :class:`StrEnum`, so a member is itself the join string (``separator.join(parts)`` just works).
+    """
+
+    SPACE = " "
+    """A single space between words (the default)."""
+    NONE = ""
+    """No separator — parts abut directly (glue / the orthography pass owns the spacing)."""
+    COMMA = ", "
+    """A comma and space for inline coordinated lists (*"a, b, or c"*) and tuple selections."""
 
 
 class Number(Enum):

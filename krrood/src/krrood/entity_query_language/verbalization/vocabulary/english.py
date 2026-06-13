@@ -220,10 +220,6 @@ class Punctuation(VocabEnum):
     CLOSE_PAREN = PunctuationWord(")", glue=Glue.LEFT)
 
 
-#: The inline list separator (``", "``).
-COMMA_SEPARATOR: str = Punctuation.COMMA.text + " "
-
-
 class Pronouns(VocabEnum):
     """Coreference pronouns standing in for a previously introduced variable."""
 

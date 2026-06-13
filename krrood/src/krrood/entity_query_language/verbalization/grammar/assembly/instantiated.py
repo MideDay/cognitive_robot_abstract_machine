@@ -6,6 +6,7 @@ from typing_extensions import Dict, List, Tuple
 
 from krrood.entity_query_language.core.variable import InstantiatedVariable
 from krrood.entity_query_language.verbalization.chain_utils import PathStep
+from krrood.entity_query_language.verbalization.fragments.features import Separator
 from krrood.entity_query_language.verbalization.fragments.base import (
     NounPhrase,
     oxford_and,
@@ -156,6 +157,6 @@ class InstantiatedAssembler(Assembler[InstantiatedVariable, InstantiatedPlan]):
         return NounPhrase(
             head=RoleFragment.for_variable(type_name, node),
             modifiers=modifiers,
-            modifier_separator="",
+            modifier_separator=Separator.NONE,
             referent_id=node._id_,
         )

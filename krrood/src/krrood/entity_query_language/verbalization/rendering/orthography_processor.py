@@ -8,7 +8,10 @@ from krrood.entity_query_language.verbalization.fragments.base import (
     Fragment,
     WordFragment,
 )
-from krrood.entity_query_language.verbalization.fragments.features import Glue
+from krrood.entity_query_language.verbalization.fragments.features import (
+    Glue,
+    Separator,
+)
 
 
 class OrthographyProcessor:
@@ -67,5 +70,7 @@ class OrthographyProcessor:
     def _merge(items: List[Fragment]) -> Fragment:
         """:return: A zero-separator group of *items* (the single item itself when there is only one)."""
         return (
-            items[0] if len(items) == 1 else PhraseFragment(parts=items, separator="")
+            items[0]
+            if len(items) == 1
+            else PhraseFragment(parts=items, separator=Separator.NONE)
         )

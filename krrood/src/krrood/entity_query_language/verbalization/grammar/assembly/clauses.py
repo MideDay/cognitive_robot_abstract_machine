@@ -11,7 +11,10 @@ from krrood.entity_query_language.verbalization.fragments.base import (
     PhraseFragment,
     Fragment,
 )
-from krrood.entity_query_language.verbalization.fragments.features import Number
+from krrood.entity_query_language.verbalization.fragments.features import (
+    Number,
+    Separator,
+)
 from krrood.entity_query_language.verbalization.grammar.assembly.base import Assembler
 from krrood.entity_query_language.verbalization.grammar.planning.clauses import (
     GroupedByPlanner,
@@ -19,7 +22,6 @@ from krrood.entity_query_language.verbalization.grammar.planning.clauses import 
 )
 from krrood.entity_query_language.verbalization.vocabulary.english import (
     Articles,
-    COMMA_SEPARATOR,
     Conjunctions,
     Copulas,
     Keywords,
@@ -83,7 +85,7 @@ class GroupedByAssembler(Assembler[Union[Query, GroupedBy], GroupPlan]):
         """
         return PhraseFragment(
             parts=[self.context.child(variable) for variable in variables],
-            separator=COMMA_SEPARATOR,
+            separator=Separator.COMMA,
         )
 
 

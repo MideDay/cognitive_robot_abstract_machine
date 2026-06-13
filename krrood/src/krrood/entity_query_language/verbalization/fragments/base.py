@@ -9,6 +9,7 @@ from krrood.entity_query_language.verbalization.fragments.features import (
     Definiteness,
     Glue,
     Number,
+    Separator,
 )
 from krrood.entity_query_language.verbalization.fragments.roles import SemanticRole
 from krrood.entity_query_language.verbalization.fragments.source_ref import SourceRef
@@ -132,8 +133,8 @@ class PhraseFragment(Fragment):
     parts: list[Fragment]
     """Ordered list of child fragments."""
 
-    separator: str = " "
-    """String inserted between adjacent parts."""
+    separator: Separator = Separator.SPACE
+    """Separator inserted between adjacent parts."""
 
 
 @dataclass
@@ -157,10 +158,10 @@ class NounPhrase(HasNumber, Fragment):
     modifiers: List[Fragment] = field(default_factory=list)
     """Post-modifiers following the head (e.g. *"of the Root"*, *"where … such that …"*)."""
 
-    modifier_separator: str = " "
-    """Separator between the determiner-and-head group and the modifiers.  Default ``" "``
-    (*"drawers of Cabinets"*); ``""`` lets an appositive clause attach without a spurious space
-    (*"a Robot, where …"*)."""
+    modifier_separator: Separator = Separator.SPACE
+    """Separator between the determiner-and-head group and the modifiers.  Default
+    :attr:`Separator.SPACE` (*"drawers of Cabinets"*); :attr:`Separator.NONE` lets an appositive
+    clause attach without a spurious space (*"a Robot, where …"*)."""
 
     referent_id: Optional[uuid.UUID] = None
     """When set, this noun phrase is a referring expression for that entity, and its
@@ -376,4 +377,4 @@ def oxford_and(parts: list[Fragment], conjunction: Fragment) -> Fragment:
         result.append(fragment)
         result.append(WordFragment(text=", "))
     result.append(PhraseFragment(parts=[conjunction, tail]))
-    return PhraseFragment(parts=result, separator="")
+    return PhraseFragment(parts=result, separator=Separator.NONE)

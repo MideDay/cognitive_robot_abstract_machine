@@ -15,7 +15,10 @@ from krrood.entity_query_language.verbalization.fragments.base import (
     SubjectScope,
     Fragment,
 )
-from krrood.entity_query_language.verbalization.fragments.features import Definiteness
+from krrood.entity_query_language.verbalization.fragments.features import (
+    Definiteness,
+    Separator,
+)
 from krrood.entity_query_language.verbalization.grammar.assembly.aggregation_value import (
     AggregationValueAssembler,
 )
@@ -34,7 +37,6 @@ from krrood.entity_query_language.verbalization.grammar.planning.query import (
     SelectionKind,
 )
 from krrood.entity_query_language.verbalization.vocabulary.english import (
-    COMMA_SEPARATOR,
     FallbackNouns,
     Keywords,
     Punctuation,
@@ -114,7 +116,7 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
             self.context.child(variable) for variable in node._selected_variables_
         ]
         variables_phrase = PhraseFragment(
-            parts=variable_fragments, separator=COMMA_SEPARATOR
+            parts=variable_fragments, separator=Separator.COMMA
         )
         # The parens glue to their content via the orthography pass — no separator="".
         selection = PhraseFragment(
