@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-from typing_extensions import List, Optional, Tuple, Type, Union
+from typing_extensions import List, Optional, Type, Union
 
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.mapped_variable import MappedVariable
@@ -49,6 +49,19 @@ class SelectionKind(Enum):
 
 
 @dataclass(frozen=True)
+class MatchedRestriction:
+    """A WHERE conjunct recognised as a restriction: the rule that matched it and the folded item
+    the rule renders (its :attr:`~RestrictionRule.placement` decides where the rendering lands).
+    """
+
+    rule: Type[RestrictionRule]
+    """The restriction rule that recognised the conjunct."""
+
+    item: Union[SymbolicExpression, RangeFold]
+    """The folded conjunct (``RangeFold`` or raw expression) the rule renders."""
+
+
+@dataclass(frozen=True)
 class RestrictionPlan:
     """Partition of a subject's WHERE condition into rule-matched conjuncts vs. the residual.
 
@@ -56,10 +69,8 @@ class RestrictionPlan:
     where its rendering lands.  An unmatched conjunct is residual and stays in a *"such that …"*
     clause."""
 
-    matched: List[
-        Tuple[Type[RestrictionRule], Union[SymbolicExpression, RangeFold]]
-    ] = field(default_factory=list)
-    """``(rule, folded item)`` pairs — the rule renders each into its declared placement."""
+    matched: List[MatchedRestriction] = field(default_factory=list)
+    """The recognised restrictions — each rule renders its item into the rule's declared placement."""
 
     residual: List[Union[SymbolicExpression, RangeFold]] = field(default_factory=list)
     """Folded items (``RangeFold`` or raw expression) for the residual *"such that …"*."""
@@ -187,16 +198,14 @@ class QueryPlanner(Planner[Query, QueryPlan]):
         """:return: The WHERE folded into range pairs and split per conjunct into a rule-matched
         restriction (the rule's placement decides its slot) or the residual *"such that …"*
         clause."""
-        matched: List[
-            Tuple[Type[RestrictionRule], Union[SymbolicExpression, RangeFold]]
-        ] = []
+        matched: List[MatchedRestriction] = []
         residual: List[Union[SymbolicExpression, RangeFold]] = []
         for item in fold_range_pairs(flatten_operands(condition, AND)):
             rule = match_restriction(item, subject)
             if rule is None:
                 residual.append(item)
             else:
-                matched.append((rule, item))
+                matched.append(MatchedRestriction(rule, item))
         return RestrictionPlan(matched=matched, residual=residual)
 
     # ── clauses ──────────────────────────────────────────────────────────────

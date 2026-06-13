@@ -1606,7 +1606,7 @@ def test_query_planner_decomposes_subject_restriction_without_rendering():
     # to "whose battery is greater than 50"); nothing is residual.
     assert plan.subject_restriction is not None
     assert plan.subject_restriction.residual == []
-    assert [rule for rule, _ in plan.subject_restriction.matched] == [
+    assert [matched.rule for matched in plan.subject_restriction.matched] == [
         AttributePredicateRestrictionRule
     ]
     assert AttributePredicateRestrictionRule.placement is Placement.WHOSE_GROUP

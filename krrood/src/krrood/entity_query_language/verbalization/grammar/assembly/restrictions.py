@@ -72,9 +72,9 @@ class RestrictionAssembler:
         :return: The rendered restriction pieces.
         """
         by_placement: Dict[Placement, List[Fragment]] = defaultdict(list)
-        for rule, item in restriction.matched:
-            by_placement[rule.placement].append(
-                rule.render(item, subject, self.context)
+        for matched in restriction.matched:
+            by_placement[matched.rule.placement].append(
+                matched.rule.render(matched.item, subject, self.context)
             )
 
         superlatives = by_placement.pop(Placement.SELECTION_MODIFIER, [])
