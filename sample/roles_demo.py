@@ -6,9 +6,10 @@ Open this in the sandbox IDE launched by `./gradlew runIde` and try:
   - hovering a delegated attribute to see its inferred type
   - Ctrl/Cmd+Click on a delegated attribute to jump to its real declaration
 
-The plugin detects the `Role` base structurally (it has a `_taker` field and a
-`__getattr__`), so this works even though `Role` here is `roles_demo.Role` rather than
-the `ROLE_QUALIFIED_NAME` configured in the plugin.
+The plugin reads the taker type from the ``Role[...]`` base's generic argument, and detects
+the ``Role`` base structurally (it defines ``__getattr__``), so this works even though this
+``Role`` is ``roles_demo.Role`` rather than the krrood ``Role`` configured in the plugin.
+The taker is held in a domain-named field, exactly as krrood roles do.
 """
 
 from __future__ import annotations
@@ -21,10 +22,10 @@ RoleTakerT = TypeVar("RoleTakerT")
 
 @dataclass
 class Role(Generic[RoleTakerT]):
-    _taker: RoleTakerT
+    role_taker: RoleTakerT
 
     def __getattr__(self, name: str) -> Any:
-        return getattr(self._taker, name)
+        return getattr(self.role_taker, name)
 
 
 # --- An inheritance chain on the taker side -----------------------------------
@@ -61,18 +62,18 @@ class Department(Role[Teacher]):
 
 
 def demo() -> None:
-    teacher = Teacher(_taker=Person(id=1, name="Ahmed", age=20), courses=["Math"])
+    teacher = Teacher(role_taker=Person(id=1, name="Ahmed", age=20), courses=["Math"])
     print(teacher.name)         # from Person            -> str
     print(teacher.age)          # from Person            -> int
     print(teacher.id)           # inherited from Entity  -> int
     print(teacher.describe())   # inherited method
     print(teacher.courses)      # the role's own field
 
-    senior = SeniorTeacher(_taker=Person(id=2, name="Sara", age=35), tenure_years=8)
+    senior = SeniorTeacher(role_taker=Person(id=2, name="Sara", age=35), tenure_years=8)
     print(senior.name)          # transitive: resolved through Teacher -> Role[Person]
     print(senior.tenure_years)
 
-    dept = Department(_taker=teacher, budget=1_000.0)
+    dept = Department(role_taker=teacher, budget=1_000.0)
     print(dept.courses)         # nested: Department -> Role[Teacher] (Teacher's own field)
     print(dept.name)            # nested + delegated: Teacher -> Role[Person] -> Person
 

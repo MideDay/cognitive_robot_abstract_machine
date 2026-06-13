@@ -7,9 +7,8 @@ work on delegated attributes.
 ```python
 @dataclass
 class Role(Generic[RoleTakerT]):
-    _taker: RoleTakerT
     def __getattr__(self, name: str) -> Any:
-        return getattr(self._taker, name)
+        return getattr(self.role_taker, name)
 
 @dataclass
 class Person:
@@ -18,15 +17,17 @@ class Person:
 
 @dataclass
 class Teacher(Role[Person]):
-    courses: list[str]
+    person: Person = role_taker_field()      # the taker, in a domain-named field
+    courses: list[str] = field(default_factory=list)
 
-teacher = Teacher(_taker=Person("Ahmed", 20))
+teacher = Teacher(person=Person("Ahmed", 20))
 teacher.name   # ← autocompletes, infers `str`, and Ctrl/Cmd+Click jumps to Person.name
 ```
 
 Because access is delegated through `__getattr__` (composition, not inheritance), PyCharm
-normally sees nothing on `teacher` except `courses`. This plugin injects the taker's members
-onto any `Role[…]` subclass.
+normally sees nothing on `teacher` except its own fields. This plugin reads the taker type
+from the `Role[…]` generic argument and injects the taker's members onto any `Role[…]`
+subclass.
 
 ---
 
@@ -85,24 +86,20 @@ pyroles-pycharm/
 
 ## Configure it for your project
 
-There is **one** thing worth setting and two optional knobs, all at the top of
-`RoleMembersProvider.kt`:
+There is **one** thing worth setting, at the top of `RoleMembersProvider.kt`:
 
 ```kotlin
-// The fully-qualified name of YOUR Role base class.
-// e.g. `from myapp.roles import Role`  ->  "myapp.roles.Role"
-const val ROLE_QUALIFIED_NAME: String = "roles.Role"
+// The fully-qualified name of the Role base class. Defaults to krrood's Role.
+const val ROLE_QUALIFIED_NAME: String = "krrood.patterns.role.Role"
 
-// Change these only if your delegation field or method differ from the norm.
-const val DELEGATION_FIELD: String = "_taker"
 const val GETATTR: String = "__getattr__"
 ```
 
-`ROLE_QUALIFIED_NAME` is a fast, precise match. **You can also leave it as-is:** when it
-doesn't match, the plugin falls back to a *structural* check — any base class that declares
-a `_taker` field and a `__getattr__` method is treated as a role. That fallback is what lets
-the bundled `sample/roles_demo.py` work without configuration, and it handles codebases with
-several Role-like bases.
+`ROLE_QUALIFIED_NAME` is a fast, precise match. When it doesn't match, the plugin falls back
+to a *structural* check — any base class that defines a `__getattr__` method is treated as a
+role. That fallback is what lets the bundled `sample/roles_demo.py` work without
+configuration. The taker type always comes from the `Role[…]` generic argument, so roles can
+keep their taker in any domain-named field.
 
 ---
 
@@ -150,7 +147,7 @@ The algorithm (see `RoleMembersProvider.kt`):
 3. For each taker, walk its **full MRO** — minus `Role`, `object`, `Generic` — collecting
    class-level fields, instance attributes, and methods. (handles *inherited* members)
 4. If a taker is itself a role, recurse into it. (handles *nested* roles)
-5. De-duplicate by name, closest-in-MRO wins; drop dunders and the `_taker` field.
+5. De-duplicate by name, closest-in-MRO wins; drop dunders.
 
 Each `PyCustomMember` is created with the real target element, so navigation and type
 inference come for free — no separate definition or completion contributor is needed.
@@ -174,7 +171,7 @@ signatures between major releases. If something doesn't resolve in your target v
 
 ### Known limitations
 
-- The **constructor is not augmented** — PyCharm still sees `Teacher(_taker=…, courses=…)`,
+- The **constructor is not augmented** — PyCharm still sees `Teacher(person=…, courses=…)`,
   not `Teacher(name=…, age=…)`. Augmenting synthesized `__init__` parameters from a plugin
   is not currently feasible. This affects construction only, never attribute access.
 - **String forward references** in the base (`Role["Person"]`) are not resolved; use a
@@ -183,7 +180,7 @@ signatures between major releases. If something doesn't resolve in your target v
 ### Alternative if the Gradle setup fights you
 
 Versions here are pinned to a known-good, mutually compatible set (Gradle 9.5, IntelliJ
-Platform Gradle Plugin 2.16.0, Kotlin 2.1.20, target PyCharm 2024.3). If you hit Gradle/DSL
+Platform Gradle Plugin 2.16.0, Kotlin 2.3.20, target PyCharm 2026.1). If you hit Gradle/DSL
 friction on a different machine, the most robust path is to start from the official
 [IntelliJ Platform Plugin Template](https://github.com/JetBrains/intellij-platform-plugin-template)
 and transplant just two things into it:
