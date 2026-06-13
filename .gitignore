@@ -8,3 +8,9 @@ build/
 
 # Kotlin
 .kotlin/
+
+# IntelliJ Platform Gradle Plugin local cache
+.intellijPlatform/
+
+# Local working clone of the CRAM monorepo the plugin targets (its own git repo)
+/cognitive_robot_abstract_machine/

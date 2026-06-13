@@ -4,7 +4,9 @@ rootProject.name = "pyroles-pycharm"
 
 pluginManagement {
     plugins {
-        id("org.jetbrains.kotlin.jvm") version "2.1.20"
+        // Must be >= the Kotlin version PyCharm itself is built with (2026.1 ships Kotlin
+        // 2.3 metadata); an older compiler cannot read the platform's class metadata.
+        id("org.jetbrains.kotlin.jvm") version "2.3.20"
     }
 }
 
