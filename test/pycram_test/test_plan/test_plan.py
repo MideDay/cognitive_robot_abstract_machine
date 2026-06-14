@@ -142,6 +142,42 @@ def test_plan_all_parents():
     assert node3.path == [node2, node]
 
 
+def test_path_after_node_removal():
+    """
+    Removing a node leaves a hole in the rustworkx index space, so a remaining
+    node can end up with an index that is no longer smaller than the node count.
+    ``path``/``depth`` must keep working in that case (they previously relied on
+    ``rx.all_shortest_paths``, which panics on non-contiguous indices).
+    """
+    class _Node(PlanNode):
+        def notify(self):
+            pass
+
+    plan = Plan()
+    root = _Node()
+    # A removable leaf that takes a low index, so removing it leaves a hole
+    # below the index of the deeper chain nodes.
+    removable = _Node()
+    n2 = _Node()
+    n3 = _Node()
+    n4 = _Node()
+
+    plan.add_edge(root, removable)
+    plan.add_edge(root, n2)
+    plan.add_edge(n2, n3)
+    plan.add_edge(n3, n4)
+
+    plan.remove_node(removable)
+
+    # The deepest node's index now exceeds the remaining node count.
+    assert n4.index >= len(plan.all_nodes)
+
+    assert n4.path == [n3, n2, root]
+    assert n4.depth == 3
+    assert root.path == []
+    assert root.depth == 0
+
+
 def test_plan_node_children():
 
     plan = Plan()

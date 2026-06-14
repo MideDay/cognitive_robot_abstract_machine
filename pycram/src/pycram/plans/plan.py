@@ -308,8 +308,12 @@ class Plan:
 
         :param layout: The layout of the plot
         """
+        graph, mapping = create_ordered_graph(self)
         plot_rustworkx_interactive(
-            create_ordered_graph(self), layout=layout, start=self.root.index
+            graph,
+            graph_source=lambda: create_ordered_graph(self)[0],
+            layout=layout,
+            start=mapping[self.root.index],
         )
 
     def __repr__(self):

@@ -757,7 +757,7 @@ def pr2_apartment_state_reset(pr2_apartment_world):
 ###############################
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def rclpy_node():
     """
     You can use this fixture if you want to use the marker visualizer of semDT and need a ros node.

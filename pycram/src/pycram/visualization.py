@@ -1,26 +1,25 @@
 from __future__ import annotations
 
-import pathlib
+import logging
 from typing import (
     Any,
     Callable,
     Dict,
-    Iterable,
     Optional,
     Sequence,
     Tuple,
     TYPE_CHECKING,
 )
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import networkx as nx
-from bokeh.io import output_file
-from rustworkx.rustworkx import PyDiGraph
+from rustworkx import PyDiGraph
 
 if TYPE_CHECKING:
     from bokeh.document import Document
-    from bokeh.models import ColumnDataSource, Div, GraphRenderer
-    from bokeh.server.server import Server
+    from bokeh.models import GraphRenderer
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -31,6 +30,7 @@ class GraphVisualizer:
     """
 
     graph: Any
+    graph_source: Optional[Callable[[], Any]] = None
     node_params: Optional[Dict[int, Dict[str, Any]]] = None
     node_label: Optional[Callable[[int, Any], str]] = None
     attributes: Optional[Sequence[str]] = None
@@ -53,9 +53,7 @@ class GraphVisualizer:
         )
         from bokeh.plotting import figure, from_networkx
 
-        nx_graph = build_nx_graph(
-            self.graph, self.node_params, self.attributes, self.node_label
-        )
+        nx_graph = self._build_current_nx_graph()
         positions = calculate_layout_positions(self.layout, nx_graph, self.start)
 
         plot = figure(
@@ -84,7 +82,6 @@ class GraphVisualizer:
         )
 
         node_source = renderer.node_renderer.data_source
-        self._update_node_source(node_source, nx_graph)
 
         callback = CustomJS(
             args=dict(source=node_source, panel=info_panel),
@@ -104,98 +101,87 @@ class GraphVisualizer:
 
         plot.renderers.append(renderer)
 
-        last_state = {
-            "node_indices": set(self.graph.node_indices()),
-            "edges": set(self.graph.edge_list()),
-            "node_data": {i: self.graph[i] for i in self.graph.node_indices()},
-            "edge_data": {
-                edge: self.graph.get_edge_data(*edge) for edge in self.graph.edge_list()
-            },
-        }
+        last_snapshot = _graph_snapshot(nx_graph)
 
         def update_callback() -> None:
-            nonlocal last_state
+            nonlocal last_snapshot
             try:
-                current_node_indices = set(self.graph.node_indices())
-                current_edges = set(self.graph.edge_list())
-                current_node_data = {
-                    i: self.graph[i] for i in self.graph.node_indices()
-                }
-                current_edge_data = {
-                    edge: self.graph.get_edge_data(*edge)
-                    for edge in self.graph.edge_list()
-                }
-
-                if (
-                    current_node_indices != last_state["node_indices"]
-                    or current_edges != last_state["edges"]
-                    or current_node_data != last_state["node_data"]
-                    or current_edge_data != last_state["edge_data"]
-                ):
-                    last_state["node_indices"] = current_node_indices
-                    last_state["edges"] = current_edges
-                    last_state["node_data"] = current_node_data
-                    last_state["edge_data"] = current_edge_data
-                    self._update_plot(renderer, node_source)
+                new_nx_graph = self._build_current_nx_graph()
+                snapshot = _graph_snapshot(new_nx_graph)
+                if snapshot != last_snapshot:
+                    last_snapshot = snapshot
+                    self._update_plot(renderer, new_nx_graph)
             except Exception:
-                # Avoid crashing the periodic callback on transient errors
-                pass
+                logger.exception("Failed to update the graph visualization")
 
         doc.add_periodic_callback(update_callback, self.update_interval)
         doc.add_root(row(plot, info_panel))
 
-    def _update_node_source(self, source: ColumnDataSource, nx_graph: nx.Graph) -> None:
-        indices = list(source.data.get("index", []))
-        labels = [nx_graph.nodes[i].get("label", str(i)) for i in indices]
-        parameters = [nx_graph.nodes[i].get("param_text", "") for i in indices]
-        source.data.update({"label": labels, "param_text": parameters})
-
-    def _update_plot(
-        self, renderer: GraphRenderer, node_source: ColumnDataSource
-    ) -> None:
-        from bokeh.plotting import from_networkx
-
-        new_nx_graph = build_nx_graph(
+    def _build_current_nx_graph(self) -> nx.Graph:
+        """
+        Build the networkx graph to display, fetching a fresh graph from
+        ``graph_source`` if one was given.
+        """
+        if self.graph_source is not None:
+            self.graph = self.graph_source()
+        return build_nx_graph(
             self.graph, self.node_params, self.attributes, self.node_label
         )
-        new_positions = calculate_layout_positions(
-            self.layout, new_nx_graph, self.start
+
+    def _update_plot(self, renderer: GraphRenderer, nx_graph: nx.Graph) -> None:
+        from bokeh.plotting import from_networkx
+
+        positions = calculate_layout_positions(self.layout, nx_graph, self.start)
+        new_renderer = from_networkx(nx_graph, positions)
+
+        renderer.node_renderer.data_source.data = dict(
+            new_renderer.node_renderer.data_source.data
         )
-        new_renderer = from_networkx(new_nx_graph, new_positions)
-
-        # Update existing data sources to refresh the plot
-        new_node_data = dict(new_renderer.node_renderer.data_source.data)
-        indices = list(new_node_data.get("index", []))
-        labels = [new_nx_graph.nodes[i].get("label", str(i)) for i in indices]
-        parameters = [new_nx_graph.nodes[i].get("param_text", "") for i in indices]
-
-        node_source.data = {
-            **new_node_data,
-            "label": labels,
-            "param_text": parameters,
-        }
         renderer.edge_renderer.data_source.data = dict(
             new_renderer.edge_renderer.data_source.data
         )
-
-        # Update layout positions
-        renderer.layout_provider.graph_layout = new_positions
+        renderer.layout_provider.graph_layout = dict(
+            new_renderer.layout_provider.graph_layout
+        )
 
     def show(self) -> None:
-        """Launch the Bokeh server and show the plot."""
-        from bokeh.server.server import Server
+        """
+        Launch the Bokeh server in a background thread and open the plot in
+        the browser.
+
+        The server runs on a daemon thread, so the calling process must stay
+        alive for the visualization to remain reachable.
+        """
+        import asyncio
         import threading
 
-        server = Server({"/": self._build_bokeh_app}, port=0)
-        server.start()
-        server.show("/")
+        def run_server() -> None:
+            from bokeh.server.server import Server
 
-        # Run the server loop in a separate thread so it doesn't block the caller
-        thread = threading.Thread(target=server.io_loop.start, daemon=True)
-        thread.start()
+            # The server and its IOLoop must be created on the thread that
+            # runs them, with an event loop bound to that thread.
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            server = Server({"/": self._build_bokeh_app}, port=0)
+            server.start()
+            server.io_loop.add_callback(server.show, "/")
+            server.io_loop.start()
+
+        threading.Thread(
+            target=run_server, daemon=True, name="GraphVisualizerServer"
+        ).start()
 
 
-def create_ordered_graph(plan):
+def create_ordered_graph(plan) -> Tuple[PyDiGraph, Dict[int, int]]:
+    """
+    Build a new graph containing the plan's nodes in depth-first order.
+
+    The node indices are remapped, so they differ from the indices in
+    ``plan.plan_graph``.
+
+    :param plan: The plan to build the graph from.
+    :return: The new graph and a mapping from plan node indices to the
+        indices in the new graph.
+    """
     ordered_graph = PyDiGraph(multigraph=False)
     mapping = {}
 
@@ -204,12 +190,13 @@ def create_ordered_graph(plan):
     for node in plan.nodes:
         for child in node.children:
             ordered_graph.add_edge(mapping[node.index], mapping[child.index], None)
-    return ordered_graph
+    return ordered_graph, mapping
 
 
 def plot_rustworkx_interactive(
     graph: Any,
     *,
+    graph_source: Optional[Callable[[], Any]] = None,
     node_params: Optional[Dict[int, Dict[str, Any]]] = None,
     node_label: Optional[Callable[[int, Any], str]] = None,
     attributes: Optional[Sequence[str]] = None,
@@ -230,6 +217,10 @@ def plot_rustworkx_interactive(
     ----------
     graph:
         A rustworkx.PyGraph or rustworkx.PyDiGraph instance.
+    graph_source:
+        Optional callable returning the current graph to display. If given,
+        it is invoked on every update tick so that changes to the underlying
+        data are picked up even when ``graph`` is a one-time snapshot.
     node_params:
         Optional mapping from node index to a dict of parameters to display when
         the node is clicked. If not provided and the node payload is a dict,
@@ -256,28 +247,16 @@ def plot_rustworkx_interactive(
     This function imports bokeh lazily so that it does not add a hard runtime
     dependency unless you call it. Install with `pip install bokeh`.
     """
-
-    # Local imports to keep dependency optional at import time.
     try:
-        import networkx as nx
-        from bokeh.layouts import row
-        from bokeh.models import (
-            ColumnDataSource,
-            Div,
-            HoverTool,
-            NodesAndLinkedEdges,
-            TapTool,
-            CustomJS,
-        )
-        from bokeh.plotting import figure, from_networkx
-        from bokeh.server.server import Server
-    except Exception as exc:  # pragma: no cover - informative error only if used
+        import bokeh  # noqa: F401
+    except ImportError as exc:
         raise RuntimeError(
-            "plot_rustworkx_interactive requires bokeh and networkx. Install with 'pip install bokeh networkx'."
+            "plot_rustworkx_interactive requires bokeh. Install with 'pip install bokeh'."
         ) from exc
 
     visualizer = GraphVisualizer(
         graph=graph,
+        graph_source=graph_source,
         node_params=node_params,
         node_label=node_label,
         attributes=attributes,
@@ -295,19 +274,20 @@ def calculate_layout_positions(
 ) -> Dict[int, Tuple[float, float]]:
     """
     Calculates node positions based on the selected layout.
-    :param layout: Layout name, e.g. "spring", "kamada_kawai", "bfs
+    :param layout: Layout name, e.g. "spring", "kamada_kawai", "bfs"
     :param nx_g: networkx graph
     :param start: Optional start node index for "bfs" layout.
     :return: A dictionary mapping node indices to 2d coordinates.
     """
-    # Choose layout
+    if len(nx_g) == 0:
+        return {}
     if layout == "spring":
         pos = nx.spring_layout(nx_g, seed=42)
     elif layout == "kamada_kawai":
         pos = nx.kamada_kawai_layout(nx_g)
     elif layout == "bfs":
-        if start is None and len(nx_g.nodes) > 0:
-            start = list(nx_g.nodes)[0]
+        if start is None or start not in nx_g:
+            start = next(iter(nx_g.nodes))
         try:
             pos = nx.bfs_layout(nx_g, start=start)
         except nx.NetworkXError:
@@ -319,18 +299,14 @@ def calculate_layout_positions(
 
 def build_nx_graph(graph: PyDiGraph, node_params, attributes, node_label) -> nx.Graph:
     """Convert a rustworkx graph to a networkx graph."""
-    # Build a NetworkX graph from rustworkx graph
     is_directed = getattr(graph, "is_directed", lambda: True)()
     nx_g = nx.DiGraph() if is_directed else nx.Graph()
 
-    # rustworkx nodes are indexed 0..n-1. Access via graph.nodes(), graph.node_indices() or graph.num_nodes()
-    # We'll iterate over range(num_nodes) and get payload via graph[node]
-    num_nodes = graph.num_nodes()
-
-    # Prepare label/params for each node
     attributes = list(attributes) if attributes is not None else None
 
-    for i in range(num_nodes):
+    # Iterate node_indices() instead of range(num_nodes()): rustworkx indices
+    # are not contiguous after node removals.
+    for i in graph.node_indices():
         payload = graph[i]
         # Label
         if node_label is not None:
@@ -342,7 +318,6 @@ def build_nx_graph(graph: PyDiGraph, node_params, attributes, node_label) -> nx.
             if label is None:
                 label = str(payload)
         # Parameters
-        params = None
         if node_params is not None:
             params = node_params.get(i)
         else:
@@ -357,11 +332,28 @@ def build_nx_graph(graph: PyDiGraph, node_params, attributes, node_label) -> nx.
             param_text=_format_params(params),
         )
 
-    # Add edges
     for u, v in graph.edge_list():
         nx_g.add_edge(u, v)
 
     return nx_g
+
+
+def _graph_snapshot(nx_graph: nx.Graph) -> Tuple[Any, Any]:
+    """
+    Return a hashable summary of the rendered graph used for change detection.
+
+    Comparing the rendered labels and parameter texts detects in-place
+    mutations of node payloads, which comparing the payload objects
+    themselves cannot.
+    """
+    nodes = tuple(
+        sorted(
+            (i, data.get("label", ""), data.get("param_text", ""))
+            for i, data in nx_graph.nodes(data=True)
+        )
+    )
+    edges = tuple(sorted(nx_graph.edges()))
+    return nodes, edges
 
 
 def _object_params_with_properties(payload: Any) -> Optional[Dict[str, Any]]:
@@ -373,6 +365,7 @@ def _object_params_with_properties(payload: Any) -> Optional[Dict[str, Any]]:
 
     Private attributes (starting with '_') and the key 'label' are excluded.
     Values that raise on access are skipped. Callables are skipped.
+    Explicit attributes take precedence over properties of the same name.
     """
     # If the payload is already a dict, filter and return it.
     if isinstance(payload, dict):
@@ -385,9 +378,7 @@ def _object_params_with_properties(payload: Any) -> Optional[Dict[str, Any]]:
 
     # Collect from __dict__ if available
     try:
-        if hasattr(payload, "__dict__") and isinstance(
-            getattr(payload, "__dict__", None), dict
-        ):
+        if isinstance(getattr(payload, "__dict__", None), dict):
             for k, v in vars(payload).items():
                 if k.startswith("_") or k == "label":
                     continue
@@ -401,7 +392,8 @@ def _object_params_with_properties(payload: Any) -> Optional[Dict[str, Any]]:
     except Exception:
         pass
 
-    params.update(_collect_properties(payload))
+    for name, value in _collect_properties(payload).items():
+        params.setdefault(name, value)
 
     return params if params else None
 
@@ -418,8 +410,6 @@ def _collect_properties(payload) -> Dict[str, Any]:
                 continue
             if name.startswith("_") or name == "label":
                 continue
-            if name in params:
-                continue  # do not overwrite explicit attributes
             # Access property value safely
             try:
                 value = getattr(payload, name)
@@ -446,7 +436,7 @@ def _format_params(params: Optional[Dict[str, Any]]) -> str:
         items = []
         for k, v in params.items():
             items.append(
-                f"<tr><td style='padding-right:8px; white-space:nowrap;'><b>{k}</b></td><td>{_escape_html(v)}</td></tr>"
+                f"<tr><td style='padding-right:8px; white-space:nowrap;'><b>{_escape_html(k)}</b></td><td>{_escape_html(v)}</td></tr>"
             )
         return "<table>" + "".join(items) + "</table>"
     except Exception:

@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, Any, List, Type, TYPE_CHECKING, Iterable, Iterator
 
-import rustworkx as rx
 from typing_extensions import Union, Dict
 
 from giskardpy.motion_statechart.graph_node import Task
@@ -122,13 +121,19 @@ class PlanNode(PlanEntity, ABC):
     @property
     def path(self) -> List[PlanNode]:
         """
-        :return: The path from the root node to this node
-        """
+        :return: The ancestors of this node, ordered from the immediate parent
+            up to and including the root node. Empty for the root node.
 
-        paths = rx.all_shortest_paths(
-            self.plan.plan_graph, self.index, self.plan.root.index, as_undirected=True
-        )
-        return [self.plan.plan_graph[i] for i in paths[0][1:]] if len(paths) > 0 else []
+        The plan is a tree, so the path is found by walking parent links rather
+        than by a shortest-path search. This avoids depending on contiguous
+        rustworkx node indices, which no longer hold once nodes are removed.
+        """
+        ancestors = []
+        node = self.parent
+        while node is not None:
+            ancestors.append(node)
+            node = node.parent
+        return ancestors
 
     @property
     def depth(self) -> int:
