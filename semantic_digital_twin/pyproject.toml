@@ -2,9 +2,6 @@
 requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
-[tool.poetry]
-version = "0.0.6"
-
 [tool.pyrefly]
 project-includes = ["**/*"]
 project-excludes = ["**/*venv/**/*"]
