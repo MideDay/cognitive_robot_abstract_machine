@@ -1,7 +1,8 @@
+from pycram.motion_executor import simulated_robot
+from pycram.plans.executables import GiskardExecutable
 from pycram.plans.attachment_nodes import ModelChangeNode
 from pycram.plans.executables import (
     ConditionExecutable,
-    MotionExecutable,
     LanguageExecutable,
 )
 from pycram.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
@@ -29,7 +30,7 @@ def test_parse_simple_action(immutable_model_world):
 
     assert len(executable.execution_list) == 3
     assert type(executable.execution_list[0]) == ConditionExecutable
-    assert type(executable.execution_list[1]) == MotionExecutable
+    assert type(executable.execution_list[1]) == GiskardExecutable
 
 
 def test_merge_motions(immutable_model_world):
@@ -53,9 +54,13 @@ def test_merge_motions(immutable_model_world):
 
     executable = plan.parse()
 
-    assert len(executable.execution_list) == 3
-    assert type(executable.execution_list[0]) == ConditionExecutable
-    assert type(executable.execution_list[1]) == LanguageExecutable
+    assert type(executable) == GiskardExecutable
+    assert len(executable.motion_mappings) == 2
+    assert executable.pre_condition_node
+    assert executable.post_condition_node
+
+    with simulated_robot:
+        executable.execute()
 
 
 def test_parse_pick_up(immutable_model_world):

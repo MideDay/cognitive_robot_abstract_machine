@@ -11,7 +11,11 @@ from typing_extensions import Union, Dict
 
 from giskardpy.motion_statechart.graph_node import Task
 from krrood.entity_query_language.query.match import Match
-from pycram.plans.executables import Executable, MotionExecutable, ConditionExecutable
+from pycram.plans.executables import (
+    Executable,
+    ConditionExecutable,
+    GiskardExecutable,
+)
 
 from pycram.datastructures.enums import TaskStatus
 from pycram.plans.failures import PlanFailure
@@ -324,19 +328,19 @@ class PlanNode(PlanEntity, ABC):
         self, executables: List[Executable]
     ) -> List[Executable]:
         result = []
-        for exec in group_by_type(executables, MotionExecutable):
-            if not isinstance(exec[0], MotionExecutable):
+        for exec in group_by_type(executables, GiskardExecutable):
+            if not isinstance(exec[0], GiskardExecutable):
                 result.extend(exec)
             else:
                 new_mappings = self.merge_motion_mappings(exec)
                 result.append(
-                    MotionExecutable(
+                    GiskardExecutable(
                         motion_mappings=new_mappings, context=self.plan.context
                     )
                 )
         return result
 
-    def merge_motion_mappings(self, motions: List[MotionExecutable]):
+    def merge_motion_mappings(self, motions: List[GiskardExecutable]):
         new_mappings = {}
         for motion in motions:
             new_mappings.update(motion.motion_mappings)
@@ -503,19 +507,35 @@ class ActionNode(DesignatorNode):
 
     def parse(self) -> Executable:
         children = self.children
-        pre_condition_executable = ConditionExecutable(
-            condition_node=children.pop(0), context=self.plan.context
-        )
-        post_condition_executable = ConditionExecutable(
-            condition_node=children.pop(-1), context=self.plan.context
-        )
+        pre_condition_node = children.pop(0)
+        post_condition_node = children.pop(-1)
 
         child_execs = [child.parse() for child in children]
+        merged = self.merge_motion_executables(child_execs)
 
-        exec_list = [pre_condition_executable, *child_execs, post_condition_executable]
+        motion_execs = [e for e in merged if isinstance(e, GiskardExecutable)]
+        if len(motion_execs) == 1:
+            # The action body is a single motion state chart, so the conditions
+            # can be evaluated inside it (gating start/end, aborting on failure).
+            motion_exec = motion_execs[0]
+            motion_exec.pre_condition_node = pre_condition_node
+            motion_exec.post_condition_node = post_condition_node
+            return motion_exec
 
+        # Fallback for composite/non-motion bodies: evaluate the conditions
+        # synchronously around the body, as before.
+        pre_condition_executable = ConditionExecutable(
+            condition_node=pre_condition_node, context=self.plan.context
+        )
+        post_condition_executable = ConditionExecutable(
+            condition_node=post_condition_node, context=self.plan.context
+        )
         return Executable(
-            execution_list=self.merge_motion_executables(exec_list),
+            execution_list=[
+                pre_condition_executable,
+                *merged,
+                post_condition_executable,
+            ],
             context=self.plan.context,
         )
 
@@ -560,7 +580,9 @@ class MotionNode(DesignatorNode):
     def parse(self) -> Executable:
         task = self.motion.motion_chart
 
-        return MotionExecutable(motion_mappings={self: task}, context=self.plan.context)
+        return GiskardExecutable(
+            motion_mappings={self: task}, context=self.plan.context
+        )
 
 
 ActionLike = Union[Match, Designator, PlanNode]

@@ -20,6 +20,7 @@ from typing_extensions import (
 
 from giskardpy.motion_statechart.goals.templates import Sequence, Parallel
 from giskardpy.motion_statechart.graph_node import Goal
+from pycram.language_giskard_templates import TryAll, TryInOrder
 from pycram.plans.executables import (
     GiskardExecutable,
     Executable,
@@ -62,6 +63,16 @@ class LanguageNode(PlanNode, ABC):
             child.notify()
 
     def parse(self) -> Executable:
+        if ModelChangeNode in [type(child) for child in self.children]:
+            return self.parse_with_model_change()
+        child_execs = [child.parse() for child in self.children]
+
+        return GiskardExecutable(
+            motion_mappings=self.merge_motion_mappings(child_execs),
+            context=self.plan.context,
+        )
+
+    def parse_with_model_change(self) -> Executable:
         child_executables = [node.parse() for node in self.children]
 
         # model_change_split = split_list_by_type(
@@ -239,6 +250,8 @@ class TryInOrderNode(ExecutesSequentially):
     Tries all children in order sequentially and fails if all children fail.
     """
 
+    msc_template = TryInOrder
+
     def notify(self):
         for child in self.children:
             try:
@@ -256,6 +269,8 @@ class TryAllNode(ExecutesInParallel):
     Executes all children in parallel.
     Only raise a failure if all children fail.
     """
+
+    msc_template = TryAll
 
     def notify(self):
         self._perform_parallel(self.children)

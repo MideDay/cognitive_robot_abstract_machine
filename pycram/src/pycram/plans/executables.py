@@ -54,6 +54,20 @@ class GiskardExecutable(Executable):
     Mapping from the motion nodes of the plan to their giskard tasks, in execution order.
     """
 
+    pre_condition_node: ConditionNode = field(default=None, kw_only=True)
+    """
+    Optional pre-condition of the action this executable belongs to. If set, the
+    motion only starts once the condition is observed to hold and the motion is
+    aborted (with :class:`ConditionNotSatisfied`) if it does not.
+    """
+
+    post_condition_node: ConditionNode = field(default=None, kw_only=True)
+    """
+    Optional post-condition of the action this executable belongs to. If set, it
+    is evaluated after the motion finished; the motion only ends successfully if
+    the condition is observed to hold, otherwise it is aborted.
+    """
+
     execution_type: ClassVar[ExecutionType] = None
     """
     The execution type used for all giskard executables, managed by
@@ -64,13 +78,67 @@ class GiskardExecutable(Executable):
     def motion_state_chart(self) -> MotionStatechart:
         """
         Giskard's motion state chart constructed from the motions of this executable.
+
+        If a pre- and/or post-condition is set, it is added as a
+        :class:`~giskardpy.motion_statechart.monitors.payload_monitors.ThreadedPredicateMonitor`
+        and wired into the chart:
+
+        - the pre-condition gates the start of the motion sequence,
+        - the post-condition gates the successful end of the motion,
+        - a :class:`~giskardpy.motion_statechart.graph_node.CancelMotion` aborts
+          the motion if either condition is observed to be false.
         """
+        from giskardpy.motion_statechart.graph_node import CancelMotion
+        from krrood.symbolic_math.symbolic_math import trinary_logic_not
+        from pycram.plans.condition_nodes import condition_monitor
+
         motion_state_chart = MotionStatechart()
         sequence_node = Sequence(nodes=list(self.motion_mappings.values()))
         motion_state_chart.add_node(sequence_node)
 
-        motion_state_chart.add_node(EndMotion.when_true(sequence_node))
+        end_trigger = sequence_node
+
+        if self.pre_condition_node is not None:
+            pre_monitor = condition_monitor(self.pre_condition_node)
+            motion_state_chart.add_node(pre_monitor)
+            # only start the motion once the pre-condition holds
+            sequence_node.start_condition = pre_monitor.observation_variable
+            # abort if the pre-condition is observed to be false
+            pre_cancel = CancelMotion(
+                exception=self._condition_not_satisfied(self.pre_condition_node)
+            )
+            pre_cancel.start_condition = trinary_logic_not(
+                pre_monitor.observation_variable
+            )
+            motion_state_chart.add_node(pre_cancel)
+
+        if self.post_condition_node is not None:
+            post_monitor = condition_monitor(self.post_condition_node)
+            # only evaluate the post-condition once the motion is done
+            post_monitor.start_condition = sequence_node.observation_variable
+            motion_state_chart.add_node(post_monitor)
+            end_trigger = post_monitor
+            # abort if the post-condition is observed to be false
+            post_cancel = CancelMotion(
+                exception=self._condition_not_satisfied(self.post_condition_node)
+            )
+            post_cancel.start_condition = trinary_logic_not(
+                post_monitor.observation_variable
+            )
+            motion_state_chart.add_node(post_cancel)
+
+        motion_state_chart.add_node(EndMotion.when_true(end_trigger))
         return motion_state_chart
+
+    @staticmethod
+    def _condition_not_satisfied(
+        condition_node: ConditionNode,
+    ) -> ConditionNotSatisfied:
+        return ConditionNotSatisfied(
+            pre_condition=condition_node.pre_condition,
+            action=condition_node.__class__,
+            condition=condition_node.condition,
+        )
 
     @property
     def is_interrupted(self) -> bool:
@@ -204,10 +272,6 @@ class ConditionExecutable(Executable):
             action=self.condition_node.__class__,
             condition=self.condition_node.condition,
         )
-
-
-@dataclass
-class MotionExecutable(GiskardExecutable): ...
 
 
 @dataclass
