@@ -19,6 +19,7 @@ from krrood.symbolic_math.symbolic_math import SymbolicMathType
 from krrood.exceptions import DataclassException
 from semantic_digital_twin.datastructures.definitions import JointStateType
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 
 if TYPE_CHECKING:
     from semantic_digital_twin.robots.robot_parts import (
@@ -357,6 +358,35 @@ class AmbiguousPart(UsageError):
             f"{type(self.part).__name__} cannot be unambiguously added as a part of "
             f"{type(self.annotation).__name__}: it matches multiple part-whole relationship fields "
             f"({', '.join([field_.name for field_ in self.fields])})."
+        )
+
+
+@dataclass
+class UnknownPartWholeRelationshipField(UsageError):
+    """
+    Raised when ``add`` is called with a ``field_name`` that is not a part-whole relationship field
+    of the annotation.
+    """
+
+    annotation: HasRootBody
+    """
+    The annotation the part was being added to.
+    """
+
+    field_name: str
+    """
+    The field name that was requested but does not exist as a part-whole relationship field.
+    """
+
+    available_fields: List[str]
+    """
+    The names of the annotation's part-whole relationship fields.
+    """
+
+    def __post_init__(self):
+        self.message = (
+            f"{type(self.annotation).__name__} has no part-whole relationship field "
+            f"'{self.field_name}'. Available: {', '.join(self.available_fields) or '(none)'}."
         )
 
 

@@ -11,6 +11,7 @@ from semantic_digital_twin.exceptions import (
     CannotBeAPartOf,
     AmbiguousPart,
     MechanicalJointAlreadyMounted,
+    UnknownPartWholeRelationshipField,
 )
 from semantic_digital_twin.exceptions import (
     InvalidPlaneDimensions,
@@ -1145,6 +1146,65 @@ def test_add_raises_on_ambiguous_part():
         # A Hinge is both a MechanicalJoint (joint field) and a Hinge (specific_joint field).
         with pytest.raises(AmbiguousPart):
             whole.add(hinge)
+
+
+def test_add_field_name_resolves_ambiguity_to_base_field():
+    """add(part, field_name=...) routes to the named field even when the type matches several."""
+    world = _world_with_root()
+    with world.modify_world():
+        whole = _AnnotationWithOverlappingPartWholeRelationshipFields.create_with_new_body_in_world(
+            name=PrefixedName("whole"), world=world
+        )
+        hinge = Hinge.create_with_new_body_in_world(
+            name=PrefixedName("hinge"), world=world, active_axis=Vector3.Z()
+        )
+        whole.add(hinge, field_name="joint")
+    assert whole.joint is hinge
+    assert whole.specific_joint is None
+
+
+def test_add_field_name_resolves_ambiguity_to_specific_field():
+    """add(part, field_name=...) can route the same part to the other matching field."""
+    world = _world_with_root()
+    with world.modify_world():
+        whole = _AnnotationWithOverlappingPartWholeRelationshipFields.create_with_new_body_in_world(
+            name=PrefixedName("whole"), world=world
+        )
+        hinge = Hinge.create_with_new_body_in_world(
+            name=PrefixedName("hinge"), world=world, active_axis=Vector3.Z()
+        )
+        whole.add(hinge, field_name="specific_joint")
+    assert whole.specific_joint is hinge
+    assert whole.joint is None
+
+
+def test_add_unknown_field_name_raises():
+    """add(part, field_name=...) with a name that is not a part-whole field raises."""
+    world = _world_with_root()
+    with world.modify_world():
+        whole = _AnnotationWithOverlappingPartWholeRelationshipFields.create_with_new_body_in_world(
+            name=PrefixedName("whole"), world=world
+        )
+        hinge = Hinge.create_with_new_body_in_world(
+            name=PrefixedName("hinge"), world=world, active_axis=Vector3.Z()
+        )
+        with pytest.raises(UnknownPartWholeRelationshipField):
+            whole.add(hinge, field_name="not_a_field")
+
+
+def test_add_field_name_with_mismatching_type_raises():
+    """add(part, field_name=...) still type-checks: a part the named field rejects raises."""
+    world = _world_with_root()
+    with world.modify_world():
+        door = Door.create_with_new_body_in_world(
+            name=PrefixedName("door"), scale=Scale(0.03, 1, 2), world=world
+        )
+        handle = Handle.create_with_new_body_in_world(
+            name=PrefixedName("handle"), world=world
+        )
+        # 'mechanical_joint' is a real part-whole field of Door, but a Handle is not a MechanicalJoint.
+        with pytest.raises(CannotBeAPartOf):
+            door.add(handle, field_name="mechanical_joint")
 
 
 def test_containment_only_annotation_has_no_add():

@@ -38,7 +38,11 @@ from random_events.set import Set as EventSet
 from random_events.variable import Symbolic
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.variables import SpatialVariables
-from semantic_digital_twin.exceptions import AmbiguousPart, CannotBeAPartOf
+from semantic_digital_twin.exceptions import (
+    AmbiguousPart,
+    CannotBeAPartOf,
+    UnknownPartWholeRelationshipField,
+)
 from semantic_digital_twin.reasoning.predicates import is_supported_by
 from semantic_digital_twin.spatial_types import (
     Point3,
@@ -378,21 +382,44 @@ class PartWholeRelationship(HasRootKinematicStructureEntity, ABC):
     """
 
     @synchronized_attribute_modification
-    def add(self, part: HasRootKinematicStructureEntity) -> None:
+    def add(
+        self, part: HasRootKinematicStructureEntity, field_name: str = ""
+    ) -> None:
         """
         Add ``part`` as a structural part, routing it to the matching part-whole relationship field
         by type.
 
         :param part: The part to add.
+        :param field_name: Optional name of the target part-whole relationship field. When given,
+            only that field is considered (and ``part`` must still match its element type), which
+            resolves the ambiguity when ``type(part)`` matches several fields. When empty (default),
+            the field is resolved by type alone.
+        :raises UnknownPartWholeRelationshipField: If ``field_name`` is given but is not a
+            part-whole relationship field of this annotation.
         :raises CannotBeAPartOf: If no part-whole relationship field of this annotation accepts
             ``type(part)``.
         :raises AmbiguousPart: If ``type(part)`` matches more than one part-whole relationship field.
         """
+        candidate_fields = _wrapped_part_whole_relationship_fields(type(self))
+        if field_name:
+            named_fields = [
+                wrapped_part_whole_relationship_field
+                for wrapped_part_whole_relationship_field in candidate_fields
+                if wrapped_part_whole_relationship_field.field.name == field_name
+            ]
+            if not named_fields:
+                raise UnknownPartWholeRelationshipField(
+                    self,
+                    field_name,
+                    [
+                        wrapped_part_whole_relationship_field.field.name
+                        for wrapped_part_whole_relationship_field in candidate_fields
+                    ],
+                )
+            candidate_fields = named_fields
         matches = [
             wrapped_part_whole_relationship_field
-            for wrapped_part_whole_relationship_field in _wrapped_part_whole_relationship_fields(
-                type(self)
-            )
+            for wrapped_part_whole_relationship_field in candidate_fields
             if isinstance(part, wrapped_part_whole_relationship_field.type_endpoint)
         ]
         if not matches:
