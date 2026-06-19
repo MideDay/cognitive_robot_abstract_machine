@@ -121,9 +121,10 @@ class Role(Symbol, SubClassSafeGeneric[T]):
     decorate with ``@dataclass(eq=False)``, and mark exactly one field as the role taker with
     :func:`role_taker_field`. Add any role-specific fields alongside it.
 
-    **Attribute delegation.** Attributes not declared on the role are forwarded to the role
-    taker via ``__getattr__`` and ``__setattr__``. Role-native attributes are always
-    resolved first.
+    **Attribute access.** Reading an attribute that is not declared on the role is delegated
+    to the role taker via ``__getattr__`` (role-native attributes are resolved first).
+    Assignments always set the attribute on the role itself and never modify the role taker;
+    to change the role taker, assign through ``role.role_taker``.
 
     **Distinct identity.** A role is a distinct object from its role taker: they do not
     compare equal and do not share a hash, so multiple roles (even of the same type) on one
@@ -265,40 +266,6 @@ class Role(Symbol, SubClassSafeGeneric[T]):
 
         guard.__name__ = item
         return guard
-
-    def __setattr__(self, key: str, value: Any):
-        """
-        Set role-native attributes on the role and delegate the rest to the role taker.
-
-        :param key: The attribute name being set.
-        :param value: The value to set.
-        """
-        if key in type(self).role_native_field_names() or not self._role_taker_is_set():
-            super().__setattr__(key, value)
-            return
-        role_taker = self.role_taker
-        if hasattr(role_taker, key):
-            setattr(role_taker, key, value)
-        else:
-            super().__setattr__(key, value)
-
-    @classmethod
-    @lru_cache
-    def role_native_field_names(cls) -> Tuple[str, ...]:
-        """
-        :return: The names of the dataclass fields declared on the role itself.
-        """
-        return tuple(declared_field.name for declared_field in fields(cls))
-
-    def _role_taker_is_set(self) -> bool:
-        """
-        :return: Whether the role taker field has been assigned yet.
-        """
-        try:
-            object.__getattribute__(self, type(self).role_taker_field_name())
-        except (AttributeError, RoleTakerFieldNotFound):
-            return False
-        return True
 
     @classmethod
     def from_role_taker(cls, role_taker: T) -> Role[T]:

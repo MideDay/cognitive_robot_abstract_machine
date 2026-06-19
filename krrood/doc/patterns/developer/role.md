@@ -34,9 +34,12 @@ The design optimises for four properties:
    explicitly. There must be no implicit or automatic role creation.
 3. **Pure composition, not inheritance.** A role class must not inherit from its role taker type.
    Role membership is expressed through registry queries, not `isinstance` checks.
-4. **Transparent attribute delegation.** A consumer of a role that does not know which attributes
-   belong to the role and which belong to the taker should be able to read and write all of them
-   through the role instance without special handling.
+4. **Transparent attribute reads.** A consumer of a role that does not know which attributes belong
+   to the role and which belong to the taker should be able to read all of them through the role
+   instance without special handling. Writes are deliberately not transparent: an assignment always
+   targets the role, so changing the taker is an explicit operation through `role.role_taker`. This
+   keeps writes unambiguous and prevents mutating a shared entity as a side effect of writing
+   through one of its roles.
 
 These goals shape every significant decision in the implementation.
 
@@ -74,9 +77,9 @@ would silently accept a `CEO`. This causes hidden coupling between systems that 
 to know about each other's roles. Role membership must be queried explicitly through
 `Role.has_role` or `Role.roles_for`, which makes the dependency visible.
 
-Removing taker inheritance also eliminates the entire category of problems that arose when the
-role taker class had non-trivial construction logic: the role no longer needs to replicate,
-forward, or suppress that logic.
+Pure composition also keeps the role independent of the taker's construction logic: because a role
+does not inherit from its taker, it never has to replicate, forward, or suppress whatever logic the
+taker's constructor runs, however non-trivial it is.
 
 ### No `__init__` Manipulation
 
@@ -127,9 +130,8 @@ fields stay introspectable by the class diagram and the downstream ORM/EQL machi
 
 A role is an ordinary object: `__eq__` returns `self is other` and `__hash__` is
 `object.__hash__`, so each role is equal only to itself and distinct from its taker and from
-sibling roles. This deliberately separates two concerns that the previous design conflated:
-*object identity* (am I this exact object?) and *semantic equivalence* (do we refer to the same
-underlying entity?). The latter is expressed explicitly by the `IsSameEntity` predicate in
+sibling roles. This keeps two concerns separate: *object identity* (am I this exact object?) and
+*semantic equivalence* (do we refer to the same underlying entity?). The latter is expressed explicitly by the `IsSameEntity` predicate in
 `krrood/src/krrood/patterns/role_predicates.py`, which unwraps each operand to its
 `root_persistent_entity` (walking the taker chain to the non-`Role` object) and compares the
 roots by identity. Two roles at different levels of a chain, and a role versus its root taker,
@@ -167,17 +169,19 @@ that still cannot be mapped (for example one whose module is not importable) is 
 `ClassIsUnMappedInClassDiagram` is caught and registration is skipped, leaving the role functional as
 a plain dataclass without graph integration.
 
-## Attribute Delegation
+## Attribute Access
 
 `__getattr__` delegates attribute reads that failed normal lookup to the role taker. Because
 `__getattr__` is only called when the standard attribute resolution chain has already failed,
-role-native attributes (those declared as dataclass fields on the role class) are never affected.
+role-native attributes (those declared as dataclass fields on the role class) are read from the
+role directly and never reach the taker.
 
-`__setattr__` is more nuanced. During `__post_init__`, the role taker field is not yet set when
-the first `super().__setattr__` call occurs. The `_role_taker_is_set` guard prevents premature
-delegation during that window. Once the taker field is set, writes to attributes that exist on
-the taker are delegated to the taker, and writes to attributes that exist only on the role (or
-neither) are stored on the role.
+There is no `__setattr__` override: assignments use the default behaviour and therefore always set
+the attribute on the role itself, never on the role taker. Reads are delegated but writes are not,
+so writing through a role cannot mutate the shared entity as a side effect; if the assigned name
+also exists on the taker, the role's own value shadows it on subsequent reads through the role.
+Code that needs to modify the taker does so explicitly through `role.role_taker` (or
+`role.root_persistent_entity`).
 
 ## Source References
 

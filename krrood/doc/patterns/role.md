@@ -126,23 +126,31 @@ count as the same entity:
 print("IsSameEntity(alice, ceo):", bool(IsSameEntity(alice, ceo)))
 ```
 
-## Attribute Delegation
+## Attribute Access
 
-Attributes that are not declared on the role are automatically delegated to the role taker via
-`__getattr__`. You can read and write role-taker attributes through the role as if they were
-declared there.
+Reading an attribute that is not declared on the role is delegated to the role taker via
+`__getattr__`, so you can read role-taker attributes through the role as if they were declared
+there.
+
+Assignments behave differently: they always set the attribute on the role itself and never modify
+the role taker. If the name also exists on the taker, the role's own value then takes precedence
+when read through the role. To change the taker, assign through `role.role_taker`.
 
 ```{code-cell} ipython3
-# Reading a role-taker attribute through the role
+# Reading a role-taker attribute through the role delegates to the taker
 print("ceo.name:", ceo.name)
 
-# Writing a role-taker attribute through the role modifies the taker
-ceo_person_before = alice.name
-ceo.name = "Alicia"
-print("alice.name after writing through ceo:", alice.name)
+# Assigning through the role sets the attribute on the role; the taker is left unchanged
+ceo.name = "Acting CEO"
+print("ceo.name:", ceo.name)
+print("alice.name (unchanged):", alice.name)
+
+# To change the taker, assign through its reference explicitly
+ceo.role_taker.name = "Alicia"
+print("alice.name after writing through role_taker:", alice.name)
 
 # Restore the original name
-alice.name = ceo_person_before
+ceo.role_taker.name = "Alice"
 
 # Role-native attributes live on the role, not the taker
 print("ceo.head_of:", ceo.head_of)
@@ -301,7 +309,8 @@ print("new_ceo:", new_ceo)
 | Access the root non-role entity | `role.root_persistent_entity` |
 | Check two objects are the same entity | `IsSameEntity(a, b)` (sees through role chains) |
 | Find the root role-taker type | `MyRole.get_root_role_taker_type()` |
-| Read/write taker attributes via role | Use the role instance directly — delegation is automatic |
+| Read taker attributes via role | Use the role instance directly — read delegation is automatic |
+| Change a taker attribute | Assign through `role.role_taker` |
 
 ## When to Use the Role Pattern
 
