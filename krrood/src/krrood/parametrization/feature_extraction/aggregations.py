@@ -6,6 +6,7 @@ from functools import lru_cache
 from typing_extensions import Callable, Optional, Type, TypeVar, Any
 
 from krrood.entity_query_language.core.mapped_variable import MappedVariable
+from random_events.variable import Variable
 from krrood.entity_query_language.factories import variable
 from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
 from krrood.utils import T, recursive_subclasses
@@ -114,3 +115,43 @@ class AggregationStatistic(SubClassSafeGeneric[T]):
             feature.apply_mapping_on_external_root(self)
             for feature in self.symbolic_aggregation_features_for(field_name)
         ]
+
+
+def compute_aggregation_statistics(
+    domain_object,
+    feature_functions: list[MappedVariable],
+    latent_variables: list[Variable],
+) -> dict[Variable, Any]:
+    """
+    Evaluate aggregation feature functions against a domain object and map results to latent variables.
+
+    Each feature function is evaluated only if its name matches a latent variable; values outside
+    the training domain of their variable are silently skipped to avoid impossible conditioning events.
+
+    :param domain_object: The domain object whose aggregation statistics are computed.
+    :param feature_functions: Symbolic feature functions for one exchangeable-part field.
+    :param latent_variables: Latent variables that define which statistics are relevant.
+    :return: A mapping from matched latent variables to their observed values.
+    """
+    latent_variable_by_name = {latent_variable.name: latent_variable for latent_variable in latent_variables}
+    aggregation_cls = get_aggregation_class(type(domain_object))
+    if aggregation_cls is None:
+        return {}
+    aggregation_instance = aggregation_cls(instance=domain_object)
+    statistics = {}
+    for feature_function in feature_functions:
+        feature_name = feature_function._name_
+        if feature_name not in latent_variable_by_name:
+            continue
+        value = feature_function.apply_mapping_on_external_root(aggregation_instance)
+        latent_variable = latent_variable_by_name[feature_name]
+        # ``make_value`` is the random_events API that validates domain membership;
+        # it signals an out-of-domain value by raising. There is no non-throwing
+        # membership predicate for a raw value against a symbolic domain, so this
+        # boundary adapts that exception into a skip.
+        try:
+            latent_variable.make_value(value)
+            statistics[latent_variable] = value
+        except (ValueError, TypeError):
+            pass
+    return statistics

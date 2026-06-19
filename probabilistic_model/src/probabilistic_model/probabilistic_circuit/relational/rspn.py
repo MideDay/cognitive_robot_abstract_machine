@@ -26,7 +26,9 @@ from krrood.ormatic.data_access_objects.dao import (
 )
 from krrood.ormatic.data_access_objects.from_dao import FromDataAccessObjectState
 from krrood.ormatic.data_access_objects.helper import to_dao
-from krrood.parametrization.feature_extraction.aggregations import get_aggregation_class
+from krrood.parametrization.feature_extraction.aggregations import (
+    compute_aggregation_statistics,
+)
 from krrood.parametrization.feature_extraction.feature_extractor import FeatureExtractor
 
 if TYPE_CHECKING:
@@ -175,7 +177,9 @@ class RelationalProbabilisticCircuit:
     ``ExchangeableDistributionTemplate``.
     """
 
-    schema_information: Optional[DataAccessObjectSchema] = field(init=False, default=None)
+    schema_information: Optional[DataAccessObjectSchema] = field(
+        init=False, default=None
+    )
     """
     The :class:`~krrood.ormatic.data_access_objects.dao.DataAccessObjectSchema` describing
     the DAO class's columns and relationships.
@@ -352,57 +356,6 @@ class RelationalProbabilisticCircuit:
             )
         return self
 
-    def _compute_aggregation_statistics(
-        self,
-        queryable_object,
-        exchangeable_part_name: str,
-        template: ExchangeableDistributionTemplate,
-    ) -> dict[Variable, Any]:
-        """
-        Compute aggregation statistics from the query for conditioning.
-
-        Evaluates each aggregation feature function against the query's constructed
-        instance and maps the result to its corresponding latent variable.  Values
-        outside the training domain are silently skipped; conditioning on them would
-        produce an impossible event and collapse the circuit.
-
-        :param queryable_object: The DAO representation of the query's constructed instance.
-        :param exchangeable_part_name: Field name identifying which relation's statistics
-            are being computed.
-        :param template: The ``ExchangeableDistributionTemplate`` whose latent variables
-            define which statistics are relevant.
-        :return: A mapping from latent variables to their observed values in the query.
-        """
-        latent_variable_by_name = {
-            variable.name: variable for variable in template.latent_variables
-        }
-        aggregation_statistics = {}
-        for feature_function in self.feature_extractor.exchangeable_features[
-            exchangeable_part_name
-        ]:
-            feature_name = feature_function._name_
-            if feature_name not in latent_variable_by_name:
-                continue
-            domain_object = queryable_object.from_dao()
-            aggregation_cls = get_aggregation_class(type(domain_object))
-            if aggregation_cls is None:
-                continue
-            aggregation_instance = aggregation_cls(instance=domain_object)
-            value = feature_function.apply_mapping_on_external_root(
-                aggregation_instance
-            )
-            latent_variable = latent_variable_by_name[feature_name]
-            # ``make_value`` is the random_events API that validates domain membership;
-            # it signals an out-of-domain value by raising. There is no non-throwing
-            # membership predicate for a raw value against a symbolic domain, so this
-            # boundary adapts that exception into a skip.
-            try:
-                latent_variable.make_value(value)
-                aggregation_statistics[latent_variable] = value
-            except (ValueError, TypeError):
-                pass
-        return aggregation_statistics
-
     def _condition_class_circuit(
         self,
         circuit: ProbabilisticCircuit,
@@ -455,13 +408,14 @@ class RelationalProbabilisticCircuit:
             raise CircuitNotFittedError(self.class_)
         circuit = self.class_probabilistic_circuit.__deepcopy__()
         instance = query.construct_instance()
-        queryable_object = to_dao(instance)
         for (
             exchangeable_part_name,
             template,
         ) in self.exchangeable_distribution_templates.items():
-            aggregation_statistics = self._compute_aggregation_statistics(
-                queryable_object, exchangeable_part_name, template
+            aggregation_statistics = compute_aggregation_statistics(
+                instance,
+                self.feature_extractor.exchangeable_features[exchangeable_part_name],
+                template.latent_variables,
             )
             circuit, product_nodes_to_extend = self._condition_class_circuit(
                 circuit, aggregation_statistics, template.latent_variables
