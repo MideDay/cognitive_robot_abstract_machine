@@ -2,8 +2,9 @@
 Custom exceptions raised by the EQL verbalization subsystem.
 
 Each is a :class:`~krrood.exceptions.DataclassException` — a dataclass exception that carries the
-structured cause as fields and builds its human-readable ``message`` in ``__post_init__`` — so the
-failure data is inspectable (not only a formatted string), consistent with the rest of krrood.
+structured cause as fields and composes its human-readable message from ``error_message()`` /
+``suggest_correction()`` — so the failure data is inspectable (not only a formatted string),
+consistent with the rest of krrood.
 """
 
 from __future__ import annotations
@@ -31,13 +32,16 @@ class UnverbalizableExpressionError(DataclassException):
     node: "SymbolicExpression"
     """The EQL expression no grammar rule matched."""
 
-    def __post_init__(self):
-        self.message = (
+    def error_message(self) -> str:
+        return (
             f"No verbalization rule for {type(self.node).__name__!r} "
-            f"(name={getattr(self.node, '_name_', None)!r}); "
-            "add a PhraseRule in the construct's grammar/<construct>/rules.py module."
+            f"(name={getattr(self.node, '_name_', None)!r})."
         )
-        super().__post_init__()
+
+    def suggest_correction(self) -> str:
+        return (
+            "Add a PhraseRule in the construct's grammar/<construct>/rules.py module."
+        )
 
 
 @dataclass
@@ -50,13 +54,14 @@ class UnloweredFragmentError(DataclassException):
     fragment: "Fragment"
     """The un-lowered fragment that reached the renderer."""
 
-    def __post_init__(self):
-        self.message = (
-            f"fold_fragment received a {type(self.fragment).__name__}; "
-            "NounPhrase / PossessiveChain nodes must be lowered by the realisation "
-            "passes (realize_tree) before a renderer folds the tree."
+    def error_message(self) -> str:
+        return (
+            f"fold_fragment received a {type(self.fragment).__name__}; NounPhrase / "
+            "PossessiveChain nodes must be lowered before a renderer folds the tree."
         )
-        super().__post_init__()
+
+    def suggest_correction(self) -> str:
+        return "Run the realisation passes (realize_tree) before rendering."
 
 
 @dataclass
@@ -70,9 +75,11 @@ class UndeclaredFormSlotError(DataclassException):
     form: "type[ConditionForm]"
     """The condition-form subclass missing its ``slot``."""
 
-    def __post_init__(self):
-        self.message = (
-            f"{self.form.__name__!r} must declare the `slot` class variable "
-            "(e.g. `slot = Slot.WHOSE`) — it sets where the form's output attaches."
+    def error_message(self) -> str:
+        return (
+            f"{self.form.__name__!r} must declare the `slot` class variable — "
+            "it sets where the form's output attaches."
         )
-        super().__post_init__()
+
+    def suggest_correction(self) -> str:
+        return "Add e.g. `slot = Slot.WHOSE` to the class body."
