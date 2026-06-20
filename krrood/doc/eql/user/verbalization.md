@@ -19,7 +19,7 @@ Verbalization turns any EQL expression into a plain-English sentence. This is us
 
 - **Debugging** — instantly understand what a complex query actually asks.
 - **Explainability** — surface query intent in logs, UIs, or reports.
-- **Testing** — assert on what a query means, not just what it returns.
+- **Testing** — assert on what a query *means* (its intent and structure), not just what it returns. Two queries can return the same rows on a fixture yet express different intent (e.g. `and_` vs `or_`); a verbalization assertion pins the intent regardless of the data.
 
 ## The Quick API
 
