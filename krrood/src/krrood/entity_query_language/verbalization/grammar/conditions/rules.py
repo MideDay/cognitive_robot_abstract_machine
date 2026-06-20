@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing_extensions import List
-
 from krrood.entity_query_language.core.base_expressions import Filter
 from krrood.entity_query_language.operators.comparator import Comparator
 from krrood.entity_query_language.operators.core_logical_operators import (
@@ -15,6 +13,7 @@ from krrood.entity_query_language.verbalization.fragments.base import (
     Fragment,
     oxford_comma,
     PhraseFragment,
+    RoleFragment,
 )
 from krrood.entity_query_language.verbalization.fragments.features import (
     Number,
@@ -23,9 +22,14 @@ from krrood.entity_query_language.verbalization.fragments.features import (
 from krrood.entity_query_language.verbalization.grammar.chain.assembler import (
     ChainAssembler,
 )
-from krrood.entity_query_language.verbalization.grammar.chain.planner import ChainPlanner
+from krrood.entity_query_language.verbalization.grammar.chain.planner import (
+    ChainPlanner,
+)
 from krrood.entity_query_language.verbalization.grammar.conditions.assembler import (
     ConditionAssembler,
+)
+from krrood.entity_query_language.verbalization.grammar.conditions.operator_phrase import (
+    coindexed_operator,
 )
 from krrood.entity_query_language.verbalization.grammar.conditions.recognition import (
     is_boolean_attribute_chain,
@@ -35,14 +39,18 @@ from krrood.entity_query_language.verbalization.grammar.framework.phrase_rule im
     RuleContext,
 )
 from krrood.entity_query_language.verbalization.microplanning.coordination import (
-    fold_range_pairs,
-    fragment_for_folded_conjunct,
-    has_pair,
+    build_between,
+    coindexed_natural_parts,
+    CoindexedFold,
+    RangeFold,
 )
 from krrood.entity_query_language.verbalization.vocabulary.english import (
+    Articles,
+    CoindexedPhrases,
     Conjunctions,
     Keywords,
     Logicals,
+    Prepositions,
     Punctuation,
 )
 
@@ -62,47 +70,103 @@ class ComparatorRule(PhraseRule):
 
 
 class AndRule(PhraseRule):
-    """Conjunction *"a, b, and c"* (Oxford comma); flattens nested ANDs.
+    """Conjunction *"a, b, and c"* (Oxford comma); flattens nested ANDs. A complementary low/high
+    pair on one chain folds into *"… is between low and high"* — handled by the shared conjunct
+    rendering, so there is no separate range rule.
 
     >>> robot = variable(Robot, [])
     >>> verbalize_expression(and_(robot.battery > 50, robot.name == 'x'))
     "the battery of a Robot is greater than 50, and the name of the Robot is 'x'"
+    >>> verbalize_expression(and_(robot.battery > 10, robot.battery < 90))
+    'the battery of a Robot is between 10 and 90'
     """
 
     construct = AND
     name = "and"
 
     def build(self, node: AND, context: RuleContext) -> Fragment:
-        parts = [context.child(conjunct) for conjunct in flatten_operands(node, AND)]
+        parts = ConditionAssembler(context).as_statements(flatten_operands(node, AND))
         if len(parts) == 1:
             return parts[0]
-        return oxford_comma(parts, Conjunctions.AND.as_fragment())
+        # Conjuncts are independent clauses, so a two-clause coordination keeps its comma.
+        return oxford_comma(parts, Conjunctions.AND.as_fragment(), pair_comma=True)
 
 
-class RangeConjunctionRule(PhraseRule):
-    """A conjunction containing a low/high pair on one chain → *"… is between low and high"*.
+class RangeFoldRule(PhraseRule):
+    """A folded lower/upper bound pair → *"<chain> is between low and high"*.
 
-    >>> robot = variable(Robot, [])
-    >>> verbalize_expression(and_(robot.battery > 10, robot.battery < 90))
-    'the battery of a Robot is between 10, and 90'
+    A :class:`RangeFold` is the coordination microplanning artifact produced when two complementary
+    bounds on one chain are reduced (by :func:`fold_range_pairs`). Making it a first-class
+    verbalizable means any caller that has reduced its conjuncts renders the result through the
+    normal recursion (``context.child``) — it never has to know a folding helper exists.
     """
 
-    construct = AND
-    name = "and-range"
+    construct = RangeFold
+    name = "range-fold"
 
-    def when(self, node: AND, context: RuleContext) -> bool:
-        return has_pair(flatten_operands(node, AND))
+    def build(self, node: RangeFold, context: RuleContext) -> Fragment:
+        return build_between(
+            context.child(node.chain_expression),
+            context.child(node.lower_expression),
+            context.child(node.upper_expression),
+            compact=context.configuration.compact_predicates,
+        )
 
-    def build(self, node: AND, context: RuleContext) -> Fragment:
-        parts: List[Fragment] = [
-            fragment_for_folded_conjunct(
-                item, context.child, compact=context.configuration.compact_predicates
+
+class CoindexedFoldRule(PhraseRule):
+    """A group of co-indexed comparators (``p.begin.X == p.end.X`` for several ``X``) reduced by
+    :func:`fold_coindexed_groups` → one factored clause that says the shared structure once.
+
+    Two surface forms, chosen here (recognition stays pure):
+
+    * **natural** — a pure-equality fold over *sibling* prefixes (``p.begin`` / ``p.end``) reads
+      *"the begin and end of its period have the same month and year"*;
+    * **faithful** — every other foldable case (a non-equality operator, or prefixes that are not
+      siblings) reads *"the month and year of the begin of its period are equal to those of the
+      end of its period"*.
+    """
+
+    construct = CoindexedFold
+    name = "coindexed-fold"
+
+    def build(self, node: CoindexedFold, context: RuleContext) -> Fragment:
+        terminals = oxford_comma(
+            [self._attribute(pair) for pair in node.terminals],
+            Conjunctions.AND.as_fragment(),
+        )
+        natural = coindexed_natural_parts(node)
+        if natural is not None:
+            hops = oxford_comma(
+                [self._attribute(natural.left_hop), self._attribute(natural.right_hop)],
+                Conjunctions.AND.as_fragment(),
             )
-            for item in fold_range_pairs(flatten_operands(node, AND))
-        ]
-        if len(parts) == 1:
-            return parts[0]
-        return oxford_comma(parts, Conjunctions.AND.as_fragment())
+            return PhraseFragment(
+                parts=[
+                    Articles.THE.as_fragment(),
+                    hops,
+                    Prepositions.OF.as_fragment(),
+                    context.child(natural.shared_prefix_expression),
+                    CoindexedPhrases.HAVE_THE_SAME.as_fragment(),
+                    terminals,
+                ]
+            )
+        return PhraseFragment(
+            parts=[
+                Articles.THE.as_fragment(),
+                terminals,
+                Prepositions.OF.as_fragment(),
+                context.child(node.left_prefix_expression),
+                coindexed_operator(node.operation),
+                CoindexedPhrases.THOSE_OF.as_fragment(),
+                context.child(node.right_prefix_expression),
+            ]
+        )
+
+    @staticmethod
+    def _attribute(pair: tuple) -> RoleFragment:
+        """:return: The role-tagged attribute fragment for a ``(name, owner)`` hop."""
+        name, owner = pair
+        return RoleFragment.for_attribute(owner, name)
 
 
 class OrRule(PhraseRule):

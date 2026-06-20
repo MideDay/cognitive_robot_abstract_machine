@@ -36,7 +36,8 @@ class AttributeGroup:
     """
 
     object: SymbolicExpression
-    """The object whose attributes these are (the chain root, e.g. the position)."""
+    """The object whose attributes these are — the selection itself for a direct attribute, or a
+    sub-object chain (``pose.position``) for a nested match's attributes."""
 
     assignments: List[AttributeAssignment]
     """The attribute assignments on *object*, in construction order."""
@@ -71,7 +72,9 @@ class MatchPlan:
     individual *"given that"* points."""
 
     where_conditions: List[SymbolicExpression]
-    """The conditions added via ``.where(...)`` — rendered as individual *"where"* points."""
+    """The conditions added via ``.where(...)``. The plan only classifies them as the ``where``
+    part; deciding how to say a list of conditions (including folding bound pairs into a *between*)
+    belongs to the condition verbalizer, not here."""
 
 
 @dataclass
@@ -123,19 +126,23 @@ class MatchPlanner(Planner[Match, MatchPlan]):
     ) -> Optional[Tuple[SymbolicExpression, AttributeAssignment]]:
         """
         :param condition: A construction-pattern condition.
-        :return: ``(object, assignment)`` when *condition* is a single-hop attribute equality
-            (``object.attr == value``), else ``None`` (a non-equality or multi-hop condition that
-            doesn't group).
+        :return: ``(object, assignment)`` when *condition* is an attribute equality
+            (``object.attr == value``) — grouping by the attribute's immediate owner so a nested
+            match's attributes aggregate per sub-object (``pose.position.x/y/z`` group under
+            ``pose.position``) — else ``None`` (a non-equality or non-attribute condition).
         """
         if not (
             isinstance(condition, Comparator) and condition.operation is operator.eq
         ):
             return None
         chain, root = walk_chain(condition.left)
-        if len(chain) != 1 or not isinstance(chain[-1], Attribute):
+        if not chain or not isinstance(chain[-1], Attribute):
             return None
+        # The attribute's owner is the previous hop (``pose.position`` for ``pose.position.x``), or
+        # the chain root for a direct attribute (``pose.frame``); group the assignments by it.
+        owner = chain[-2] if len(chain) >= 2 else root
         value = condition.right
         is_predicted = isinstance(value, Literal) and value._value_ is Ellipsis
-        return root, AttributeAssignment(
+        return owner, AttributeAssignment(
             attribute=chain[-1], value=value, is_predicted=is_predicted
         )

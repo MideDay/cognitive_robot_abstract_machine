@@ -147,7 +147,6 @@ class Keywords(VocabEnum):
     IF = KeyWord("If")
     THEN = KeyWord("then")
     FIND = KeyWord("Find")
-    FIND_SETS_OF = KeyWord("Find sets of")
     SUCH_THAT = KeyWord("such that")
     GIVEN_THAT = KeyWord("given that")
     WHERE = KeyWord("where")
@@ -257,6 +256,48 @@ class Conjunctions(VocabEnum):
     OR = PlainWord("or")
 
 
+class Absence(VocabEnum):
+    """Absence-of-attribute verb — the *"has no"* / *"have no"* of *"the Pose has no orientation"*,
+    produced for an owned attribute compared ``== None``. Number-agreeing, but selected explicitly
+    (the morphology pass only agrees the copula), so the right member is chosen here."""
+
+    HAS_NO = OperatorWord("has no")
+    HAVE_NO = OperatorWord("have no")
+
+    @classmethod
+    def for_number(cls, number: Number) -> "Absence":
+        """:return: ``HAVE_NO`` for a plural owner, else ``HAS_NO``."""
+        return cls.HAVE_NO if number is Number.PLURAL else cls.HAS_NO
+
+
+class NonExistence(VocabEnum):
+    """Non-existence verb — the *"does not exist"* / *"do not exist"* of *"the Robot does not
+    exist"*, produced for a bare variable compared ``== None`` (no attribute to name).
+    """
+
+    DOES_NOT_EXIST = OperatorWord("does not exist")
+    DO_NOT_EXIST = OperatorWord("do not exist")
+
+    @classmethod
+    def for_number(cls, number: Number) -> "NonExistence":
+        """:return: ``DO_NOT_EXIST`` for a plural subject, else ``DOES_NOT_EXIST``."""
+        return cls.DO_NOT_EXIST if number is Number.PLURAL else cls.DOES_NOT_EXIST
+
+
+class SetMembership(VocabEnum):
+    """Membership phrase for a domain-constrained value variable — the *"one of"* of *"one of
+    OPTION_A, OPTION_B, or OPTION_C"*."""
+
+    ONE_OF = PlainWord("one of")
+
+
+class Specificity(VocabEnum):
+    """Pre-head marking a concrete object literal as a specific instance (its identity, not its
+    repr) — the *"specific"* of *"a specific Body"*."""
+
+    SPECIFIC = PlainWord("specific")
+
+
 class Punctuation(VocabEnum):
     """Structural punctuation tokens — role-less, like the brackets around a tuple (*"(v1, v2)"*)
     and the comma in a coordinated list (*"a, b, or c"*)."""
@@ -285,11 +326,49 @@ class RangePhrases(VocabEnum):
     """Copula-less form for HAVING / post-nominal use (*"between"*)."""
 
 
+class CoindexedOperators(VocabEnum):
+    """Plural copular operator phrases for a factored co-indexed comparison — the *"are equal to"*
+    of *"the month and year of A are equal to those of B"*. Plural because the coordinated
+    terminals (*"month and year"*) are the grammatical subject."""
+
+    EQ = OperatorWord("are equal to")
+    GT = OperatorWord("are greater than")
+    LT = OperatorWord("are less than")
+    GE = OperatorWord("are at least")
+    LE = OperatorWord("are at most")
+
+
+class CoindexedPhrases(VocabEnum):
+    """Fixed phrases for the factored co-indexed comparison rendering: the *"those of"* anaphor of
+    the faithful form, and the *"have the same"* verb of the natural equality form."""
+
+    THOSE_OF = PlainWord("those of")
+    HAVE_THE_SAME = PlainWord("have the same")
+
+
 class SortDirections(VocabEnum):
     """Sort direction words for ORDERED BY clauses."""
 
     ASCENDING = PlainWord("ascending")
     DESCENDING = PlainWord("descending")
+
+
+class RankingWords(VocabEnum):
+    """The qualifier words a ``limit`` (+ ordering) puts on the selection — *"the first two"*,
+    *"the top three"*, *"the lowest"*, *"… by salary"*."""
+
+    FIRST = PlainWord("first")
+    """No ordering — the first *n* in natural order."""
+    TOP = PlainWord("top")
+    """Descending order, *n > 1* (*"the top three …"*)."""
+    BOTTOM = PlainWord("bottom")
+    """Ascending order, *n > 1* (*"the bottom three …"*)."""
+    HIGHEST = PlainWord("highest")
+    """Descending order, *n = 1* (*"the highest …"* / *"with the highest …"*)."""
+    LOWEST = PlainWord("lowest")
+    """Ascending order, *n = 1* (*"the lowest …"* / *"with the lowest …"*)."""
+    BY = PlainWord("by")
+    """Introduces the order key for a plural attribute ranking (*"… by salary"*)."""
 
 
 class Articles(VocabEnum):
