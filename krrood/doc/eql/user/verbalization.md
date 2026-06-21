@@ -130,13 +130,16 @@ unaffected and keeps the genitive *"the name of the department of an Employee"*;
 ends in a preposition (e.g. `color_in`) is not treated as a relation.
 
 When the robot is the **subject** of a clause — a boolean attribute, *"the Robot to which it is
-assigned is operational"* — the very next attribute of it reads *"its battery"*:
+assigned is operational"* — the attributes that follow read *"its battery … its power"*, uniformly
+(once *"its"* refers to the robot it keeps it as the topic):
 
 ```{code-cell} ipython3
-query = an(entity(m).where(m.assigned_to.operational, m.assigned_to.battery > 5))
+query = an(entity(m).where(
+    m.assigned_to.operational, m.assigned_to.battery > 5, m.assigned_to.power > 1,
+))
 print(verbalize_expression(query))
-# Find a Mission such that the Robot to which it is assigned is operational, and its
-# battery is greater than 5
+# Find a Mission such that the Robot to which it is assigned is operational, its battery
+# is greater than 5, and its power is greater than 1
 ```
 
 But when the clause is *about an attribute* — *"the battery of the Robot … is greater than 5"* — the

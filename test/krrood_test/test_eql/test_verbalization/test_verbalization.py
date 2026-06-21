@@ -545,11 +545,11 @@ def test_attribute_through_relational_referent_pronominalises():
     )
 
 
-def test_its_reaches_only_the_clause_immediately_after_the_subject():
-    """*"its"* binds to the subject of the clause just before it. A boolean predicative makes the
-    robot the subject, so the *next* attribute is *"its battery"* — but that clause is now headed by
-    *the battery*, so the centre moves on and the *following* attribute spells out *"the power of
-    the Robot"*. The pronoun reaches exactly one clause deep."""
+def test_its_continues_uniformly_once_the_subject_licenses_it():
+    """A boolean predicative makes the robot the subject, so the attributes that follow read
+    *"its battery … its power"* — uniformly pronominal. Once *"its"* refers to the robot it keeps it
+    as the topic (a centering CONTINUE), so the run never mixes *"its battery"* with a re-named
+    *"the power of the Robot"*."""
     m = variable(_NavMission, [])
     text = verbalize_expression(
         an(
@@ -562,8 +562,7 @@ def test_its_reaches_only_the_clause_immediately_after_the_subject():
     )
     assert text == (
         "Find a _NavMission such that the _NavRobot to which it is assigned is "
-        "operational, its battery is greater than 5, and the power of the _NavRobot is "
-        "greater than 1"
+        "operational, its battery is greater than 5, and its power is greater than 1"
     )
 
 

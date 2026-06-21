@@ -137,13 +137,16 @@ class CoreferenceProcessor:
         (*"the Robot to which it is assigned"*), so the walk resolves its first/repeat mention — a
         second mention of the same navigation reduces to a bare *"the Robot"*.
 
-        After resolving, this chain's own topic becomes the local centre, so the *next* chain's
-        matching attribute can pronominalise to *"its …"*."""
+        After resolving, the centre advances to this clause's subject — unless the clause was itself
+        an *"its …"* continuation of the current centre, which *keeps* it (a centering CONTINUE), so
+        a run of attributes on one referent stays uniformly pronominal (*"its battery … its
+        power"*) rather than mixing *"its battery … the power of the Robot"*."""
         reduced_quantity = self._reduced_selected_quantity(possessive_chain)
         if reduced_quantity is not None:
             resolved = reduced_quantity
         elif (built := self._relational_possessive(possessive_chain)) is not None:
-            resolved = self._walk(built)
+            # An "its …" continuation keeps the centre it referred to.
+            return self._walk(built)
         elif self._pronominalises(possessive_chain):
             subject_number = self._subject_stack[-1].number
             resolved = self._walk(
