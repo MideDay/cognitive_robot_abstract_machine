@@ -129,6 +129,16 @@ pronominalises (*"the battery of the Robot **to which it is assigned**"*). A pla
 unaffected and keeps the genitive *"the name of the department of an Employee"*; a noun that merely
 ends in a preposition (e.g. `color_in`) is not treated as a relation.
 
+The relative clause is spelled out only the first time; a later mention of the *same* navigation
+refers back to it as a plain *"the Robot"* instead of repeating the whole clause:
+
+```{code-cell} ipython3
+query = an(entity(m).where(m.assigned_to.battery > 5, m.assigned_to.power > 10))
+print(verbalize_expression(query))
+# Find a Mission such that the battery of the Robot to which it is assigned is greater
+# than 5, and the power of the Robot is greater than 10
+```
+
 ## Absence Conditions (`== None`)
 
 A comparison to `None` is read as an *absence*, not as a value. The exact wording adapts to the

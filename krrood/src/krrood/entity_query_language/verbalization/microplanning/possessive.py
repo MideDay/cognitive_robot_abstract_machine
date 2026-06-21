@@ -4,12 +4,16 @@ from typing_extensions import List
 
 from krrood.entity_query_language.verbalization.navigation_path import PathStep
 from krrood.entity_query_language.verbalization.fragments.base import (
+    NounPhrase,
     PhraseFragment,
     RoleFragment,
     Fragment,
     WordFragment,
 )
-from krrood.entity_query_language.verbalization.fragments.features import Number
+from krrood.entity_query_language.verbalization.fragments.features import (
+    Definiteness,
+    Number,
+)
 from krrood.entity_query_language.verbalization.fragments.roles import SemanticRole
 from krrood.entity_query_language.verbalization.vocabulary.english import (
     Articles,
@@ -48,12 +52,16 @@ def _relative_clause(
     wrapping its owner as a relative clause (the preposition pied-piped before *which*: *"the Robot
     to which a Mission is assigned"*). Keeping the owner the verb's subject means the meaning never
     flips for agentive relations (*"the Person by which a Book is owned"*); the copula agrees with
-    the owner's *owner_number* (*"it is"* / *"they are"*)."""
+    the owner's *owner_number* (*"it is"* / *"they are"*).
+
+    The clause is a *referring* noun phrase headed by the related type, so a repeat mention of the
+    same navigation reduces to a bare *"the <Type>"* during coreference (the relative clause is a
+    first-mention modifier)."""
     relation = step.relation
-    return PhraseFragment(
-        parts=[
-            Articles.THE.as_fragment(),
-            RoleFragment.for_type(relation.value_type),
+    return NounPhrase(
+        head=RoleFragment.for_type(relation.value_type),
+        definiteness=Definiteness.DEFINITE,
+        modifiers=[
             WordFragment(text=relation.preposition),
             Keywords.WHICH.as_fragment(),
             owner_fragment,
@@ -61,7 +69,8 @@ def _relative_clause(
             RoleFragment.for_attribute(
                 relation.owner_class, step.name, text=relation.participle
             ),
-        ]
+        ],
+        referent_id=relation.referent_id,
     )
 
 

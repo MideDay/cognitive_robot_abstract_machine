@@ -116,13 +116,19 @@ class CoreferenceProcessor:
         """:return: The chain as *"its/their …"* when its root is the current subject (the
         pronoun agreeing with the subject's number — *"their"* for a plural population), else as
         the possessive *"the … of <root>"* (resolving the root noun phrase for first/subsequent
-        mention)."""
+        mention).
+
+        The built chain is walked, not returned raw: a relational hop emits a referring noun phrase
+        (*"the Robot to which it is assigned"*), so the walk resolves its first/repeat mention — a
+        second mention of the same navigation reduces to a bare *"the Robot"*."""
         if self._pronominalises(possessive_chain):
             subject_number = self._subject_stack[-1].number
-            return pronominal_path(possessive_chain.parts, subject_number)
-        return possessive_path(
-            possessive_chain.parts, self._walk(possessive_chain.root_fragment)
-        )
+            built = pronominal_path(possessive_chain.parts, subject_number)
+        else:
+            built = possessive_path(
+                possessive_chain.parts, possessive_chain.root_fragment
+            )
+        return self._walk(built)
 
     def _pronominalises(self, possessive_chain: PossessiveChain) -> bool:
         """:return: ``True`` when the chain root is the current, already-introduced, non-numbered subject."""

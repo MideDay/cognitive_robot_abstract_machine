@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 
 from typing_extensions import TYPE_CHECKING, Callable, List, Optional
@@ -39,6 +40,11 @@ class RelationStep:
 
     preposition: str
     """The trailing preposition (*"to"*) — pied-piped to *"to which …"*."""
+
+    referent_id: Optional[uuid.UUID] = None
+    """The navigated value node's id. The relative clause is a *referring* expression for that
+    entity, so a repeat mention of the same navigation reduces to a bare *"the <Type>"* (coreference)
+    rather than repeating the whole *"the Robot to which it is assigned"*; ``None`` disables it."""
 
 
 @dataclass(frozen=True)
@@ -102,6 +108,7 @@ def build_path_parts(
                     owner,
                     verb.participle,
                     verb.preposition,
+                    node._id_,
                 )
                 if verb is not None
                 else None

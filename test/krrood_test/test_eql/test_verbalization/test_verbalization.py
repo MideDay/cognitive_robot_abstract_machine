@@ -459,24 +459,35 @@ def test_relational_navigation_pronominalises_the_subject():
     )  # the owner is pronominalised, not repeated
 
 
-def test_relational_navigation_pronominalises_at_every_occurrence():
-    """Each occurrence of the subject's relational chain pronominalises (two distinct terminals, so
-    they do not range-fold into one clause)."""
+def test_relational_navigation_repeat_reduces_to_bare_type():
+    """The relative clause is a referring expression: the first occurrence spells it out (the owner
+    pronominalised), and a repeat mention of the *same* navigation reduces to a bare *"the Robot"*
+    rather than repeating the whole clause."""
     m = variable(_NavMission, [])
     text = verbalize_expression(
         an(entity(m).where(m.assigned_to.battery > 5, m.assigned_to.power > 10))
     )
-    assert text.count("to which it is assigned") == 2
+    assert text == (
+        "Find a _NavMission such that the battery of the _NavRobot to which it is "
+        "assigned is greater than 5, and the power of the _NavRobot is greater than 10"
+    )
+    assert text.count("to which it is assigned") == 1  # spelled out once, then reduced
 
 
-def test_relational_navigation_pronominalises_in_nested_query():
-    """The relative clause pronominalises inside a nested aggregation sub-query too."""
+def test_relational_navigation_reduces_in_nested_query():
+    """The relative clause is introduced once in a nested aggregation sub-query (the owner spelled
+    out as it is first introduced there) and the repeat in the WHERE clause reduces to the bare
+    type."""
     m = variable(_NavMission, [])
     nested = an(
         entity(eql.average(m.assigned_to.battery)).where(m.assigned_to.battery > 5)
     )
     text = verbalize_expression(nested)
-    assert "to which it is assigned" in text
+    assert text == (
+        "Find the average of the battery of the _NavRobot to which a _NavMission is "
+        "assigned such that the battery of the _NavRobot is greater than 5"
+    )
+    assert text.count("to which") == 1  # introduced once, then reduced
 
 
 def test_boolean_predicative_pronominalises_relational_navigation():
