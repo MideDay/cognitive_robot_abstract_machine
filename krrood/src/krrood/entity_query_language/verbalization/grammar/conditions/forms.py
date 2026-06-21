@@ -242,8 +242,8 @@ class AbsenceForm(StandaloneForm):
     *"whose …"* coordination).
 
     >>> mission = variable(Mission, [])
-    >>> verbalize_expression(an(entity(mission).where(mission.assigned_to == None)))
-    'Find a Mission such that the Mission has no assigned_to'
+    >>> verbalize_expression(an(entity(mission).where(mission.priority == None)))
+    'Find a Mission such that the Mission has no priority'
     """
 
     slot = Slot.STANDALONE
