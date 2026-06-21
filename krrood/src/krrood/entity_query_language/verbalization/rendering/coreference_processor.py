@@ -77,10 +77,11 @@ class CoreferenceProcessor:
     """Stack of :class:`SubjectFrame` entries — the number selects *"its"*/*"their"*."""
 
     _center: Optional[uuid.UUID] = field(init=False, default=None)
-    """The local centre — the referent the immediately preceding chain *foregrounded* (see
+    """The local centre — the grammatical subject of the immediately preceding clause (see
     :meth:`_chain_topic`). The next chain's attribute on that referent pronominalises to *"its …"*;
-    an intervening chain about something else clears it, so *"its"* only ever binds to the referent
-    named directly before (centering theory, Grosz/Joshi/Weinstein 1995)."""
+    a clause about something else (or one headed by an attribute) clears it, so *"its"* binds only
+    to the referent that was the subject just before (centering theory, Grosz/Joshi/Weinstein
+    1995)."""
 
     def process(
         self,
@@ -152,7 +153,7 @@ class CoreferenceProcessor:
             resolved = self._walk(
                 possessive_path(possessive_chain.parts, possessive_chain.root_fragment)
             )
-        self._center = self._chain_topic(possessive_chain)
+        self._center = self._chain_topic(possessive_chain.parts)
         return resolved
 
     def _reduced_selected_quantity(
@@ -189,30 +190,34 @@ class CoreferenceProcessor:
                 )
         return None
 
-    def _chain_topic(self, possessive_chain: PossessiveChain) -> Optional[uuid.UUID]:
-        """:return: The referent a chain *foregrounds*, to carry forward as the local centre. An
-        ordinary navigation foregrounds the entity it describes — its outermost relational referent
-        (*"the Robot …"*, so a following attribute is *"its …"*). A query's selected / measured
-        quantity instead foregrounds the *quantity* (*"the average of the **battery** …"*): the
-        battery, not the Robot, is what the clause is about, so a following Robot attribute is no
-        longer *"its"* but spells out *"the power of the Robot"*. ``None`` for a chain with no
-        relational hop (which clears the centre, so *"its"* never reaches an unrelated mention).
-        """
-        if self.discourse.is_selected_quantity(possessive_chain.node_id):
-            return possessive_chain.node_id
-        relation = self._outermost_relation(possessive_chain.parts)
-        return relation[0] if relation is not None else None
+    def _chain_topic(self, parts: List[PathStep]) -> Optional[uuid.UUID]:
+        """:return: The referent the clause just said is grammatically *about* — the head of its
+        subject noun phrase — to carry forward as the local centre for *"its …"*.
+
+        A relational referent is the subject head only when nothing is predicated of an attribute of
+        it: a boolean predicative (*"the Robot to which it is assigned is operational"*) or a bare
+        relational mention. A genitive attribute (*"the **battery** of the Robot …"*) is itself the
+        subject head and displaces the referent — so a following attribute of that referent is not
+        *"its power"* (which a reader would bind to the battery) but spells out *"the power of the
+        Robot"*. This is also why an aggregation's measured quantity (*"the average of the battery
+        …"*) clears the centre: the battery heads the phrase, not the Robot. ``None`` when no
+        relational referent heads the clause."""
+        relation = self._outermost_relation(parts)
+        if relation is None:
+            return None
+        referent_id, tail = relation
+        return referent_id if not tail else None
 
     def _relational_possessive(
         self, possessive_chain: PossessiveChain
     ) -> Optional[Fragment]:
         """An attribute reached *through* the local centre reads as *"its <attribute>"* rather than
-        re-naming the referent — *"the power of the Robot to which it is assigned"* becomes *"its
-        power"* once that Robot is the referent named directly before.
+        re-naming the referent — after *"the Robot to which it is assigned is operational"* a
+        following *"the battery of the Robot"* becomes *"its battery"*.
 
-        Binding to the centre (not merely to any seen referent) keeps *"its"* unambiguous even when
-        several same-type referents coexist: each numbered *"Robot 1"* / *"Robot 2"* takes *"its"*
-        only for the attribute immediately following its own clause.
+        The centre is the *subject* of the clause just said (see :meth:`_chain_topic`), so *"its"*
+        binds where a reader binds it — to that subject — and never to an attribute that merely
+        happened to be named more recently.
 
         :return: The pronominalised tail, or ``None`` when the chain's relational referent is not the
             current centre (leaving the subject / possessive forms to apply).

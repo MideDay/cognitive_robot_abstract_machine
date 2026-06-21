@@ -129,20 +129,26 @@ pronominalises (*"the battery of the Robot **to which it is assigned**"*). A pla
 unaffected and keeps the genitive *"the name of the department of an Employee"*; a noun that merely
 ends in a preposition (e.g. `color_in`) is not treated as a relation.
 
-The relative clause is spelled out only the first time. A later attribute reached through the same
-relational referent then reads *"its power"* — the referent is not re-named:
+When the robot is the **subject** of a clause — a boolean attribute, *"the Robot to which it is
+assigned is operational"* — the very next attribute of it reads *"its battery"*:
+
+```{code-cell} ipython3
+query = an(entity(m).where(m.assigned_to.operational, m.assigned_to.battery > 5))
+print(verbalize_expression(query))
+# Find a Mission such that the Robot to which it is assigned is operational, and its
+# battery is greater than 5
+```
+
+But when the clause is *about an attribute* — *"the battery of the Robot … is greater than 5"* — the
+battery, not the robot, is its subject, so a following *"its power"* would read as the battery's
+power. To stay unambiguous the owner is spelled out instead:
 
 ```{code-cell} ipython3
 query = an(entity(m).where(m.assigned_to.battery > 5, m.assigned_to.power > 10))
 print(verbalize_expression(query))
 # Find a Mission such that the battery of the Robot to which it is assigned is greater
-# than 5, and its power is greater than 10
+# than 5, and the power of the Robot is greater than 10
 ```
-
-*"its"* always refers to the referent named directly before it, so it stays clear even when two
-robots are in play: each *"its"* attaches to whichever robot's clause it follows, and a reference
-that would reach back across an intervening robot uses the explicit *"Robot 1"* / *"Robot 2"* label
-instead.
 
 ## Absence Conditions (`== None`)
 
