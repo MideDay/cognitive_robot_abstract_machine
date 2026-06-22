@@ -130,19 +130,19 @@ def _pnl_query(n: int):
 
 def test_set_of_limit_renders_ranking_and_suppresses_ordered_by():
     text = verbalize_expression(_pnl_query(3))
-    # The ranked tuple is reframed onto the entity its columns describe — no code-like "(a, b)",
-    # and a grouped report never restates the grouping as a trailing "grouped by".
+    # Ranked by an aggregate → "the three <entity> with the highest <aggregate>" (names the basis),
+    # the aggregate reduced to "the sum" in the body, the such-that folded, no trailing "grouped by".
     assert text == (
-        "Report, for the top three ProfitAndLossStatements, "
-        "their period and the sum of the amount of the money of their revenue "
-        "such that the month of the begin of their period is the month of the end of their period"
+        "For the three ProfitAndLossStatements "
+        "with the highest sum of the amount of the money of their revenue, "
+        "report their period and the sum "
+        "such that the begin and end of their period have the same month"
     )
-    # the ranking conveys the ordering — no standalone clause, and the root appears once
+    # the ranking conveys the ordering — no standalone clause
     assert "ordered by" not in text
     assert "descending" not in text
     assert "grouped by" not in text
     assert "(" not in text  # the code-like tuple parentheses are gone
-    assert text.count("ProfitAndLossStatement") == 1
 
 
 def test_set_of_limit_ascending_is_bottom():
@@ -152,7 +152,9 @@ def test_set_of_limit_ascending_is_bottom():
         set_of(pnl.period, revenue).grouped_by(pnl.period).ordered_by(revenue).limit(2)
     )
     text = verbalize_expression(q)
-    assert text.startswith("Report, for the bottom two ProfitAndLossStatements,")
+    assert text.startswith(
+        "For the two ProfitAndLossStatements with the lowest sum"
+    )
     assert "(" not in text
     assert "ordered by" not in text
     assert "grouped by" not in text
@@ -177,23 +179,25 @@ def _top_revenue_month_query(*, by_year: bool = False):
 
 
 def test_grouped_aggregation_limit_one_ranks_the_aggregate():
-    """A grouped aggregation taking the single highest group reads as a superlative on the value
-    being ranked (the aggregate), not on the entity — and never restates the grouping."""
+    """A grouped aggregation taking the single highest group identifies the winner by the value it
+    is ranked by — 'with the highest <aggregate>' — names the entity first so the body pronominalises
+    to it, and reduces the aggregate to 'the sum' on its second mention. Never restates the grouping."""
     text = verbalize_expression(_top_revenue_month_query())
     assert text == (
-        "Report the month of the begin of the period of a ProfitAndLossStatement "
-        "and the highest sum of the amount of the money of its revenue"
+        "For the ProfitAndLossStatement "
+        "with the highest sum of the amount of the money of its revenue, "
+        "report the month of the begin of its period and the sum"
     )
     assert "grouped by" not in text
-    assert "ProfitAndLossStatement" in text and "highest" in text
 
 
 def test_grouped_aggregation_limit_one_folds_co_owned_keys():
     """Co-owned group keys (year, month of the same begin) fold into one genitive."""
     text = verbalize_expression(_top_revenue_month_query(by_year=True))
     assert text == (
-        "Report the year and month of the begin of the period of a ProfitAndLossStatement "
-        "and the highest sum of the amount of the money of its revenue"
+        "For the ProfitAndLossStatement "
+        "with the highest sum of the amount of the money of its revenue, "
+        "report the year and month of the begin of its period and the sum"
     )
     assert "grouped by" not in text
 

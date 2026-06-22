@@ -10,6 +10,7 @@ from krrood.entity_query_language.core.expression_structure import walk_chain
 from krrood.entity_query_language.core.mapped_variable import Attribute
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.operators.aggregators import Aggregator
+from krrood.entity_query_language.verbalization import morphology
 from krrood.entity_query_language.query.query import Query, SetOf
 from krrood.entity_query_language.verbalization.navigation_path import PathStep
 from krrood.entity_query_language.verbalization.fragments.base import (
@@ -61,6 +62,7 @@ from krrood.entity_query_language.verbalization.vocabulary.english import (
     FallbackNouns,
     GroupingPhrases,
     Keywords,
+    Prepositions,
     Punctuation,
     RankingWords,
 )
@@ -163,48 +165,72 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
     def _assemble_ranked_report(
         self, node: SetOf, plan: QueryPlan, report: ReportPlan
     ) -> Fragment:
-        """:return: a grouped/aggregated report whose rows are *ranked*. Picking the single best row
-        (``limit(1)``) reads as a superlative on the value being ranked — *"Report the month of the
-        begin of its period and the highest sum of …"* — so the ranking decorates the order-key
-        column rather than inventing a subject. A wider ranking (``n > 1``) keeps the count-bearing
-        *"the top three …"* reframe. Either way the grouping is never restated as a trailing
-        *"grouped by"* (the report path drops it)."""
-        if plan.ranking.n != 1:
+        """:return: a grouped/aggregated report whose rows are ranked *by an aggregate* — framed as
+        *"For the <entity> with the highest <aggregate>, report <columns>"* (singular for
+        ``limit(1)``, *"the three <entities> with the highest …"* for ``n > 1``). Naming the entity
+        first lets the columns pronominalise to it (*"its period"*) and the aggregate, named once in
+        the frame, reduce to *"the sum"* in the body. A ranking by a plain attribute (or a tuple with
+        no single root) keeps the attribute-keyed reframe, which already names its basis."""
+        subject = self._tuple_subject(node, plan)
+        aggregate = self._ranked_aggregate_column(node, plan.ranking)
+        if subject is None or aggregate is None:
             return self._assemble_ranked_set_of(node, plan)
+        number = Number.PLURAL if plan.ranking.n > 1 else Number.SINGULAR
+        subject_noun = NounPhrase(
+            head=RoleFragment.for_variable(
+                subject._type_.__name__, subject, number=number
+            ),
+            number=number,
+            definiteness=Definiteness.DEFINITE,
+            pre_head=(
+                WordFragment(text=morphology.cardinal(plan.ranking.n))
+                if plan.ranking.n > 1
+                else None
+            ),
+            modifiers=[
+                self._highest_aggregate_modifier(aggregate, plan.ranking.direction)
+            ],
+            referent_id=_subject_id(subject),
+        )
+        header = PhraseFragment(
+            parts=[
+                self._sentence_initial(Keywords.FOR.as_fragment()),
+                subject_noun,
+                Punctuation.COMMA.as_fragment(),
+                Keywords.REPORT.as_fragment(),
+            ]
+        )
         return self._query_body(
             node,
             plan,
-            self._superlative_columns(node, plan.ranking),
+            self._selection_list(node._selected_variables_),
             where_items=[self._where_clause(plan)],
-            find_header=self._sentence_initial(Keywords.REPORT.as_fragment()),
+            find_header=header,
         )
 
-    def _superlative_columns(self, node: SetOf, ranking) -> Fragment:
-        """:return: the reported columns with the order-key column carrying the ranking superlative
-        (*"the highest sum of …"* / *"the lowest …"*); co-owned attribute keys fold into one genitive
-        (*"the year and month of the begin of its period"*) exactly as a plain selection does."""
-        variables = list(node._selected_variables_)
-        fragments: List[Fragment] = []
-        index = 0
-        while index < len(variables):
-            run = self._co_owned_run(variables, index)
-            if len(run) > 1:
-                owner = run[0][0]._child_
-                fragments.append(
-                    coordinated_genitive(
-                        [attribute_fragment(terminal) for _, terminal in run],
-                        self.context.child(owner, inline=True),
-                    )
-                )
-                index += len(run)
-                continue
-            selection = variables[index]
-            fragment = self.context.child(selection)
+    def _ranked_aggregate_column(
+        self, node: SetOf, ranking
+    ) -> Optional[SymbolicExpression]:
+        """:return: the selected aggregate column the query is ranked by (matched to the order key
+        structurally), or ``None`` when the order key is not an aggregate or names no column."""
+        if not isinstance(ranking.order_key, Aggregator):
+            return None
+        for selection in node._selected_variables_:
             if self._is_order_key(selection, ranking.order_key):
-                fragment = self._with_superlative(fragment, ranking.direction)
-            fragments.append(fragment)
-            index += 1
-        return oxford_comma(fragments, Conjunctions.AND.as_fragment())
+                return selection
+        return None
+
+    def _highest_aggregate_modifier(
+        self, aggregate: SymbolicExpression, direction: RankingDirection
+    ) -> Fragment:
+        """:return: the post-nominal ranking modifier *"with the highest/lowest <aggregate>"* — the
+        aggregate's first (full) mention, which the body's repeat reduces to *"the sum"*."""
+        return PhraseFragment(
+            parts=[
+                Prepositions.WITH.as_fragment(),
+                self._with_superlative(self.context.child(aggregate), direction),
+            ]
+        )
 
     def _is_order_key(
         self, selection: SymbolicExpression, order_key: Optional[SymbolicExpression]
