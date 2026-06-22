@@ -154,14 +154,38 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
 
     @property
     def _inferred(self) -> InstantiatedVariable:
-        """:return: The instantiated variable selected by the entity (after build)."""
+        """:return: The instantiated variable selected by the entity (after build).
+
+        >>> connection = variable(FixedConnection, [])
+        >>> planner = InferencePlanner(entity(inference(Drawer)(container=connection.parent, handle=connection.child)))
+        >>> _ = planner.node.build()
+        >>> planner._inferred._type_.__name__
+        'Drawer'
+        """
         return self.node.selected_variable
 
     def _consequent_type(self) -> str:
+        """:return: The Python type name of the inferred (THEN) variable (*"Drawer"*).
+
+        >>> connection = variable(FixedConnection, [])
+        >>> planner = InferencePlanner(entity(inference(Drawer)(container=connection.parent, handle=connection.child)))
+        >>> _ = planner.node.build()
+        >>> planner._consequent_type()
+        'Drawer'
+        """
         inferred = self._inferred
         return getattr(inferred._type_, "__name__", str(inferred._type_))
 
     def _group_key_ids(self) -> FrozenSet[uuid.UUID]:
+        """:return: The ``_id_`` set of the GROUP BY key variables — empty when the query is
+        ungrouped.
+
+        >>> connection = variable(FixedConnection, [])
+        >>> planner = InferencePlanner(entity(inference(Drawer)(container=connection.parent, handle=connection.child)))
+        >>> _ = planner.node.build()
+        >>> len(planner._group_key_ids())
+        0
+        """
         grouped = self.node._grouped_by_expression_
         if grouped is not None and grouped.variables_to_group_by:
             return frozenset(
@@ -173,7 +197,15 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
     def _aggregation_status(
         node_id: uuid.UUID, group_key_ids: FrozenSet[uuid.UUID]
     ) -> AggregationStatus:
-        """:return: GROUP_KEY if a group key, else AGGREGATED when grouping is present, else NONE."""
+        """:return: GROUP_KEY if a group key, else AGGREGATED when grouping is present, else NONE.
+
+        >>> import uuid
+        >>> key = uuid.uuid4()
+        >>> InferencePlanner._aggregation_status(key, frozenset({key})).name
+        'GROUP_KEY'
+        >>> InferencePlanner._aggregation_status(uuid.uuid4(), frozenset()).name
+        'NONE'
+        """
         if node_id in group_key_ids:
             return AggregationStatus.GROUP_KEY
         return AggregationStatus.AGGREGATED if group_key_ids else AggregationStatus.NONE
@@ -183,6 +215,14 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
     def _plan_consequent(
         self, group_key_ids: FrozenSet[uuid.UUID]
     ) -> List[ConsequentBinding]:
+        """:return: One :class:`ConsequentBinding` per THEN-clause field, in construction order.
+
+        >>> connection = variable(FixedConnection, [])
+        >>> planner = InferencePlanner(entity(inference(Drawer)(container=connection.parent, handle=connection.child)))
+        >>> _ = planner.node.build()
+        >>> [binding.field_name for binding in planner._plan_consequent(frozenset())]
+        ['container', 'handle']
+        """
         return [
             ConsequentBinding(
                 field_name=field_name,
@@ -202,6 +242,15 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
 
         :return: The antecedents (their ``conditions`` mutated in place) and the conditions that
             matched no antecedent.
+
+        >>> handle = variable(Handle, [])
+        >>> prismatic = variable(PrismaticConnection, [])
+        >>> fixed = match_variable(FixedConnection, [])(parent=prismatic.child, child=handle)
+        >>> planner = InferencePlanner(entity(inference(Drawer)(container=fixed.parent, handle=fixed.child)))
+        >>> _ = planner.node.build()
+        >>> antecedents, unmatched = planner._plan_antecedents(frozenset())
+        >>> (len(antecedents), len(unmatched))
+        (1, 0)
         """
         antecedents = self._discover_antecedents(group_key_ids)
         unmatched = self._attribute_conditions(antecedents, self._outer_conditions())
@@ -210,6 +259,17 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
     def _discover_antecedents(
         self, group_key_ids: FrozenSet[uuid.UUID]
     ) -> List[AntecedentInformation]:
+        """:return: One :class:`AntecedentInformation` per distinct root reached from the consequent
+        bindings (the IF-clause subjects).
+
+        >>> handle = variable(Handle, [])
+        >>> prismatic = variable(PrismaticConnection, [])
+        >>> fixed = match_variable(FixedConnection, [])(parent=prismatic.child, child=handle)
+        >>> planner = InferencePlanner(entity(inference(Drawer)(container=fixed.parent, handle=fixed.child)))
+        >>> _ = planner.node.build()
+        >>> [antecedent.type_name for antecedent in planner._discover_antecedents(frozenset())]
+        ['FixedConnection']
+        """
         antecedents_by_root_id: Dict[uuid.UUID, AntecedentInformation] = {}
         for child in self._inferred._child_vars_.values():
             root = self._find_root(child)
@@ -228,7 +288,12 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
     @staticmethod
     def _root_variable(root: Union[Variable, Entity]) -> Optional[Variable]:
         """:return: The restriction subject of an antecedent root — the selected variable for an
-        Entity root, the root itself for a Variable root."""
+        Entity root, the root itself for a Variable root.
+
+        >>> robot = variable(Robot, [])
+        >>> InferencePlanner._root_variable(robot) is robot
+        True
+        """
         if isinstance(root, Entity):
             root.build()
             selected = root.selected_variable
@@ -236,6 +301,15 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
         return root if isinstance(root, Variable) else None
 
     def _outer_conditions(self) -> List[SymbolicExpression]:
+        """:return: The flattened outer-WHERE conditions of the query — empty when it has no
+        ``.where(...)``.
+
+        >>> connection = variable(FixedConnection, [])
+        >>> planner = InferencePlanner(entity(inference(Drawer)(container=connection.parent, handle=connection.child)))
+        >>> _ = planner.node.build()
+        >>> len(planner._outer_conditions())
+        0
+        """
         where = self.node._where_expression_
         return flatten_operands(where.condition, AND) if where is not None else []
 
@@ -247,6 +321,13 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
         """Distribute outer-WHERE conditions to owning antecedents (in place).
 
         :return: The conditions that matched no antecedent.
+
+        >>> connection = variable(FixedConnection, [])
+        >>> planner = InferencePlanner(entity(inference(Drawer)(container=connection.parent, handle=connection.child)))
+        >>> _ = planner.node.build()
+        >>> antecedents = planner._discover_antecedents(frozenset())
+        >>> len(planner._attribute_conditions(antecedents, planner._outer_conditions()))
+        0
         """
         id_to_antecedent = {
             self._antecedent_variable_id(antecedent): antecedent
@@ -275,7 +356,12 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
         self, condition: SymbolicExpression
     ) -> Optional[uuid.UUID]:
         """:return: The ``_id_`` of the root variable on the left-hand side of an equality condition, else
-        ``None``."""
+        ``None``.
+
+        >>> planner = InferencePlanner(entity(variable(Robot, [])))
+        >>> planner._condition_left_owner_id(variable(Robot, []).battery > 50) is None
+        True
+        """
         if (
             not isinstance(condition, Comparator)
             or condition.operation is not operator.eq
@@ -287,6 +373,14 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
     def _find_root(
         self, expression: SymbolicExpression
     ) -> Optional[Union[Variable, Entity]]:
+        """:return: The :class:`Variable`/:class:`Entity` at the root of *expression*'s chain, else
+        ``None``.
+
+        >>> robot = variable(Robot, [])
+        >>> planner = InferencePlanner(entity(robot))
+        >>> planner._find_root(robot.battery) is robot
+        True
+        """
         current = unwrap_result_quantifiers(chain_root(expression))
         if isinstance(current, (Variable, Entity)):
             return current
@@ -295,7 +389,13 @@ class InferencePlanner(Planner[Entity, RuleStructure]):
     def _extract_root_info(
         self, root: Union[Variable, Entity]
     ) -> Tuple[str, List[SymbolicExpression]]:
-        """:return: ``(type_name, own_conditions)`` for a root variable or entity."""
+        """:return: ``(type_name, own_conditions)`` for a root variable or entity.
+
+        >>> planner = InferencePlanner(entity(variable(Robot, [])))
+        >>> type_name, conditions = planner._extract_root_info(variable(Robot, []))
+        >>> (type_name, len(conditions))
+        ('Robot', 0)
+        """
         if isinstance(root, Entity):
             root.build()
             selected = root.selected_variable
