@@ -24,6 +24,11 @@ def ensure_plural(word: str) -> str:
     """
     :param word: An English noun in either number.
     :return: The plural form of *word*, without double-pluralising an already-plural word.
+
+    >>> ensure_plural("Robot")
+    'Robots'
+    >>> ensure_plural("Robots")
+    'Robots'
     """
     return word if _engine.singular_noun(word) else _engine.plural(word)
 
@@ -32,6 +37,11 @@ def is_plural(word: str) -> bool:
     """
     :param word: An English noun.
     :return: ``True`` when *word* is already in plural form.
+
+    >>> is_plural("Robots")
+    True
+    >>> is_plural("Robot")
+    False
     """
     return bool(_engine.singular_noun(word))
 
@@ -67,6 +77,11 @@ def indefinite_article(following_word: str) -> str:
     :param following_word: The word the article precedes.
     :return: The indefinite article (``"a"`` / ``"an"``) for *following_word*, chosen
         phonologically (e.g. ``"hour"`` → ``"an"``, ``"robot"`` → ``"a"``).
+
+    >>> indefinite_article("hour")
+    'an'
+    >>> indefinite_article("robot")
+    'a'
     """
     return _engine.a(following_word).split()[0]
 
@@ -88,5 +103,10 @@ def cardinal(n: int) -> str:
     """
     :param n: A positive integer.
     :return: The English cardinal word for *n* (``2`` → ``"two"``).
+
+    >>> cardinal(2)
+    'two'
+    >>> cardinal(21)
+    'twenty-one'
     """
     return _engine.number_to_words(n)
