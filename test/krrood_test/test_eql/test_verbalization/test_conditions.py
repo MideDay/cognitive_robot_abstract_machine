@@ -415,7 +415,9 @@ def test_coindexed_does_not_fold_inequality_operator():
     assert "is not the month of the end" in text
 
 
-def test_coindexed_single_condition_is_not_factored():
+def test_coindexed_single_equality_is_factored():
+    """A lone co-indexed equality over sibling prefixes reads as the natural 'have the same' form —
+    the single-terminal case of the co-indexed fold."""
     p = variable(_Statement, domain=None)
     query = a(
         set_of(p.period.begin.month)
@@ -423,8 +425,8 @@ def test_coindexed_single_condition_is_not_factored():
         .grouped_by(p.period.begin.month)
     )
     text = verbalize_expression(query)
-    assert "have the same" not in text
-    assert "is the month of the end of its period" in text
+    assert "the begin and end of the period of a _Statement have the same month" in text
+    assert "is the month of the end" not in text
 
 
 def test_coindexed_mixed_operators_are_not_folded_together():
@@ -437,7 +439,12 @@ def test_coindexed_mixed_operators_are_not_folded_together():
         )
         .grouped_by(p.period.begin.month)
     )
-    assert "have the same" not in verbalize_expression(query)
+    text = verbalize_expression(query)
+    # the equality folds to its own 'have the same month'; the '>' stays a separate comparison —
+    # they are never combined into one 'have the same month and year'.
+    assert "have the same month and year" not in text
+    assert "have the same month" in text
+    assert "greater than" in text
 
 
 def test_coindexed_non_sibling_prefixes_use_faithful_form():

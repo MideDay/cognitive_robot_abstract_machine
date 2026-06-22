@@ -29,6 +29,11 @@ from krrood.entity_query_language.verbalization.grammar.conditions.recognition i
     is_none_literal,
     relational_verb_phrase,
 )
+from krrood.entity_query_language.verbalization.microplanning.coordination import (
+    CoindexedFold,
+    coindexed_natural_parts,
+    coindexed_signature,
+)
 from krrood.entity_query_language.verbalization.grammar.framework.phrase_rule import (
     RuleContext,
 )
@@ -184,6 +189,43 @@ class AbsenceTransform(GenericComparator):
         cls, comparator: Comparator, context: RuleContext, negated: bool
     ) -> Fragment:
         return render_absence(comparator, context)
+
+
+def _lone_coindexed_fold(comparator: Comparator) -> Optional[CoindexedFold]:
+    """:return: the single-terminal :class:`CoindexedFold` for a co-indexed comparison
+    (``p.begin.month == p.end.month``), or ``None`` when *comparator* is not co-indexed — the
+    one-terminal case of the conjunct-list fold, so a lone such comparison reuses the same form."""
+    signature = coindexed_signature(comparator)
+    if signature is None:
+        return None
+    (operation, _, _), leaf = signature
+    return CoindexedFold(
+        operation=operation,
+        terminals=[leaf],
+        left_prefix_expression=comparator.left._child_,
+        right_prefix_expression=comparator.right._child_,
+    )
+
+
+class CoindexedEqualityTransform(GenericComparator):
+    """A lone co-indexed equality over *sibling* prefixes (``p.begin.month == p.end.month``) → the
+    natural *"the begin and end of <shared> have the same <leaf>"* form. It is the single-terminal
+    case of the co-indexed fold, rendered by the very same rule (``context.child`` on a one-terminal
+    :class:`CoindexedFold`) so the phrasing has one home. Guarded to the sibling case the natural
+    form covers; a non-sibling lone equality keeps *"the <leaf> of a is the <leaf> of b"*."""
+
+    @classmethod
+    def applies(cls, comparator: Comparator, negated: bool) -> bool:
+        if negated:
+            return False
+        fold = _lone_coindexed_fold(comparator)
+        return fold is not None and coindexed_natural_parts(fold) is not None
+
+    @classmethod
+    def render(
+        cls, comparator: Comparator, context: RuleContext, negated: bool
+    ) -> Fragment:
+        return context.child(_lone_coindexed_fold(comparator))
 
 
 class BooleanPolarityTransform(GenericComparator):
