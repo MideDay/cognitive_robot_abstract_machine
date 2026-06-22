@@ -26,8 +26,8 @@ from krrood.entity_query_language.verbalization.rendering.orthography_processor 
 from krrood.entity_query_language.verbalization.rendering.passes import RealizationPass
 
 # The stateless lowering passes are shared module-level instances, in pipeline order. The
-# coreference pass is stateful per walk (and parameterised by discourse / already_seen), so it is
-# created fresh per call and prepended to the pipeline in realize_tree.
+# coreference pass is stateful per walk (parameterised by discourse and the prior-build referents),
+# so it is created fresh per call and prepended to the pipeline in realize_tree.
 _LOWERING_PASSES: List[RealizationPass] = [
     DeterminerProcessor(),
     MorphologyProcessor(),
@@ -37,7 +37,7 @@ _LOWERING_PASSES: List[RealizationPass] = [
 
 def realize_tree(
     fragment: Fragment,
-    already_seen: Optional[Iterable[uuid.UUID]] = None,
+    previously_introduced_referents: Optional[Iterable[uuid.UUID]] = None,
     discourse: DiscourseView = EMPTY_DISCOURSE,
     numbered_labels: Optional[Mapping[uuid.UUID, str]] = None,
 ) -> Fragment:
@@ -50,7 +50,7 @@ def realize_tree(
     Reference: Gatt & Reiter (2009), SimpleNLG — the ordered realisation stages.
 
     :param fragment: Root of the fragment tree.
-    :param already_seen: Referents introduced by prior builds on a shared context.
+    :param previously_introduced_referents: Referents introduced by prior builds on a shared context.
     :param discourse: The focus-per-scope view the coreference pass consults (empty for a local
         sub-tree, which has no query scope of its own).
     :param numbered_labels: Disambiguation numbers for referents the rules cannot label themselves
@@ -61,7 +61,7 @@ def realize_tree(
         CoreferenceProcessor(
             discourse=discourse,
             numbered_labels=dict(numbered_labels or {}),
-            already_seen=tuple(already_seen or ()),
+            previously_introduced_referents=tuple(previously_introduced_referents or ()),
         ),
         *_LOWERING_PASSES,
     ]

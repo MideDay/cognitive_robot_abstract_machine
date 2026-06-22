@@ -71,7 +71,7 @@ class CoreferenceProcessor(RealizationPass):
     relational referent's relative clause is built in the microplanner, with no access to the
     referring service, so the number is stamped on here instead."""
 
-    already_seen: Iterable[uuid.UUID] = ()
+    previously_introduced_referents: Iterable[uuid.UUID] = ()
     """Referents introduced by *prior* builds sharing the same context, so the same expression
     verbalized twice against one context reads *"a Robot"* then *"the Robot"* — treated as
     already-mentioned before the walk begins."""
@@ -93,9 +93,9 @@ class CoreferenceProcessor(RealizationPass):
         """
         :param fragment: Root of the fragment tree.
         :return: A new tree with referring noun phrases resolved (first / repeat / pronoun), seeded
-            with the :attr:`already_seen` referents from prior builds on a shared context.
+            with the referents from prior builds (:attr:`previously_introduced_referents`).
         """
-        self._seen = set(self.already_seen)
+        self._seen = set(self.previously_introduced_referents)
         self._subject_stack = []
         self._center = None
         return self._walk(fragment)

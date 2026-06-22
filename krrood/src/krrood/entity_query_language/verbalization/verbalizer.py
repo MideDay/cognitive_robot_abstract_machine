@@ -56,7 +56,7 @@ class EQLVerbalizer:
         # Referents already introduced by prior builds on these (shared) services, so the same
         # expression verbalized twice reads "a Robot" then "the Robot".  Snapshot BEFORE the
         # fold, which records this build's own mentions in the same set.
-        already_seen = set(services.referring.seen)
+        previously_introduced_referents = set(services.referring.seen)
         if isinstance(expression, Match):
             fragment = MatchAssembler(self._match_context(services)).assemble(
                 expression
@@ -68,7 +68,7 @@ class EQLVerbalizer:
         discourse = DiscourseModel.from_expression(scan_target, services.microplan)
         return realize_tree(
             fragment,
-            already_seen=already_seen,
+            previously_introduced_referents=previously_introduced_referents,
             discourse=discourse,
             numbered_labels=services.referring.numbered_labels,
         )
