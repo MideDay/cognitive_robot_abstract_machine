@@ -105,6 +105,9 @@ class VerbalizationPipeline:
             same services across calls so repeated mentions corefer (a Robot … the Robot).
         :return: Formatted natural-language string (plain, ANSI, or HTML, per the renderer).
 
+        It runs the full path — build the fragment tree, then render it — whereas
+        :meth:`verbalize_fragment` renders an already-built fragment.
+
         >>> VerbalizationPipeline.plain().verbalize(a(entity(variable(Robot, []))))
         'Find a Robot'
         """
@@ -127,6 +130,10 @@ class VerbalizationPipeline:
 
         :param fragment: Root of the fragment tree to render.
         :return: Formatted string.
+
+        Its contribution is the render half only: given a tree already built by
+        :class:`EQLVerbalizer`, it applies this pipeline's renderer (and HTML wrapping) without
+        re-building — the step :meth:`verbalize` calls after building.
 
         >>> tree = EQLVerbalizer().build(a(entity(variable(Robot, []))))
         >>> VerbalizationPipeline.plain().verbalize_fragment(tree)

@@ -47,6 +47,10 @@ def attribute_fragment(
 def _genitive_step(step: PathStep, owner_fragment: Fragment) -> Fragment:
     """:return: *"the <attribute> of <owner>"* — one plain (noun) hop wrapping its owner.
 
+    This is the genitive case specifically: it lays down *the … of …* around the owner, so the
+    *battery* hop on *Robot* reads *the battery of Robot* (a relational hop would instead route
+    through :func:`_relative_clause`).
+
     >>> from krrood.entity_query_language.verbalization.fragments.base import flatten_fragment_to_plain_text, WordFragment
     >>> flatten_fragment_to_plain_text(_genitive_step(PathStep("battery"), WordFragment(text="Robot")))
     'the battery of Robot'
@@ -119,6 +123,10 @@ def coordinated_genitive(
 def _extend_hop(step: PathStep, owner_fragment: Fragment) -> Fragment:
     """:return: *owner_fragment* wrapped by one more hop — the relative clause for a relational hop,
     else the genitive. The shared hop builder both path readouts extend their owner with.
+
+    Its contribution is the per-hop choice: *battery* is a plain noun hop, so it dispatches to
+    :func:`_genitive_step` and the result is *the battery of Robot*; a relational hop (e.g.
+    *assigned_to*) would instead become a *"… to which … is assigned"* relative clause.
 
     >>> from krrood.entity_query_language.verbalization.fragments.base import flatten_fragment_to_plain_text, WordFragment
     >>> flatten_fragment_to_plain_text(_extend_hop(PathStep("battery"), WordFragment(text="Robot")))

@@ -56,6 +56,10 @@ def concrete_subclasses(base: Type[_T]) -> List[Type[_T]]:
     :param base: The family / rule base class.
     :return: Its concrete transitive subclasses.
 
+    This is the low-level primitive doing the walk: it collects the instantiable forms under
+    ``RankingForm`` and drops the abstract base — the raw list :meth:`SpecificityRule.alternatives`
+    then exposes per family.
+
     >>> from krrood.entity_query_language.verbalization.grammar.query.ranking import RankingForm
     >>> sorted(rule.__name__ for rule in concrete_subclasses(RankingForm))
     ['AttributeRankedByForm', 'AttributeSuperlativeForm', 'LeadingRankForm']
@@ -90,6 +94,9 @@ class SpecificityRule(ABC):
     def alternatives(cls) -> List[Type[SpecificityRule]]:
         """:return: The concrete alternative subclasses of this family (transitive; abstract
         family bases are excluded).
+
+        This is the family-facing view over :func:`concrete_subclasses`: bound to one base, it is the
+        candidate set :meth:`most_applicable` ranks — here the three ``RankingForm`` templates.
 
         >>> from krrood.entity_query_language.verbalization.grammar.query.ranking import RankingForm
         >>> sorted(rule.__name__ for rule in RankingForm.alternatives())

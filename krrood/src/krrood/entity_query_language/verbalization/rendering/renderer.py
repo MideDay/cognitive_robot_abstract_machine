@@ -89,6 +89,10 @@ class ParagraphRenderer(FragmentRenderer):
         :param fragment: Root of the fragment tree.
         :return: Plain or coloured prose string (no newlines or bullets).
 
+        Its contribution is flattening the *whole* tree — block headers and items included — into one
+        prose line; the same tree given to :meth:`HierarchicalRenderer.render` would instead become an
+        indented bullet list.
+
         >>> from krrood.entity_query_language.verbalization.verbalizer import EQLVerbalizer
         >>> robot = variable(Robot, [])
         >>> tree = EQLVerbalizer().build(a(entity(robot).where(and_(robot.battery > 50, robot.battery < 90))))
@@ -234,6 +238,10 @@ class HierarchicalRenderer(FragmentRenderer):
         items coordinated as in paragraph rendering) rather than expanded into bullets — bullets are
         for a block that sits at the item level, not one embedded in a phrase (e.g. a *"whose …"*
         modifier inside an inline noun phrase).
+
+        It is the hierarchical renderer's *flatten-to-prose* escape hatch: on this whole tree it
+        produces the same line :meth:`ParagraphRenderer.render` would; the difference shows when it is
+        called on a block embedded *inside* a phrase, which it inlines rather than expanding to bullets.
 
         >>> from krrood.entity_query_language.verbalization.verbalizer import EQLVerbalizer
         >>> robot = variable(Robot, [])

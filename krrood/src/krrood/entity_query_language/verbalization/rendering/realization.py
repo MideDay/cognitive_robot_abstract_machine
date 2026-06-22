@@ -57,6 +57,10 @@ def realize_tree(
         (relational referents) — applied by the coreference pass.
     :return: The fully realised fragment tree.
 
+    This is the pass-running step: it returns a lowered fragment *tree* (still a structured
+    fragment, here flattened only to show the text), whereas :func:`realize_subtree` runs the same
+    passes and then flattens to a plain string.
+
     >>> from krrood.entity_query_language.verbalization.verbalizer import EQLVerbalizer
     >>> tree = EQLVerbalizer().build(a(entity(variable(Robot, []))))
     >>> flatten_fragment_to_plain_text(realize_tree(tree))
@@ -85,6 +89,10 @@ def realize_subtree(fragment: Fragment) -> str:
 
     :param fragment: Root of the sub-tree.
     :return: The realised plain-text string.
+
+    Its contribution over :func:`realize_tree` is the final flatten: it returns the plain *string*
+    *Find a Robot*, not a fragment tree — the form an opaque template needs for its locally realised
+    children.
 
     >>> from krrood.entity_query_language.verbalization.verbalizer import EQLVerbalizer
     >>> realize_subtree(EQLVerbalizer().build(a(entity(variable(Robot, [])))))

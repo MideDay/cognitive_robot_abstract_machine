@@ -90,6 +90,10 @@ class SelectionAssembler:
         report; otherwise contiguous attributes of one owner fold into a shared genitive (*"the
         department and salary of an Employee"*).
 
+        This is the natural-prose path (as opposed to :meth:`parenthesised`): the two attributes share
+        the Employee owner, so it emits the comma-free shared genitive *the department and name of an
+        Employee* rather than a parenthesised tuple.
+
         >>> employee = variable(Employee, [])
         >>> verbalize_expression(a(set_of(employee.department, employee.name)))
         'Find the department and name of an Employee'
