@@ -40,7 +40,11 @@ class RelationVerb:
 
     @property
     def phrase(self) -> str:
-        """:return: The stranded phrase *"<participle> <preposition>"* (*"assigned to"*)."""
+        """:return: The stranded phrase *"<participle> <preposition>"* (*"assigned to"*).
+
+        >>> RelationVerb(participle="assigned", preposition="to").phrase
+        'assigned to'
+        """
         return f"{self.participle} {self.preposition}"
 
 

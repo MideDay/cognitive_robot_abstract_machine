@@ -109,12 +109,22 @@ class RankingForm(SpecificityRule):
     @classmethod
     @abstractmethod
     def applies(cls, request: RankingRequest) -> bool:
-        """:return: ``True`` when this form renders *request*."""
+        """:return: ``True`` when this form renders *request*.
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(entity(employee).ordered_by(employee.salary, descending=True).limit(3))
+        'Find the top three Employees by salary'
+        """
 
     @classmethod
     @abstractmethod
     def render(cls, request: RankingRequest) -> RankingSurface:
-        """:return: *request* rendered into the selection's ranking pieces."""
+        """:return: *request* rendered into the selection's ranking pieces.
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(entity(employee).ordered_by(employee.salary, descending=True).limit(3))
+        'Find the top three Employees by salary'
+        """
 
 
 class LeadingRankForm(RankingForm):
@@ -124,10 +134,22 @@ class LeadingRankForm(RankingForm):
 
     @classmethod
     def applies(cls, request: RankingRequest) -> bool:
+        """:return: Always ``True`` — the unguarded base every specific form refines.
+
+        >>> robot = variable(Robot, [])
+        >>> verbalize_expression(entity(robot).ordered_by(robot, descending=True).limit(3))
+        'Find the top three Robots'
+        """
         return True
 
     @classmethod
     def render(cls, request: RankingRequest) -> RankingSurface:
+        """:return: The quality (+ count) leading the noun, with no key named.
+
+        >>> robot = variable(Robot, [])
+        >>> verbalize_expression(entity(robot).limit(2))
+        'Find the first two Robots'
+        """
         n = request.plan.n
         quality = _quality(request.plan.direction, n).as_fragment()
         pre_head = quality if n == 1 else PhraseFragment(parts=[quality, _cardinal(n)])
@@ -140,11 +162,23 @@ class AttributeSuperlativeForm(LeadingRankForm):
 
     @classmethod
     def applies(cls, request: RankingRequest) -> bool:
+        """:return: ``True`` for an attribute key with *n = 1*.
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(entity(employee).ordered_by(employee.salary, descending=True).limit(1))
+        'Find the Employee with the highest salary'
+        """
         plan = request.plan
         return plan.relation is RankingKeyRelation.ATTRIBUTE and plan.n == 1
 
     @classmethod
     def render(cls, request: RankingRequest) -> RankingSurface:
+        """:return: The superlative attached to the key — *"with the highest/lowest <attribute>"*.
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(entity(employee).ordered_by(employee.salary).limit(1))
+        'Find the Employee with the lowest salary'
+        """
         superlative = (
             RankingWords.LOWEST
             if request.plan.direction is RankingDirection.ASCENDING
@@ -169,11 +203,23 @@ class AttributeRankedByForm(LeadingRankForm):
 
     @classmethod
     def applies(cls, request: RankingRequest) -> bool:
+        """:return: ``True`` for an attribute key with *n > 1*.
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(entity(employee).ordered_by(employee.salary, descending=True).limit(3))
+        'Find the top three Employees by salary'
+        """
         plan = request.plan
         return plan.relation is RankingKeyRelation.ATTRIBUTE and plan.n > 1
 
     @classmethod
     def render(cls, request: RankingRequest) -> RankingSurface:
+        """:return: The count leading the noun with the key named — *"top/bottom <n> … by <attribute>"*.
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(entity(employee).ordered_by(employee.salary).limit(3))
+        'Find the bottom three Employees by salary'
+        """
         plan = request.plan
         quality = (
             RankingWords.BOTTOM

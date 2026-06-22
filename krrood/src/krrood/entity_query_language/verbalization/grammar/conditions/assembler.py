@@ -201,6 +201,13 @@ class ConditionAssembler(Assembler[Comparator, None]):
         :param number: The grammatical number the noun and copula agree with.
         :param value: The value fragment (supplied by the caller; it may itself be number-folded).
         :return: The bare predicate *"<attribute> <copula> <value>"*.
+
+        Each *"<field> is <value>"* binding of an inference consequent is one such predicate:
+
+        >>> connection = variable(FixedConnection, [])
+        >>> drawer = inference(Drawer)(container=connection.parent, handle=connection.child)
+        >>> verbalize_expression(entity(drawer))
+        "If true, then there's a Drawer whose container is the parent of a FixedConnection, and handle is its child"
         """
         return PhraseFragment(
             parts=[
@@ -215,5 +222,12 @@ class ConditionAssembler(Assembler[Comparator, None]):
         :param name: The attribute's name.
         :param number: The grammatical number to tag for inflection.
         :return: A role-tagged attribute noun (no source link — name only) tagged with *number*.
+
+        The *"container"* / *"handle"* nouns of an inference consequent's bindings are built here:
+
+        >>> connection = variable(FixedConnection, [])
+        >>> drawer = inference(Drawer)(container=connection.parent, handle=connection.child)
+        >>> verbalize_expression(entity(drawer))
+        "If true, then there's a Drawer whose container is the parent of a FixedConnection, and handle is its child"
         """
         return RoleFragment.for_attribute(None, name, number)

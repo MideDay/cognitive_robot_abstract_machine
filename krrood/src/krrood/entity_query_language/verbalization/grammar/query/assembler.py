@@ -109,7 +109,11 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         )
 
     def _realize_empty(self, node: Query, plan: QueryPlan) -> Fragment:
-        """:return: *"Find entities such that …"* — no selected variable (the fallback form)."""
+        """:return: *"Find entities such that …"* — no selected variable (the fallback form).
+
+        ..note:: Unreachable through the public API: ``entity()`` always carries a selected
+            variable, so a query never plans to :attr:`SelectionKind.EMPTY`.
+        """
         return self._query_body(
             node,
             plan,
@@ -161,7 +165,12 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
 
     def _set_of_selection(self, node: SetOf, plan: QueryPlan) -> Fragment:
         """:return: the set-of's rendered selection — a plural listing for an ordered report, else
-        natural Oxford-comma prose."""
+        natural Oxford-comma prose.
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(a(set_of(employee.department, employee.salary)))
+        'Find the department and salary of an Employee'
+        """
         if plan.report is not None:
             return self._selections.prose(node._selected_variables_, number=Number.PLURAL)
         return self._selections.prose(node._selected_variables_)
@@ -171,7 +180,13 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         top three Employees by salary, their department and name"* — so the tuple reads as a
         possessive listing instead of a code-like *"(a, b)"*. The ranking attaches to the subject
         noun (its order key named when it is an attribute of the subject), and the columns
-        pronominalise to it. A set-of whose columns share no single root keeps the bracketed tuple."""
+        pronominalise to it. A set-of whose columns share no single root keeps the bracketed tuple.
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(a(set_of(employee.department, employee.name).ordered_by(
+        ...     employee.salary, descending=True).limit(3)))
+        'Report, for the top three Employees by salary, their departments and their names'
+        """
         subject = self._tuple_subject(node, plan)
         if subject is None:
             return self._query_body(
@@ -230,7 +245,13 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
 
     def _tuple_subject(self, node: SetOf, plan: QueryPlan) -> Optional[Variable]:
         """:return: the single root variable every selected column navigates from (the entity the
-        ranking reframes onto), or ``None`` when the columns share no single root."""
+        ranking reframes onto), or ``None`` when the columns share no single root.
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(a(set_of(employee.department, employee.name).ordered_by(
+        ...     employee.salary, descending=True).limit(3)))
+        'Report, for the top three Employees by salary, their departments and their names'
+        """
         if plan.discourse_root is None:
             return None
         for selection in node._selected_variables_:
@@ -244,7 +265,13 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
     ) -> RankingKeyRelation:
         """:return: how *order_key* relates to *subject* — ``SELF`` (it is the subject), ``ATTRIBUTE``
         (a chain on it, so the ranking reads *"by <attribute>"*), or ``OTHER`` (a different root, e.g.
-        an aggregate — the key is then left to the visible column)."""
+        an aggregate — the key is then left to the visible column).
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(a(set_of(employee.department, employee.name).ordered_by(
+        ...     employee.salary, descending=True).limit(3)))
+        'Report, for the top three Employees by salary, their departments and their names'
+        """
         if order_key is None:
             return RankingKeyRelation.SELF
         chain, root = walk_chain(order_key)
@@ -256,7 +283,13 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         self, node: SetOf, ranking
     ) -> List[SymbolicExpression]:
         """:return: the reported columns — the selected tuple, with the order key removed when the
-        ranking already names it (*"by salary"*), so it is not listed twice."""
+        ranking already names it (*"by salary"*), so it is not listed twice.
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(a(set_of(employee.department, employee.name, employee.salary
+        ...     ).ordered_by(employee.salary, descending=True).limit(3)))
+        'Report, for the top three Employees by salary, their departments and their names'
+        """
         selected = list(node._selected_variables_)
         names_key = ranking.relation in (
             RankingKeyRelation.ATTRIBUTE,
@@ -268,7 +301,11 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
 
     @property
     def _selections(self) -> SelectionAssembler:
-        """:return: The selection-rendering collaborator for this node's context."""
+        """:return: The selection-rendering collaborator for this node's context.
+
+        >>> verbalize_expression(an(set_of(variable(Robot, []), variable(Task, []))))
+        'Find a Robot and a Task'
+        """
         return SelectionAssembler(self.context)
 
     def _assemble_aggregation_report(
@@ -332,7 +369,12 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
 
     def _distinct_keys(self, keys: List[SymbolicExpression]) -> Fragment:
         """:return: *"the distinct <keys>"* — the group keys as a plural population listing, for a
-        grouped query that reports nothing but its keys."""
+        grouped query that reports nothing but its keys.
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(a(set_of(employee.department).grouped_by(employee.department)))
+        'Report the distinct departments'
+        """
         labels = oxford_comma(
             [self._group_label(key, Number.PLURAL) for key in keys],
             Conjunctions.AND.as_fragment(),
@@ -348,6 +390,11 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
     def _for_each_header(self, keys: List[SymbolicExpression]) -> Fragment:
         """:return: the fronted *"For each <key>, report"* frame — the grouping first (it is the row
         dimension of the result), the keys as bare singular labels, then the lowercase verb.
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(a(set_of(employee.department, sum(employee.salary)).grouped_by(
+        ...     employee.department)))
+        'For each department, report the sum of salaries of Employees'
         """
         labels = oxford_comma(
             [self._group_label(key) for key in keys], Conjunctions.AND.as_fragment()
@@ -366,7 +413,13 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
     ) -> Fragment:
         """:return: a group key as a bare label in *number* — *"department"* / *"departments"* for an
         attribute key, the type name for a variable key — naming the group itself rather than one
-        member's navigation (*"the department of an Employee"*)."""
+        member's navigation (*"the department of an Employee"*).
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(a(set_of(employee.department, sum(employee.salary)).grouped_by(
+        ...     employee.department)))
+        'For each department, report the sum of salaries of Employees'
+        """
         if isinstance(key, Attribute):
             return RoleFragment.for_attribute(
                 key._owner_class_, key._attribute_name_, number=number
@@ -377,6 +430,10 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
     def _sentence_initial(fragment: RoleFragment) -> Fragment:
         """:return: *fragment* with its first letter capitalised — a keyword carries its mid-sentence
         (lowercase) form, capitalised here when it opens the sentence (*"report"* → *"Report"*).
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(a(set_of(sum(employee.salary))))
+        'Report the sum of salaries of Employees'
         """
         return replace(fragment, text=fragment.text[:1].upper() + fragment.text[1:])
 
@@ -385,6 +442,12 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         (the order key is suppressed; it is a visible tuple element), else the plain verb
         (*"Find"* / *"Report"*). The literal *"sets of"* is intentionally dropped — the selection
         carries the set shape.
+
+        >>> employee = variable(Employee, [])
+        >>> department = variable(Department, [])
+        >>> verbalize_expression(a(set_of(employee.salary, department.name).ordered_by(
+        ...     employee.salary).limit(3)))
+        'Find the bottom three (the salary of an Employee, the name of a Department)'
         """
         if plan.ranking is None:
             return self._verb(plan)
@@ -399,7 +462,12 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
 
     def _verb(self, plan: QueryPlan) -> Fragment:
         """:return: the opening verb — *"Report"* when the query presents results (a report),
-        else *"Find"* (a search)."""
+        else *"Find"* (a search).
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(an(entity(employee).ordered_by(employee.salary)))
+        'Report Employees ordered by their salaries from lowest to highest'
+        """
         if plan.report is not None:
             return self._sentence_initial(Keywords.REPORT.as_fragment())
         return Keywords.FIND.as_fragment()
@@ -408,6 +476,10 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         """:return: the grammatical number of the rendered subject — plural for a ranking of several
         (*"the top three Employees"*) or an ordered report (*"Report Employees"*), else singular. The
         subject's restriction and possessives agree with it (*"whose salaries are …"*).
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(an(entity(employee).ordered_by(employee.salary)))
+        'Report Employees ordered by their salaries from lowest to highest'
         """
         if plan.ranking is not None:
             return ranking_surface(RankingRequest(plan=plan.ranking)).number
@@ -439,7 +511,11 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         self, node: Query, variable: SymbolicExpression, plan: QueryPlan
     ) -> Fragment:
         """:return: the selection's referring noun phrase — a ``limit`` ranking phrase (*"the top
-        three Robots"*), else *"the unique Robot"* (``eql.the``) / *"a Robot"*."""
+        three Robots"*), else *"the unique Robot"* (``eql.the``) / *"a Robot"*.
+
+        >>> verbalize_expression(an(entity(variable(Employee, []))))
+        'Find an Employee'
+        """
         if plan.ranking is not None:
             return self._build_ranking_selection(variable, plan)
         if plan.report is not None and plan.report.kind is ReportKind.ORDERING:
@@ -463,7 +539,12 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         """:return: The ranking selection — *"the first two Robots"* / *"the top three Employees by
         salary"* / *"the Employee with the highest salary"*. A ranking is inherently definite
         (*"the"*), so it ignores ``is_the``; it stays a referring noun phrase so a repeat mention
-        reduces to *"the Robot"* and a WHERE pronominalises (*"its"* / *"their"*)."""
+        reduces to *"the Robot"* and a WHERE pronominalises (*"its"* / *"their"*).
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(entity(employee).ordered_by(employee.salary, descending=True).limit(3))
+        'Find the top three Employees by salary'
+        """
         surface = ranking_surface(RankingRequest(plan=plan.ranking))
         return NounPhrase(
             head=RoleFragment.for_variable(
@@ -481,7 +562,12 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
     ) -> Tuple[Fragment, List[Optional[Fragment]]]:
         """:return: The selection with its inline superlative modifiers attached, and the WHERE's
         clause items — the *"whose"* group (a sub-list of points in hierarchical) then a separate
-        *"such that <residual>"* clause (each ``None`` when absent)."""
+        *"such that <residual>"* clause (each ``None`` when absent).
+
+        >>> robot = variable(Robot, [])
+        >>> verbalize_expression(an(entity(robot).where(robot.battery > 50)))
+        'Find a Robot whose battery is greater than 50'
+        """
         rendered = ClauseComposer(self.context).restriction(
             plan, self._subject_number(plan)
         )
@@ -553,6 +639,10 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         """:return: *"Find <selection>"* + the present clauses (the subject restriction's *"whose"*
         / *"such that"*, then *grouped by … having … ordered by …*) as block items — absent
         clauses (``None``) are simply skipped.
+
+        >>> robot = variable(Robot, [])
+        >>> verbalize_expression(an(entity(robot).where(robot.battery > 50)))
+        'Find a Robot whose battery is greater than 50'
         """
         if find_header is None:
             find_header = self._verb(plan)
@@ -572,6 +662,10 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         The standalone *"ordered by …"* clause is suppressed when a ranking selection already
         conveys the ordering — i.e. a ``limit`` on a plain-variable (SUBJECT) selection. Ordering
         without a ``limit`` keeps the clause; a limited set-of keeps it too (no ranking selection).
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(an(entity(employee).ordered_by(employee.salary)))
+        'Report Employees ordered by their salaries from lowest to highest'
         """
         composer = ClauseComposer(self.context)
         ranked = plan.ranking is not None and plan.kind in (
@@ -588,7 +682,12 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         ]
 
     def _where_clause(self, plan: QueryPlan) -> Optional[Fragment]:
-        """:return: *"such that <condition>"*, or ``None`` when the query has no WHERE."""
+        """:return: *"such that <condition>"*, or ``None`` when the query has no WHERE.
+
+        >>> robot = variable(Robot, [])
+        >>> verbalize_expression(a(set_of(robot, variable(Task, [])).where(robot.battery > 50)))
+        'Find a Robot and a Task such that the battery of the Robot is greater than 50'
+        """
         if plan.where_condition is None:
             return None
         return PhraseFragment(

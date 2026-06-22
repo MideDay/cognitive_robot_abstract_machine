@@ -35,6 +35,12 @@ def root_context(
     :param rules: The grammar to dispatch over.
     :param options: The render flags for this node (defaults to all reset).
     :return: The context whose ``child`` re-enters :func:`fold`.
+
+    >>> from krrood.entity_query_language.verbalization.context import MicroplanningServices
+    >>> robot = variable(Robot, [])
+    >>> context = root_context(MicroplanningServices.from_expression(robot), RULES)
+    >>> type(context.child(robot)).__name__
+    'NounPhrase'
     """
     return RuleContext(
         recurse=lambda child_node, child_options: fold(

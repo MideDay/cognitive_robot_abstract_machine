@@ -95,6 +95,10 @@ class VariableRule(PhraseRule):
         :param node: The variable in value position.
         :param context: The per-node context (for value lexicalisation).
         :return: The candidate-set fragment, or ``None`` to fall back to the noun form.
+
+        >>> employee = variable(Employee, [])
+        >>> verbalize_expression(a(entity(employee).where(employee.department == variable(str, ["Sales", "Eng"]))))
+        "Find an Employee whose department is one of 'Sales' or 'Eng'"
         """
         type_ = getattr(node, "_type_", None)
         is_enum = isinstance(type_, type) and issubclass(type_, enum.Enum)
@@ -126,6 +130,9 @@ class VariableRule(PhraseRule):
 
         A numbered label (*"Robot 2"*) is surface-final — kept singular and bare; a plain type
         name is a plural indefinite noun phrase (the concord table renders it bare-then-pluralised).
+
+        >>> verbalize_expression(count(variable(Robot, [])))
+        'the number of Robots'
         """
         numbered = context.refer.numbered_label(node)
         return NounPhrase(
@@ -161,6 +168,10 @@ class LiteralRule(PhraseRule):
         huge) repr — qualified by its identifying field(s) when any are known (*"a specific Body with
         name 'door'"*). The fields come from the class's ``_identifying_attributes_`` if it declares
         any, else the first present :data:`conventional identity field <_CONVENTIONAL_ID_FIELDS>`.
+
+        >>> robot = variable(Robot, [])
+        >>> verbalize_expression(a(entity(robot).where(robot == Robot("R2D2", 80, True))))
+        "Find a Robot such that the Robot is a specific Robot with name 'R2D2'"
         """
         value = node._value_
         details = [
@@ -191,7 +202,12 @@ class LiteralRule(PhraseRule):
     def _identifying_fields(value: Any) -> List[tuple]:
         """:return: The ``(name, value)`` pairs that identify *value* for display — the class's
         declared ``_identifying_attributes_`` (a name or iterable of names) if present, else the first
-        present conventional identity field — keeping only scalar values."""
+        present conventional identity field — keeping only scalar values.
+
+        >>> robot = variable(Robot, [])
+        >>> verbalize_expression(a(entity(robot).where(robot == Robot("R2D2", 80, True))))
+        "Find a Robot such that the Robot is a specific Robot with name 'R2D2'"
+        """
         declared = getattr(type(value), "_identifying_attributes_", None)
         if callable(declared):
             try:

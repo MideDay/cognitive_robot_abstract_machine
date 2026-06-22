@@ -312,6 +312,11 @@ class QueryPlanner(Planner[Query, QueryPlan]):
         return getattr(self.node, "selected_variable", None)
 
     def _kind(self) -> SelectionKind:
+        """:return: The selection kind — ``SET_OF``, ``ENTITY_SELECTOR``, ``EMPTY`` or ``SUBJECT``.
+
+        >>> QueryPlanner(entity(variable(Robot, []))).plan().kind
+        <SelectionKind.SUBJECT: 3>
+        """
         if isinstance(self.node, SetOf):
             return SelectionKind.SET_OF
         selected = self._selected
@@ -322,10 +327,22 @@ class QueryPlanner(Planner[Query, QueryPlan]):
         return SelectionKind.SUBJECT
 
     def _is_the(self) -> bool:
+        """:return: ``True`` when the query is quantified by ``the`` (a uniqueness claim).
+
+        >>> QueryPlanner(the(entity(variable(Robot, [])))).plan().is_the
+        True
+        >>> QueryPlanner(entity(variable(Robot, []))).plan().is_the
+        False
+        """
         builder = getattr(self.node, "_quantifier_builder_", None)
         return builder is not None and builder.type is The
 
     def _selected_type(self) -> str:
+        """:return: The display name of the selected entity's type (*"Robot"*).
+
+        >>> QueryPlanner(entity(variable(Robot, []))).plan().selected_type
+        'Robot'
+        """
         return FallbackNouns.ENTITY.name_of(self._selected)
 
     # ── subject restriction (WHERE partition) ────────────────────────────────

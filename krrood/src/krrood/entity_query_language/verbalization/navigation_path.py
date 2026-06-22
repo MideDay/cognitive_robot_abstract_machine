@@ -74,7 +74,16 @@ class PathStep:
 
     @property
     def is_relation(self) -> bool:
-        """:return: ``True`` when this hop renders as a relative clause rather than a genitive."""
+        """:return: ``True`` when this hop renders as a relative clause rather than a genitive.
+
+        >>> from krrood.entity_query_language.core.expression_structure import walk_chain
+        >>> from krrood.entity_query_language.verbalization.relational_attributes import relational_verb
+        >>> chain, _ = walk_chain(variable(Mission, []).assigned_to)
+        >>> build_path_parts(chain, relational_verb)[0].is_relation
+        True
+        >>> build_path_parts(walk_chain(variable(Robot, []).battery)[0])[0].is_relation
+        False
+        """
         return self.relation is not None
 
 
