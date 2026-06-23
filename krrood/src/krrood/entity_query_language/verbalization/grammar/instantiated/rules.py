@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from krrood.entity_query_language.core.variable import InstantiatedVariable
-from krrood.entity_query_language.predicate import Verbalizable
+from krrood.entity_query_language.predicate import RenderedFields, Verbalizable
 from krrood.entity_query_language.verbalization.exceptions import (
     NonFragmentPredicateError,
     PredicateFragmentRequiredError,
@@ -75,10 +75,13 @@ class InstantiatedVerbalizableRule(PhraseRule):
         >>> verbalize_expression(inference(IsReachable)(body=variable(Robot, [])))
         'a Robot is reachable'
         """
-        fields = {
-            name: context.child(child)
-            for name, child in node._child_vars_.items()
-        }
+        fields = RenderedFields(
+            fragments={
+                name: context.child(child)
+                for name, child in node._child_vars_.items()
+            },
+            raw=node._child_vars_,
+        )
         fragment = node._type_._verbalization_fragment_(fields)
         if not isinstance(fragment, Fragment):
             raise NonFragmentPredicateError(

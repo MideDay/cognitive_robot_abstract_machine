@@ -40,7 +40,7 @@ from krrood.entity_query_language.factories import (
     and_,
     or_,
 )
-from krrood.entity_query_language.predicate import HasType, Predicate, Triple
+from krrood.entity_query_language.predicate import HasType, HasTypes, Predicate, Triple
 from krrood.entity_query_language.verbalization.exceptions import (
     PredicateFragmentRequiredError,
 )
@@ -211,10 +211,34 @@ def test_verbalize_literal_type_object():
     assert verbalize_expression(literal_value) == "Apple"
 
 
-def test_verbalize_literal_tuple_of_types():
-    literal_value = Literal(_value_=(Apple, Body))
-    text = verbalize_expression(literal_value)
-    assert "Apple" in text and "Body" in text
+def test_verbalize_literal_tuple_of_types_is_a_value_not_membership():
+    """A bare tuple literal is a *value* — its classes are listed and joined, not read as *"one of"*
+    (which would mean membership). Membership is the consuming predicate's call, so an equality with
+    a tuple is never mis-read as membership."""
+    assert verbalize_expression(Literal(_value_=(Apple, Body))) == "Apple and Body"
+    assert (
+        verbalize_expression(variable(_Robot, []).name == (Apple, Body))
+        == "the name of a _Robot is Apple and Body"
+    )
+
+
+def test_verbalize_has_types_is_membership():
+    """The type-membership predicate reads as the bounded *"one of A, B, or C"* set — the same
+    surface a domain-constrained variable uses — over its admissible types."""
+    subject = variable(Body, [])
+    assert (
+        verbalize_expression(HasTypes(subject, (Apple, Cabinet)))
+        == "a Body is one of Apple or Cabinet"
+    )
+
+
+def test_verbalize_has_types_too_many_is_not_spelled():
+    """Past the membership cap the admissible types are summarised by count, not spelled out."""
+    subject = variable(Body, [])
+    many = (Apple, Cabinet, Container, Drawer, FixedConnection, Handle, PrismaticConnection)
+    text = verbalize_expression(HasTypes(subject, many))
+    assert "Apple" not in text
+    assert text == "a Body is one of seven types"
 
 
 # ── Unit tests: MappedVariable chain ──────────────────────────────────────────

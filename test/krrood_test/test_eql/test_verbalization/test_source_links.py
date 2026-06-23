@@ -479,6 +479,23 @@ def test_type_valued_literal_is_hyperlinked():
     assert "_Sensor" in text
 
 
+def test_each_type_in_a_tuple_literal_is_hyperlinked():
+    """A tuple of admissible types lists each member as a linked type reference."""
+    from krrood.entity_query_language.core.variable import Literal
+
+    @dataclass
+    class _Valve:
+        pressure: int
+
+    resolver = _ConstantResolver("http://example.com/type")
+    text = VerbalizationPipeline.html(link_resolver=resolver).verbalize(
+        Literal(_value_=(_Sensor, _Valve))
+    )
+    # both members are wrapped in their own anchor
+    assert text.count('href="http://example.com/type"') == 2
+    assert "_Sensor" in text and "_Valve" in text
+
+
 def test_pipeline_ansi_with_resolver_and_osc8_emits_escape():
     r = variable(_Sensor, [])
     resolver = _ConstantResolver("http://example.com/sensor")

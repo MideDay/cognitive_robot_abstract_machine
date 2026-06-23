@@ -25,6 +25,10 @@ from krrood.entity_query_language.verbalization.fragments.features import (
 from krrood.entity_query_language.verbalization.grammar.conditions.recognition import (
     is_concrete_object_literal,
 )
+from krrood.entity_query_language.verbalization.microplanning.coordination import (
+    MAX_SET_MEMBERS,
+    one_of,
+)
 from krrood.entity_query_language.verbalization.grammar.framework.phrase_rule import (
     PhraseRule,
     RuleContext,
@@ -33,7 +37,6 @@ from krrood.entity_query_language.verbalization.vocabulary.english import (
     Conjunctions,
     FallbackNouns,
     Prepositions,
-    SetMembership,
     Specificity,
 )
 
@@ -45,10 +48,6 @@ _CONVENTIONAL_ID_FIELDS = ("name", "id", "label", "key", "uuid")
 #: Only scalar identifying values are shown — a nested object would re-open the very ``repr`` blow-up
 #: that *"a specific <Type>"* exists to avoid.
 _SCALAR_ID_TYPES = (str, int, float, bool, enum.Enum)
-
-#: The most domain values a value-type variable lists before falling back to its type name — a
-#: bounded peek keeps the rendering cheap and never enumerates a large (or entity) domain.
-_MAX_DOMAIN_CHOICES = 6
 
 #: The value types whose explicit domain is listed (*"one of 1, 2, or 3"*); an entity / ``Symbol``
 #: type's domain is the inferred population, which must never be listed.
@@ -100,24 +99,10 @@ class VariableRule(PhraseRule):
         is_enum = isinstance(type_, type) and issubclass(type_, enum.Enum)
         if not (is_enum or type_ in _PRIMITIVE_VALUE_TYPES):
             return None
-        values = list(
-            itertools.islice(
-                node._re_enterable_domain_generator_, _MAX_DOMAIN_CHOICES + 1
-            )
+        values = itertools.islice(
+            node._re_enterable_domain_generator_, MAX_SET_MEMBERS + 1
         )
-        if not values or len(values) > _MAX_DOMAIN_CHOICES:
-            return None
-        fragments: List[Fragment] = [
-            RoleFragment.for_literal(value) for value in values
-        ]
-        if len(fragments) == 1:
-            return fragments[0]
-        return PhraseFragment(
-            parts=[
-                SetMembership.ONE_OF.as_fragment(),
-                oxford_comma(fragments, Conjunctions.OR.as_fragment()),
-            ]
-        )
+        return one_of([RoleFragment.for_literal(value) for value in values])
 
     @staticmethod
     def _plural(node: Variable, context: RuleContext) -> Fragment:
@@ -155,14 +140,36 @@ class LiteralRule(PhraseRule):
     def build(self, node: Literal, context: RuleContext) -> Fragment:
         """:return: The literal value, or *"a specific <Type>"* for a concrete object literal.
 
-        A bare class used as a value (e.g. the type argument of a predicate) renders as a linked type
-        reference rather than an un-linkable literal, so it hyperlinks like any other type name.
+        A bare class used as a value renders as a linked type reference, and a tuple of classes as a
+        coordinated value (*"Robot and Task"*, each linked). A tuple is a *value* here — reading it
+        as a membership set (*"one of …"*) is the consuming predicate's call (see
+        :meth:`HasTypes._verbalization_fragment_`), not the literal's, so an equality
+        ``x == (Robot, Task)`` is not mis-read as membership.
         """
+        value = node._value_
         if is_concrete_object_literal(node):
             return self._concrete_object(node, context)
-        if isinstance(node._value_, type):
-            return RoleFragment.for_type(node._value_)
-        return RoleFragment.for_literal(node._value_)
+        if isinstance(value, type):
+            return RoleFragment.for_type(value)
+        type_members = self._type_members(value)
+        if type_members is not None:
+            return oxford_comma(
+                [RoleFragment.for_type(member) for member in type_members],
+                Conjunctions.AND.as_fragment(),
+            )
+        return RoleFragment.for_literal(value)
+
+    @staticmethod
+    def _type_members(value: Any) -> Optional[List[type]]:
+        """:return: the classes of a non-empty tuple/list of types, or ``None`` when *value* is not
+        such a sequence."""
+        if (
+            isinstance(value, (tuple, list))
+            and value
+            and all(isinstance(member, type) for member in value)
+        ):
+            return list(value)
+        return None
 
     def _concrete_object(self, node: Literal, context: RuleContext) -> Fragment:
         """:return: *"a specific <Type>"* for a concrete object literal — identity, not its (possibly

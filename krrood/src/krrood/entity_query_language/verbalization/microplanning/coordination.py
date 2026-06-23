@@ -45,6 +45,7 @@ from krrood.entity_query_language.verbalization.fragments.features import Number
 from krrood.entity_query_language.verbalization.vocabulary.english import (
     Conjunctions,
     RangePhrases,
+    SetMembership,
     copula_with,
 )
 
@@ -688,3 +689,44 @@ def _between_operator(compact: bool, number: Number) -> Fragment:
     if compact:
         return RangePhrases.BETWEEN.as_fragment()
     return copula_with(RangePhrases.BETWEEN.text, number)
+
+
+#: The largest candidate set spelled out as *"one of A, B, …, or F"*; an empty or larger set
+#: falls back to a non-enumerated surface (a type name, a count) the caller chooses.
+MAX_SET_MEMBERS = 6
+
+
+def one_of(candidates: List[Fragment]) -> Optional[Fragment]:
+    """
+    Render a small, bounded candidate set as a membership phrase — the shared *"one of A, B, or C"*
+    surface used both for a domain-constrained variable's candidate values and for a tuple of
+    admissible types.
+
+    The candidates are already-rendered fragments, so each caller decides how a candidate is
+    lexicalised (a value via :meth:`RoleFragment.for_literal`, a type via
+    :meth:`RoleFragment.for_type`) and only the coordination is shared here.
+
+    :param candidates: The rendered candidate fragments (the caller materialises at most
+        :data:`MAX_SET_MEMBERS` ``+ 1`` so an over-cap set is detectable).
+    :return: the lone candidate for a singleton, *"one of …, or …"* for two-to-:data:`MAX_SET_MEMBERS`
+        candidates, or ``None`` when the set is empty or exceeds the cap (the caller then falls back).
+
+    >>> from krrood.entity_query_language.verbalization.fragments.base import (
+    ...     flatten_fragment_to_plain_text, RoleFragment,
+    ... )
+    >>> options = [RoleFragment.for_literal(value) for value in ("a", "b", "c")]
+    >>> flatten_fragment_to_plain_text(one_of(options))
+    "one of 'a', 'b', or 'c'"
+    >>> one_of([]) is None
+    True
+    """
+    if not candidates or len(candidates) > MAX_SET_MEMBERS:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+    return PhraseFragment(
+        parts=[
+            SetMembership.ONE_OF.as_fragment(),
+            oxford_comma(candidates, Conjunctions.OR.as_fragment()),
+        ]
+    )

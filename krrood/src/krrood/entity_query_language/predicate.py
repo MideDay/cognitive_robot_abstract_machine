@@ -13,6 +13,7 @@ from functools import wraps
 
 from typing_extensions import (
     Callable,
+    Iterator,
     Optional,
     Any,
     Type,
@@ -69,6 +70,32 @@ def symbolic_function(
     return wrapper
 
 
+@dataclass(frozen=True)
+class RenderedFields(Mapping):
+    """The arguments passed to :meth:`Verbalizable._verbalization_fragment_`.
+
+    It is a mapping of *field name → already-rendered fragment* (so ``fields["x"]`` works as before),
+    and additionally exposes the *raw* child expressions through :attr:`raw` for the rare predicate
+    whose surface depends on a field's value rather than only its rendering — e.g. a tuple of
+    admissible types rendered as a membership set (*"one of A or B"*) instead of a bare value.
+    """
+
+    fragments: "Mapping[str, Fragment]"
+    """The rendered fragment for each field, keyed by field name."""
+
+    raw: "Mapping[str, SymbolicExpression]"
+    """The raw child expression for each field, keyed by field name."""
+
+    def __getitem__(self, field_name: str) -> "Fragment":
+        return self.fragments[field_name]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.fragments)
+
+    def __len__(self) -> int:
+        return len(self.fragments)
+
+
 @dataclass(eq=False)
 class Verbalizable(ABC):
     """
@@ -78,7 +105,7 @@ class Verbalizable(ABC):
 
     @classmethod
     @abstractmethod
-    def _verbalization_fragment_(cls, fields: Mapping[str, Fragment]) -> Fragment:
+    def _verbalization_fragment_(cls, fields: RenderedFields) -> Fragment:
         """
         Structured verbalization for this predicate — a required clause (no string fallback).
 
@@ -285,6 +312,47 @@ class HasTypes(HasType):
     """
     A tuple containing Type objects that are associated with this instance.
     """
+
+    @classmethod
+    def _verbalization_fragment_(cls, fields: "RenderedFields") -> "Fragment":
+        """Say membership over the admissible types — *"<variable> is one of A, B, or C"* — reusing
+        the bounded ``one of …`` listing a domain-constrained variable uses. The types are read from
+        the *raw* field (a literal tuple) so the surface is membership (an ``isinstance`` over the
+        tuple), not the tuple value an equality would mean.
+        """
+        # Imported locally to avoid the core → verbalization import cycle (see :class:`Triple`).
+        from krrood.entity_query_language.verbalization import morphology
+        from krrood.entity_query_language.verbalization.fragments.base import (
+            PhraseFragment,
+            RoleFragment,
+            WordFragment,
+        )
+        from krrood.entity_query_language.verbalization.microplanning.coordination import (
+            MAX_SET_MEMBERS,
+            one_of,
+        )
+        from krrood.entity_query_language.verbalization.vocabulary.english import (
+            SetMembership,
+        )
+        from krrood.entity_query_language.verbalization.vocabulary.parts_of_speech import (
+            clause,
+            Copula,
+            Noun,
+        )
+
+        types = fields.raw["types_"]._value_
+        members = one_of(
+            [RoleFragment.for_type(member) for member in types[: MAX_SET_MEMBERS + 1]]
+        )
+        if members is None:  # past the cap: summarise by count rather than spell it out
+            members = PhraseFragment(
+                parts=[
+                    SetMembership.ONE_OF.as_fragment(),
+                    WordFragment(text=morphology.cardinal(len(types))),
+                    WordFragment(text="types"),
+                ]
+            )
+        return clause(Noun(fields["variable"]), Copula(), members)
 
 
 @symbolic_function
