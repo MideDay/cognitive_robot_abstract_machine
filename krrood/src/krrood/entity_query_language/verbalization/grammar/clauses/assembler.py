@@ -59,14 +59,8 @@ class GroupedByAssembler(Assembler[Union[Query, GroupedBy], GroupPlan]):
             the query also selects aggregations (bare *"grouped"* when there are no keys).
 
         It renders the grouping key (*"department"*) that the report is grouped on. For the grouped
-        set-of report shown, the query assembler fronts that key as the leading *"For each
-        department, report"* frame and drops this trailing clause as redundant:
-
-        >>> employee = variable(Employee, [])
-        >>> verbalize_expression(
-        ...     a(set_of(employee.department, sum(employee.salary)).grouped_by(employee.department))
-        ... )
-        'For each department, report the sum of salaries of Employees'
+        set-of report in the class example, the query assembler fronts that key as the leading *"For
+        each department, report"* frame and drops this trailing clause as redundant.
         """
         if not plan.has_keys:
             return Keywords.GROUPED.as_fragment()
@@ -153,11 +147,7 @@ class OrderedByAssembler(Assembler[Union[OrderedBy, OrderedByBuilder], None]):
 
         It emits only the trailing ordering span — here *"ordered by their salaries from highest to
         lowest"* — and chooses the descending direction word; *"Report Employees"* is supplied by the
-        query:
-
-        >>> employee = variable(Employee, [])
-        >>> verbalize_expression(a(set_of(employee).ordered_by(employee.salary, descending=True)))
-        'Report Employees ordered by their salaries from highest to lowest'
+        query.
         """
         direction = (
             SortDirections.DESCENDING if node.descending else SortDirections.ASCENDING
@@ -205,14 +195,7 @@ class HavingAssembler(Assembler[Query, None]):
             comparators.
 
         It emits only the trailing *"having the sum greater than 30000"* span, using compact
-        comparators so the condition reads tersely; the rest of the report comes from elsewhere:
-
-        >>> employee = variable(Employee, [])
-        >>> total = sum(employee.salary)
-        >>> verbalize_expression(
-        ...     a(set_of(employee.department, total).grouped_by(employee.department).having(total > 30000))
-        ... )
-        'For each department, report the sum of salaries of Employees having the sum greater than 30000'
+        comparators so the condition reads tersely; the rest of the report comes from elsewhere.
         """
         with self.context.configuration.compact_predicates_scope():
             having_fragment = self.context.child(node._having_expression_.condition)

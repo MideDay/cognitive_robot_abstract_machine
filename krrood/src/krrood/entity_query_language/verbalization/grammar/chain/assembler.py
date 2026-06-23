@@ -47,6 +47,9 @@ class ChainAssembler(Assembler[MappedVariable, ChainPlan]):
     *"its …"* when the root is the current coreference subject), the predicative *"<navigation> is
     [not] <attribute>"* for a boolean terminal, and the bare plural *"attributes of Roots"*.
 
+    >>> verbalize_expression(variable(Robot, []).battery)
+    'the battery of a Robot'
+
     Reference: Gatt & Reiter (2009), SimpleNLG — surface realisation.
     """
 
@@ -57,9 +60,6 @@ class ChainAssembler(Assembler[MappedVariable, ChainPlan]):
         :param node: The chain to render.
         :param plan: The chain plan computed for *node*.
         :return: The possessive rendering — the unguarded default form.
-
-        >>> verbalize_expression(variable(Robot, []).battery)
-        'the battery of a Robot'
         """
         return self.possessive(plan)
 

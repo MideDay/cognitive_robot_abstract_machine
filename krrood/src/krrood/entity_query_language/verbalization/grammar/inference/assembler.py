@@ -47,6 +47,12 @@ class InferenceAssembler(Assembler[Entity, RuleStructure]):
     """
     Realise the IF/THEN block from a rule structure.
 
+    >>> from krrood.entity_query_language.factories import inference
+    >>> connection = variable(FixedConnection, [])
+    >>> drawer = inference(Drawer)(container=connection.parent, handle=connection.child)
+    >>> verbalize_expression(entity(drawer).where(connection.parent == variable(Container, [])))
+    "If there's a FixedConnection whose parent is a Container, then there's a Drawer whose container is the parent of the FixedConnection, and handle is the child of the FixedConnection"
+
     Reference: Gatt & Reiter (2009), SimpleNLG — surface realisation.
     """
 
@@ -59,14 +65,8 @@ class InferenceAssembler(Assembler[Entity, RuleStructure]):
         :return: *"If <antecedents…>, then <consequent…>"* — the two-block IF/THEN form.
 
         Its contribution is the two-block skeleton: it pairs the *"If"* header over
-        :meth:`_if_items` with the *"then"* header over :meth:`_then_items`, so the whole shown
-        sentence is exactly one *"If …, then …"* construction.
-
-        >>> from krrood.entity_query_language.factories import inference
-        >>> connection = variable(FixedConnection, [])
-        >>> drawer = inference(Drawer)(container=connection.parent, handle=connection.child)
-        >>> verbalize_expression(entity(drawer).where(connection.parent == variable(Container, [])))
-        "If there's a FixedConnection whose parent is a Container, then there's a Drawer whose container is the parent of the FixedConnection, and handle is the child of the FixedConnection"
+        :meth:`_if_items` with the *"then"* header over :meth:`_then_items`, so the whole class
+        example is exactly one *"If …, then …"* construction.
         """
         return BlockFragment(
             header=None,

@@ -47,9 +47,6 @@ class PluralChainAttributeRule(PhraseRule):
         Its contribution is the bare-plural surface itself: it builds the *"batteries of Robots"*
         span seen inside *"the sum of …"*, pluralising both attribute and root rather than emitting a
         single possessive.
-
-        >>> verbalize_expression(sum(variable(Robot, []).battery))
-        'the sum of batteries of Robots'
         """
         plan = context.microplan.plan_for(node, ChainPlanner)
         return ChainAssembler(context).plural_attribute(plan)
@@ -87,9 +84,6 @@ class BooleanAttributeChainRule(PhraseRule):
         Its contribution is the predicative surface itself: it builds the *"a Task is completed"*
         sentence, turning the boolean terminal into an *"is <attribute>"* predicate rather than a
         possessive noun phrase.
-
-        >>> verbalize_expression(variable(Task, []).completed)
-        'a Task is completed'
         """
         plan = context.microplan.plan_for(node, ChainPlanner)
         return ChainAssembler(context).boolean_predicative(plan)

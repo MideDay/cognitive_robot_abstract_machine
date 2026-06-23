@@ -66,11 +66,7 @@ class VariableRule(PhraseRule):
     name = "variable"
 
     def build(self, node: Variable, context: RuleContext) -> Fragment:
-        """:return: The variable noun phrase (*"a Robot"* / *"the Robot"* / *"Robot N"*).
-
-        >>> verbalize_expression(variable(Robot, []))
-        'a Robot'
-        """
+        """:return: The variable noun phrase (*"a Robot"* / *"the Robot"* / *"Robot N"*)."""
         if context.as_value:
             choice = self._domain_choice(node, context)
             if choice is not None:
@@ -148,17 +144,16 @@ class VariableRule(PhraseRule):
 class LiteralRule(PhraseRule):
     """A literal value (e.g. ``42``, ``"hello"``, ``True``), or *"a specific <Type>"* for a concrete
     object literal — we mean its identity, and its ``repr`` can be arbitrarily large.
+
+    >>> verbalize_expression(variable(Robot, []).battery == 42)
+    'the battery of a Robot is 42'
     """
 
     construct = Literal
     name = "literal"
 
     def build(self, node: Literal, context: RuleContext) -> Fragment:
-        """:return: The literal value, or *"a specific <Type>"* for a concrete object literal.
-
-        >>> verbalize_expression(variable(Robot, []).battery == 42)
-        'the battery of a Robot is 42'
-        """
+        """:return: The literal value, or *"a specific <Type>"* for a concrete object literal."""
         if is_concrete_object_literal(node):
             return self._concrete_object(node, context)
         return RoleFragment.for_literal(node._value_)
@@ -236,31 +231,31 @@ class LiteralRule(PhraseRule):
 
 
 class ExternalVariableRule(PhraseRule):
-    """*"a/an TypeName"* for an opaque externally-set variable (no coreference)."""
+    """*"a/an TypeName"* for an opaque externally-set variable (no coreference).
+
+    >>> verbalize_expression(ExternallySetVariable(_type_=Robot))
+    'a Robot'
+    """
 
     construct = ExternallySetVariable
     name = "external-variable"
 
     def build(self, node: ExternallySetVariable, context: RuleContext) -> Fragment:
-        """:return: The indefinite type-name noun phrase for the externally-set variable.
-
-        >>> verbalize_expression(ExternallySetVariable(_type_=Robot))
-        'a Robot'
-        """
+        """:return: The indefinite type-name noun phrase for the externally-set variable."""
         type_name = FallbackNouns.VARIABLE.name_of(node)
         return NounPhrase(head=RoleFragment.for_type(node._type_, text=type_name))
 
 
 class FlatVariableRule(PhraseRule):
-    """A transparent SetOf wrapper → unwrap to its child (forwarding the requested number)."""
+    """A transparent SetOf wrapper → unwrap to its child (forwarding the requested number).
+
+    >>> verbalize_expression(FlatVariable(_child_=variable(Worker, []).tasks))
+    'the tasks of a Worker'
+    """
 
     construct = FlatVariable
     name = "flat-variable"
 
     def build(self, node: FlatVariable, context: RuleContext) -> Fragment:
-        """:return: The child's rendering, unwrapped from the transparent SetOf wrapper.
-
-        >>> verbalize_expression(FlatVariable(_child_=variable(Worker, []).tasks))
-        'the tasks of a Worker'
-        """
+        """:return: The child's rendering, unwrapped from the transparent SetOf wrapper."""
         return context.child(node._child_, number=context.number)

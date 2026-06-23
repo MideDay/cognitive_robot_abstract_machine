@@ -83,6 +83,9 @@ class PredicateTransform(SpecificityRule):
     applies, else the generic *"<left> <op> <right>"*). Adding a predicate-level transform is a new
     subclass; the ``predicate`` method does not change (open/closed) — mirroring the
     :class:`~…conditions.placement.ConditionForm` registry one level up.
+
+    >>> verbalize_expression(variable(Robot, []).battery > 50)
+    'the battery of a Robot is greater than 50'
     """
 
     @classmethod
@@ -95,10 +98,7 @@ class PredicateTransform(SpecificityRule):
 
         It is the gate each concrete transform overrides to claim a comparator; for the plain
         ``battery > 50`` no special case fires, so the unguarded :class:`GenericComparator` is
-        selected and the example renders as the value comparison *is greater than 50*.
-
-        >>> verbalize_expression(variable(Robot, []).battery > 50)
-        'the battery of a Robot is greater than 50'
+        selected and the class example renders as the value comparison *is greater than 50*.
         """
 
     @classmethod
@@ -114,25 +114,23 @@ class PredicateTransform(SpecificityRule):
 
         It emits the predicate text; here the selected :class:`GenericComparator` produces the whole
         *the battery of a Robot is greater than 50* sentence in value-comparison form.
-
-        >>> verbalize_expression(variable(Robot, []).battery > 50)
-        'the battery of a Robot is greater than 50'
         """
 
 
 class GenericComparator(PredicateTransform):
-    """The unguarded default: *"<left> <operator> <right>"* (the right side in value position)."""
+    """The unguarded default: *"<left> <operator> <right>"* (the right side in value position).
+
+    >>> verbalize_expression(variable(Robot, []).battery > 50)
+    'the battery of a Robot is greater than 50'
+    """
 
     @classmethod
     def applies(cls, comparator: Comparator, negated: bool) -> bool:
         """The unguarded base applies to every comparator.
 
         Returning ``True`` unconditionally, it is the catch-all gate that wins whenever no specific
-        transform fires — which is why the example takes the value-comparison form *is greater than
-        50* rather than an absence or boolean-polarity phrasing.
-
-        >>> verbalize_expression(variable(Robot, []).battery > 50)
-        'the battery of a Robot is greater than 50'
+        transform fires — which is why the class example takes the value-comparison form *is greater
+        than 50* rather than an absence or boolean-polarity phrasing.
         """
         return True
 
@@ -144,9 +142,6 @@ class GenericComparator(PredicateTransform):
 
         It owns the whole *the battery of a Robot is greater than 50* span, placing the left chain,
         the selected operator, and the right side in value position.
-
-        >>> verbalize_expression(variable(Robot, []).battery > 50)
-        'the battery of a Robot is greater than 50'
         """
         return PhraseFragment(
             parts=[
@@ -159,18 +154,19 @@ class GenericComparator(PredicateTransform):
 
 class AbsenceTransform(GenericComparator):
     """A non-negated ``<chain> == None`` comparison → the absence predicate (*"has no …"* / *"does
-    not exist"*) instead of a value comparison."""
+    not exist"*) instead of a value comparison.
+
+    >>> verbalize_expression(variable(Mission, []).priority == None)
+    'a Mission has no priority'
+    """
 
     @classmethod
     def applies(cls, comparator: Comparator, negated: bool) -> bool:
         """Fires on a non-negated ``<chain> == None`` comparison.
 
         Recognising the ``== None`` shape is the gate that selects this transform over the generic
-        comparator, which is why the example reads *has no priority* instead of a literal *is equal
-        to None* value comparison.
-
-        >>> verbalize_expression(variable(Mission, []).priority == None)
-        'a Mission has no priority'
+        comparator, which is why the class example reads *has no priority* instead of a literal *is
+        equal to None* value comparison.
         """
         return (
             not negated
@@ -186,9 +182,6 @@ class AbsenceTransform(GenericComparator):
 
         Delegating to :func:`render_absence` is what supplies the *a Mission has no priority* phrasing,
         flipping owner and attribute into the *has no* frame.
-
-        >>> verbalize_expression(variable(Mission, []).priority == None)
-        'a Mission has no priority'
         """
         return render_absence(comparator, context)
 
@@ -260,11 +253,8 @@ class BooleanPolarityTransform(GenericComparator):
         """Fires on a boolean attribute compared to a boolean value/domain.
 
         Recognising a boolean attribute against a boolean value is the gate that selects this
-        transform over the generic comparator, which is why the example folds to *is completed*
+        transform over the generic comparator, which is why the class example folds to *is completed*
         instead of the literal *is completed is True*.
-
-        >>> verbalize_expression(variable(Task, []).completed == True)
-        'a Task is completed'
         """
         return (
             comparator.operation in (operator.eq, operator.ne)
@@ -280,9 +270,6 @@ class BooleanPolarityTransform(GenericComparator):
 
         It owns the *is not completed* span, reading the ``False`` constraint to negate the
         predicative copula rather than appending the value as a separate term.
-
-        >>> verbalize_expression(variable(Task, []).completed == False)
-        'a Task is not completed'
         """
         constraint = _boolean_constraint(comparator.right)
         plan = context.microplan.plan_for(comparator.left, ChainPlanner)

@@ -29,13 +29,7 @@ class GroupedByRule(PhraseRule):
         """:return: The *"grouped by …"* clause for the GROUP BY node.
 
         It produces the grouping span by delegating to the grouped-by assembler, which fronts the key
-        as *"For each department, report"* so the grouping frames the whole report:
-
-        >>> employee = variable(Employee, [])
-        >>> verbalize_expression(
-        ...     a(set_of(employee.department, sum(employee.salary)).grouped_by(employee.department))
-        ... )
-        'For each department, report the sum of salaries of Employees'
+        as *"For each department, report"* so the grouping frames the whole report.
         """
         return GroupedByAssembler(context).assemble(node)
 
@@ -55,10 +49,6 @@ class OrderedByRule(PhraseRule):
         """:return: The *"ordered by …"* clause for the ORDER BY node.
 
         It produces the trailing ordering span *"ordered by their salaries from highest to lowest"*
-        by delegating to the ordered-by assembler; the rest of the sentence comes from the query:
-
-        >>> employee = variable(Employee, [])
-        >>> verbalize_expression(a(set_of(employee).ordered_by(employee.salary, descending=True)))
-        'Report Employees ordered by their salaries from highest to lowest'
+        by delegating to the ordered-by assembler; the rest of the sentence comes from the query.
         """
         return OrderedByAssembler(context).assemble(node)

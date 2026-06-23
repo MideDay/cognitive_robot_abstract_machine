@@ -40,6 +40,9 @@ class AggregationValueAssembler(Assembler[Query, QueryPlan]):
     aggregate noun is composed with an optional *"among <plural source> [whose/such that]
     [having]"* scope.
 
+    >>> verbalize_expression(an(entity(max(variable(BankTransaction, []).amount_details.amount))))
+    'Find the maximum of the amount of the amount_details of a BankTransaction'
+
     Reference: Reiter & Dale (2000) — aggregation; Gatt & Reiter (2009), SimpleNLG — realisation.
     """
 
@@ -49,9 +52,6 @@ class AggregationValueAssembler(Assembler[Query, QueryPlan]):
         """
         The unconstrained aggregate value — *"the <aggregation> <leaf>"*; a constrained one adds an
         *"among <population> …"* scope (see :meth:`_among_population`).
-
-        >>> verbalize_expression(an(entity(max(variable(BankTransaction, []).amount_details.amount))))
-        'Find the maximum of the amount of the amount_details of a BankTransaction'
 
         :param node: The aggregation value-subquery.
         :param plan: The query plan.

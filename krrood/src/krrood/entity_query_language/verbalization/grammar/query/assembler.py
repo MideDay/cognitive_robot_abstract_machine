@@ -91,12 +91,8 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
             selection shape.
 
         It is the dispatch entry: it picks the handler for the plan's selection shape, which for the
-        plain-variable subject shown assembles the whole *"Find a Robot whose battery is greater than
-        50"*:
-
-        >>> robot = variable(Robot, [])
-        >>> verbalize_expression(an(entity(robot).where(robot.battery > 50)))
-        'Find a Robot whose battery is greater than 50'
+        plain-variable subject of the class example assembles the whole *"Find a Robot whose battery
+        is greater than 50"*.
         """
         if plan.report is not None and plan.report.kind is ReportKind.GROUPING:
             return self._assemble_grouped_report(node, plan, plan.report)
@@ -652,11 +648,8 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         plain-variable selection with its WHERE woven in.
 
         It assembles the whole sentence for the plain-variable (SUBJECT) shape: the selection
-        *"a Robot"* with its restriction folded in as *"whose battery is greater than 50"*:
-
-        >>> robot = variable(Robot, [])
-        >>> verbalize_expression(an(entity(robot).where(robot.battery > 50)))
-        'Find a Robot whose battery is greater than 50'
+        *"a Robot"* with its restriction folded in as *"whose battery is greater than 50"*, as in the
+        class example.
         """
         variable = node.selected_variable
         selected = self._build_selection(node, variable, plan)
@@ -725,12 +718,9 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         clause items — the *"whose"* group (a sub-list of points in hierarchical) then a separate
         *"such that <residual>"* clause (each ``None`` when absent).
 
-        Here it contributes the single *"whose battery is greater than 50"* clause item (no
-        superlative modifier and no *"such that"* residual), which the body appends to the selection:
-
-        >>> robot = variable(Robot, [])
-        >>> verbalize_expression(an(entity(robot).where(robot.battery > 50)))
-        'Find a Robot whose battery is greater than 50'
+        In the class example it contributes the single *"whose battery is greater than 50"* clause
+        item (no superlative modifier and no *"such that"* residual), which the body appends to the
+        selection.
         """
         rendered = ClauseComposer(self.context).restriction(
             plan, self._subject_number(plan)
@@ -807,12 +797,8 @@ class QueryAssembler(Assembler[Query, QueryPlan]):
         / *"such that"*, then *grouped by … having … ordered by …*) as block items — absent
         clauses (``None``) are simply skipped.
 
-        It joins the pieces into the final block: here the *"Find a Robot"* header with the single
-        *"whose battery is greater than 50"* clause item appended:
-
-        >>> robot = variable(Robot, [])
-        >>> verbalize_expression(an(entity(robot).where(robot.battery > 50)))
-        'Find a Robot whose battery is greater than 50'
+        It joins the pieces into the final block: in the class example the *"Find a Robot"* header
+        with the single *"whose battery is greater than 50"* clause item appended.
         """
         if find_header is None:
             find_header = self._verb(plan)
