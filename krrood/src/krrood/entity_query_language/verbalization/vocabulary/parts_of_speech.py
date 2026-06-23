@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from typing_extensions import Iterable, Union
+from typing_extensions import Iterable, Protocol, Union, runtime_checkable
 
 from krrood.entity_query_language.predicate import Field
 from krrood.entity_query_language.verbalization import morphology
@@ -48,21 +48,18 @@ class Noun(ClauseElement):
     """A noun constituent — a predicate :class:`~krrood.entity_query_language.predicate.Field`, an
     already-rendered fragment, or a literal noun word."""
 
-    content: Union[str, Fragment, Field]
-    """A field (its rendered fragment is used), a rendered fragment (passed through), or a literal
-    noun string."""
+    content: Union[str, "ClauseConstituent"]
+    """A literal noun string, or any constituent (a field, a rendered fragment) rendered as-is."""
 
     def as_fragment(self) -> Fragment:
-        """:return: the field's / wrapped fragment, or a word leaf for a literal string.
+        """:return: a word leaf for a literal string, else the constituent's own fragment.
 
         >>> Noun("department").as_fragment().text
         'department'
         """
-        if isinstance(self.content, Field):
-            return self.content.fragment
-        if isinstance(self.content, Fragment):
-            return self.content
-        return WordFragment(text=self.content)
+        if isinstance(self.content, str):
+            return WordFragment(text=self.content)
+        return self.content.as_fragment()
 
 
 @dataclass(frozen=True)
@@ -173,17 +170,24 @@ class Preposition(VocabEnum):
     FROM = PlainWord("from")
 
 
-ClauseConstituent = Union[Fragment, Field, ClauseElement, Preposition]
+@runtime_checkable
+class ClauseConstituent(Protocol):
+    """The one contract every clause constituent satisfies: it renders itself to a :class:`Fragment`.
 
+    A typed part-of-speech element (:class:`ClauseElement` — :class:`Noun` / :class:`Verb` / …), a
+    :class:`Preposition`, a predicate :class:`~krrood.entity_query_language.predicate.Field`, and a
+    raw :class:`Fragment` all satisfy it structurally (each defines ``as_fragment``), so
+    :func:`clause` depends on this single abstraction rather than enumerating concrete types — a new
+    kind of constituent only has to implement the method (open/closed).
 
-def _as_fragment(constituent: ClauseConstituent) -> Fragment:
-    """:return: the fragment a clause constituent contributes — a field's rendered fragment, a raw
-    fragment as-is, or an element's :meth:`~ClauseElement.as_fragment`."""
-    if isinstance(constituent, Field):
-        return constituent.fragment
-    if isinstance(constituent, Fragment):
-        return constituent
-    return constituent.as_fragment()
+    This is a :class:`~typing.Protocol`, not a base class, because the constituents are
+    deliberately heterogeneous: ``Preposition`` is an ``Enum`` (it cannot also inherit an ABC) and
+    ``Field`` is a core type (it must not depend on this verbalization layer). Structural typing
+    unifies them without forcing inheritance.
+    """
+
+    def as_fragment(self) -> Fragment:
+        """:return: the fragment this constituent contributes to a clause."""
 
 
 def clause(*constituents: ClauseConstituent) -> PhraseFragment:
@@ -207,4 +211,6 @@ def clause(*constituents: ClauseConstituent) -> PhraseFragment:
     ... )
     'an Employee work in a Department'
     """
-    return PhraseFragment(parts=[_as_fragment(constituent) for constituent in constituents])
+    return PhraseFragment(
+        parts=[constituent.as_fragment() for constituent in constituents]
+    )

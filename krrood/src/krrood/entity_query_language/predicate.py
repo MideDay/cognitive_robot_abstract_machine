@@ -90,6 +90,11 @@ class Field:
     value: Any
     """The raw Python value bound to the field (a literal's value) — what :class:`OneOf` enumerates."""
 
+    def as_fragment(self) -> "Fragment":
+        """:return: the field's rendered fragment, so a :class:`Field` is a clause constituent like
+        the part-of-speech elements — ``clause(field)`` and ``Noun(field)`` both work."""
+        return self.fragment
+
 
 @dataclass(frozen=True)
 class RenderedFields(Mapping):

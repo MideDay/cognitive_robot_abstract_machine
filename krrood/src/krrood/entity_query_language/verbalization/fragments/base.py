@@ -38,6 +38,12 @@ class Fragment:
     side-channel a later pass can follow back to the read model (e.g. coreference reads the focus
     of a query-sourced fragment). Never participates in equality or rendering."""
 
+    def as_fragment(self) -> "Fragment":
+        """:return: this fragment itself — the identity that lets an already-rendered fragment be a
+        clause constituent on equal footing with the typed part-of-speech elements (see
+        ``vocabulary.parts_of_speech.ClauseConstituent``)."""
+        return self
+
 
 @dataclass
 class HasText:
