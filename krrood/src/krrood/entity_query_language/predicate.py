@@ -75,13 +75,29 @@ def symbolic_function(
 
 
 @dataclass(frozen=True)
+class Field:
+    """One predicate field as ``_verbalization_fragment_`` sees it.
+
+    It carries both the field's already-rendered (and source-linked) :attr:`fragment` and the raw
+    :attr:`value` bound to it (a :class:`Literal`'s value unwrapped). A part-of-speech element takes
+    whichever it needs — :class:`Noun` uses the fragment, :class:`OneOf` uses the value — so the
+    author just passes ``fields[name]`` and the right thing happens, never an explicit accessor.
+    """
+
+    fragment: "Fragment"
+    """The field's rendered, source-linked fragment — what :class:`Noun` uses."""
+
+    value: Any
+    """The raw Python value bound to the field (a literal's value) — what :class:`OneOf` enumerates."""
+
+
+@dataclass(frozen=True)
 class RenderedFields(Mapping):
     """The arguments passed to :meth:`Verbalizable._verbalization_fragment_`.
 
-    It is a mapping of *field name → already-rendered fragment* (so ``fields["x"]`` works as before),
-    and additionally exposes the *raw* child expressions through :attr:`raw` for the rare predicate
-    whose surface depends on a field's value rather than only its rendering — e.g. a tuple of
-    admissible types rendered as a membership set (*"one of A or B"*) instead of a bare value.
+    A mapping of *field name → :class:`Field`*. Each ``fields["x"]`` carries both the rendered
+    fragment and the raw value, so it can be passed straight to a part-of-speech element — ``Noun``
+    takes the fragment, ``OneOf`` takes the value — without the author choosing between them.
     """
 
     fragments: "Mapping[str, Fragment]"
@@ -90,21 +106,16 @@ class RenderedFields(Mapping):
     raw: "Mapping[str, SymbolicExpression]"
     """The raw child expression for each field, keyed by field name."""
 
-    def __getitem__(self, field_name: str) -> "Fragment":
-        return self.fragments[field_name]
+    def __getitem__(self, field_name: str) -> Field:
+        raw = self.raw[field_name]
+        value = raw._value_ if isinstance(raw, Literal) else raw
+        return Field(fragment=self.fragments[field_name], value=value)
 
     def __iter__(self) -> Iterator[str]:
         return iter(self.fragments)
 
     def __len__(self) -> int:
         return len(self.fragments)
-
-    def value(self, field_name: str) -> Any:
-        """:return: the raw Python value bound to *field_name* (a :class:`Literal`'s value), for a
-        predicate whose surface depends on the value itself — e.g. the admissible types of a
-        membership set — rather than only its rendered fragment."""
-        raw = self.raw[field_name]
-        return raw._value_ if isinstance(raw, Literal) else raw
 
 
 @dataclass(eq=False)
@@ -338,9 +349,7 @@ class HasTypes(HasType):
             OneOf,
         )
 
-        return clause(
-            Noun(fields["variable"]), Copula(), OneOf(fields.value("types_"))
-        )
+        return clause(Noun(fields["variable"]), Copula(), OneOf(fields["types_"]))
 
 
 @symbolic_function

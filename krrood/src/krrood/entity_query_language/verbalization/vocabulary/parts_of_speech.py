@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from typing_extensions import Iterable, Union
 
+from krrood.entity_query_language.predicate import Field
 from krrood.entity_query_language.verbalization import morphology
 from krrood.entity_query_language.verbalization.fragments.base import (
     Fragment,
@@ -44,17 +45,21 @@ class ClauseElement(ABC):
 
 @dataclass(frozen=True)
 class Noun(ClauseElement):
-    """A noun constituent — an already-rendered field fragment, or a literal noun word."""
+    """A noun constituent — a predicate :class:`~krrood.entity_query_language.predicate.Field`, an
+    already-rendered fragment, or a literal noun word."""
 
-    content: Union[str, Fragment]
-    """The rendered field fragment (passed through), or a literal noun string."""
+    content: Union[str, Fragment, Field]
+    """A field (its rendered fragment is used), a rendered fragment (passed through), or a literal
+    noun string."""
 
     def as_fragment(self) -> Fragment:
-        """:return: the wrapped fragment, or a word leaf for a literal string.
+        """:return: the field's / wrapped fragment, or a word leaf for a literal string.
 
         >>> Noun("department").as_fragment().text
         'department'
         """
+        if isinstance(self.content, Field):
+            return self.content.fragment
         if isinstance(self.content, Fragment):
             return self.content
         return WordFragment(text=self.content)
@@ -122,8 +127,10 @@ class OneOf(ClauseElement):
     surface a domain-constrained variable uses.
     """
 
-    members: Iterable
-    """The admissible values — classes (rendered as linked type references) or plain values."""
+    members: Union[Iterable, Field]
+    """The admissible values — a predicate :class:`~krrood.entity_query_language.predicate.Field`
+    bound to a collection, or a collection directly. Classes render as linked type references, other
+    values as literals."""
 
     def as_fragment(self) -> Fragment:
         """:return: the membership phrase, or a count summary past the cap.
@@ -134,7 +141,9 @@ class OneOf(ClauseElement):
         >>> flatten_fragment_to_plain_text(OneOf((int, str)).as_fragment())
         'one of int or str'
         """
-        members = list(self.members)
+        members = list(
+            self.members.value if isinstance(self.members, Field) else self.members
+        )
         are_types = bool(members) and all(
             isinstance(member, type) for member in members
         )
@@ -164,7 +173,17 @@ class Preposition(VocabEnum):
     FROM = PlainWord("from")
 
 
-ClauseConstituent = Union[Fragment, ClauseElement, Preposition]
+ClauseConstituent = Union[Fragment, Field, ClauseElement, Preposition]
+
+
+def _as_fragment(constituent: ClauseConstituent) -> Fragment:
+    """:return: the fragment a clause constituent contributes — a field's rendered fragment, a raw
+    fragment as-is, or an element's :meth:`~ClauseElement.as_fragment`."""
+    if isinstance(constituent, Field):
+        return constituent.fragment
+    if isinstance(constituent, Fragment):
+        return constituent
+    return constituent.as_fragment()
 
 
 def clause(*constituents: ClauseConstituent) -> PhraseFragment:
@@ -188,9 +207,4 @@ def clause(*constituents: ClauseConstituent) -> PhraseFragment:
     ... )
     'an Employee work in a Department'
     """
-    return PhraseFragment(
-        parts=[
-            constituent if isinstance(constituent, Fragment) else constituent.as_fragment()
-            for constituent in constituents
-        ]
-    )
+    return PhraseFragment(parts=[_as_fragment(constituent) for constituent in constituents])
