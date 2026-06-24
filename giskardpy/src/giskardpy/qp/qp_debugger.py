@@ -159,12 +159,12 @@ class QuadraticProgramDebugger:
                 DebuggerColumn.SLACK: bounds - constraint_value_without_slack,
                 DebuggerColumn.BOUNDS: bounds,
             },
-            self.equality_constr_names,
+            self.equality_constraint_names,
             dtype=float,
         )
         self.equality_matrix = pd.DataFrame(
             eq_matrix_dofs_np,
-            self.equality_constr_names,
+            self.equality_constraint_names,
             self.degree_of_freedom_names,
             dtype=float,
         )
@@ -181,19 +181,19 @@ class QuadraticProgramDebugger:
         )
         lower_bounds = self.qp_data_symbolic.inequality_lower_bounds.evaluate()
         upper_bounds = self.qp_data_symbolic.inequality_upper_bounds.evaluate()
-        if len(self.inequality_constr_names) > 0:
+        if len(self.inequality_constraint_names) > 0:
             self.inequality_constraints = pd.DataFrame(
                 {
                     DebuggerColumn.INEQUALITY_LOWER_BOUNDS: lower_bounds,
                     DebuggerColumn.CONSTRAINT_VALUE_WITHOUT_SLACK: constraint_value_without_slack,
                     DebuggerColumn.INEQUALITY_UPPER_BOUNDS: upper_bounds,
                 },
-                self.inequality_constr_names,
+                self.inequality_constraint_names,
                 dtype=float,
             )
             self.inequality_matrix = pd.DataFrame(
                 neq_matrix_dofs_np,
-                self.inequality_constr_names,
+                self.inequality_constraint_names,
                 self.degree_of_freedom_names,
                 dtype=float,
             )
@@ -219,14 +219,14 @@ class QuadraticProgramDebugger:
         ]
 
     @property
-    def equality_constr_names(self) -> list[str]:
+    def equality_constraint_names(self) -> list[str]:
         """
         Returns the names of all equality constraints.
         """
         return self.qp_data_symbolic.equality_constraint_names
 
     @property
-    def inequality_constr_names(self) -> list[str]:
+    def inequality_constraint_names(self) -> list[str]:
         """
         Returns the names of all inequality constraints.
         """
