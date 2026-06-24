@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, List
 
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import ObservationStateValues
@@ -7,6 +7,7 @@ from giskardpy.motion_statechart.graph_node import Task
 from coraplex.perception import PerceptionQuery
 from coraplex.robot_plans.motions.base import BaseMotion
 from semantic_digital_twin.semantic_annotations.mixins import IsPerceivable
+from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass(eq=False, repr=False)
@@ -30,13 +31,13 @@ class PerceptionTask(Task):
         self._write_into_belief(self.query.from_world())
         return ObservationStateValues.TRUE
 
-    def _write_into_belief(self, detected_bodies) -> None:
+    def _write_into_belief(self, detected_bodies: List[Body]) -> None:
         """
         Mark the semantic annotations of the detected bodies as perceived in the world.
 
         :param detected_bodies: The bodies returned by the perception query.
         """
-        # TODO Change this to actual behavour with RoboKudo and move it to a seperate thread
+        # TODO Change this to actual behaviour with RoboKudo and move it to a separate thread
         detected = set(detected_bodies)
         if not detected:
             return

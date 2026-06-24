@@ -23,12 +23,21 @@ class TryAll(Goal):
     """
 
     nodes: List[MotionStatechartNode] = field(default_factory=list, init=True)
+    """
+    The child nodes executed in parallel.
+    """
 
     def expand(self, context: MotionStatechartContext) -> None:
+        """
+        Add all child nodes to this goal so they run in parallel.
+        """
         for node in self.nodes:
             self.add_node(node)
 
     def build(self, context: MotionStatechartContext) -> NodeArtifacts:
+        """
+        Build an observation that is True as soon as any child node is True.
+        """
         observations = [node.observation_variable for node in self.nodes]
         observation = (
             observations[0] if len(observations) == 1 else trinary_logic_or(*observations)
@@ -46,8 +55,15 @@ class TryInOrder(Goal):
     """
 
     nodes: List[MotionStatechartNode] = field(default_factory=list, init=True)
+    """
+    The child nodes tried one after another, in order.
+    """
 
     def expand(self, context: MotionStatechartContext) -> None:
+        """
+        Add the child nodes and wire them so each one starts only after the
+        previous one failed, short-circuiting on the first success.
+        """
         last_node: Optional[MotionStatechartNode] = None
         for node in self.nodes:
             self.add_node(node)
@@ -61,6 +77,9 @@ class TryInOrder(Goal):
             last_node = node
 
     def build(self, context: MotionStatechartContext) -> NodeArtifacts:
+        """
+        Build an observation that is True as soon as any child node is True.
+        """
         observations = [node.observation_variable for node in self.nodes]
         observation = (
             observations[0] if len(observations) == 1 else trinary_logic_or(*observations)

@@ -67,7 +67,7 @@ class IsVisibleBy(PoseValidator):
         :return: True if the target pose is visible for the robot, False otherwise
         """
         gen_body = Body(
-            name=PrefixedName("vist_test_obj", "coraplex"),
+            name=PrefixedName("visibility_test_obj", "coraplex"),
             collision=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
         )
         with self.world.modify_world():
@@ -99,15 +99,15 @@ class IsVisibleBy(PoseValidator):
         :param target_body: The body for which the ray test is to be performed
         :return: True if the target body is visible for the robot, False otherwise
         """
-        r_t = self.world.ray_tracer
+        ray_tracer = self.world.ray_tracer
         camera = self.robot.get_default_camera()
-        ray = r_t.ray_test(
+        ray = ray_tracer.ray_test(
             camera.bodies[0].global_transform.to_position()[:3].to_np(),
             target_body.global_transform.to_position()[:3].to_np(),
             multiple_hits=True,
         )
 
-        hit_bodies = [b for b in ray[2] if not b in self.robot.bodies]
+        hit_bodies = [body for body in ray[2] if body not in self.robot.bodies]
 
         return hit_bodies[0] == target_body if len(hit_bodies) > 0 else False
 
@@ -185,7 +185,7 @@ class AreReachableBy(PoseValidator):
             for pose in self.pose_sequence:
 
                 if self.grasp_description:
-                    pose = self.grasp_description._pose_sequence(pose)[1]
+                    pose = self.grasp_description.pose_sequence(pose)[1]
 
                 motion = alternative_motion(
                     pose,
@@ -212,7 +212,7 @@ class AreReachableBy(PoseValidator):
 
             sequence = (
                 [
-                    self.grasp_description._pose_sequence(pose)[1]
+                    self.grasp_description.pose_sequence(pose)[1]
                     for pose in self.pose_sequence
                 ]
                 if self.grasp_description
@@ -225,8 +225,8 @@ class AreReachableBy(PoseValidator):
             ]
 
         msc = MotionStatechart()
-        msc.add_node(n := Sequence(sequence))
-        msc.add_node(EndMotion.when_true(n))
+        msc.add_node(sequence_node := Sequence(sequence))
+        msc.add_node(EndMotion.when_true(sequence_node))
 
         return msc
 
@@ -324,7 +324,7 @@ class IsObjectReachableBy(PoseValidator):
             ).__call__()
 
         if self.target_pose is not None:
-            pose_sequence = self.grasp_description._pose_sequence(
+            pose_sequence = self.grasp_description.pose_sequence(
                 self.target_pose, self.object_designator, reverse=self.reverse
             )
         else:

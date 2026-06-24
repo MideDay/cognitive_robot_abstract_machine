@@ -5,7 +5,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-from typing_extensions import List, Dict, ClassVar, TYPE_CHECKING
+from typing_extensions import List, Dict, ClassVar, Optional, TYPE_CHECKING
 
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import LifeCycleValues
@@ -15,11 +15,16 @@ from giskardpy.qp.qp_controller_config import QPControllerConfig
 from giskardpy.ros_executor import Ros2Executor
 from krrood.entity_query_language.factories import evaluate_condition
 from coraplex.datastructures.enums import ExecutionType
-from coraplex.exceptions import MotionDidNotFinish, ConditionNotSatisfied
+from coraplex.exceptions import (
+    MotionDidNotFinish,
+    ConditionNotSatisfied,
+    UnknownExecutionType,
+)
 from semantic_digital_twin.world_description.connections import Connection6DoF
 from semantic_digital_twin.world_description.world_entity import Body
 
 if TYPE_CHECKING:
+    from giskardpy.middleware.ros2.python_interface import GiskardWrapper
     from coraplex.robot_plans.actions.base import ActionDescription
 
     from coraplex.plans.condition_nodes import ConditionNode
@@ -36,15 +41,21 @@ class Executable:
     """
 
     execution_list: List[Executable] = field(default_factory=list)
+    """
+    List of executables that comprises this executable
+    """
 
     context: Context = field(kw_only=True)
+    """
+    Coraplex context which should be used to execute this executable
+    """
 
     def execute(self) -> None:
         """
         Executes the unit.
         """
-        for e in self.execution_list:
-            e.execute()
+        for executable in self.execution_list:
+            executable.execute()
 
 
 @dataclass
@@ -54,21 +65,21 @@ class GiskardExecutable(Executable):
     Mapping from the motion nodes of the plan to their giskard tasks, in execution order.
     """
 
-    pre_condition_node: ConditionNode = field(default=None, kw_only=True)
+    pre_condition_node: Optional[ConditionNode] = field(default=None, kw_only=True)
     """
     Optional pre-condition of the action this executable belongs to. If set, the
     motion only starts once the condition is observed to hold and the motion is
     aborted (with :class:`ConditionNotSatisfied`) if it does not.
     """
 
-    post_condition_node: ConditionNode = field(default=None, kw_only=True)
+    post_condition_node: Optional[ConditionNode] = field(default=None, kw_only=True)
     """
     Optional post-condition of the action this executable belongs to. If set, it
     is evaluated after the motion finished; the motion only ends successfully if
     the condition is observed to hold, otherwise it is aborted.
     """
 
-    execution_type: ClassVar[ExecutionType] = None
+    execution_type: ClassVar[Optional[ExecutionType]] = None
     """
     The execution type used for all giskard executables, managed by
     :py:class:`pycram.motion_executor.ExecutionEnvironment`.
@@ -229,9 +240,7 @@ class GiskardExecutable(Executable):
             case ExecutionType.NO_EXECUTION:
                 return
             case _:
-                logger.error(
-                    f"Unknown execution type: {GiskardExecutable.execution_type}"
-                )
+                raise UnknownExecutionType(GiskardExecutable.execution_type)
 
     def _execute_simulation(self) -> None:
         """
@@ -298,7 +307,9 @@ class GiskardExecutable(Executable):
         kill_event.set()
         interrupt_thread.join()
 
-    def _monitor_interrupt(self, giskard_wrapper, kill_event: threading.Event) -> None:
+    def _monitor_interrupt(
+        self, giskard_wrapper: GiskardWrapper, kill_event: threading.Event
+    ) -> None:
         while not kill_event.is_set():
             if self.is_paused:
                 raise NotImplementedError("Pause not implemented for real execution")
@@ -333,12 +344,25 @@ class ConditionExecutable(Executable):
 
 @dataclass
 class ModelChangeExecutable(Executable):
+    """
+    Executable that re-attaches a body to a new parent in the world model while
+    keeping its current global pose.
+    """
 
     body: Body = field(kw_only=True)
+    """
+    The body that is re-attached.
+    """
 
     new_parent: Body = field(kw_only=True)
+    """
+    The body the moved body is attached to afterwards.
+    """
 
     def execute(self) -> None:
+        """
+        Re-parent the body to ``new_parent`` while preserving its global pose.
+        """
         obj_transform = self.context.world.compute_forward_kinematics(
             self.new_parent, self.body
         )

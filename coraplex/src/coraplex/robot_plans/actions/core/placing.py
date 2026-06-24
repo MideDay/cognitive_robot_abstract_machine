@@ -6,7 +6,7 @@ from typing_extensions import Any, Dict
 
 from coraplex.plans.attachment_nodes import DetachNode
 from coraplex.plans.plan_node import PlanNode
-from krrood.entity_query_language.core.base_expressions import SymbolicExpression
+from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import (
     or_,
     not_,
@@ -21,9 +21,9 @@ from coraplex.datastructures.enums import (
     VerticalAlignment,
 )
 from coraplex.datastructures.grasp import GraspDescription
-from coraplex.plans.factories import sequential, execute_single
+from coraplex.plans.factories import sequential
 from coraplex.querying.predicates import GripperIsFree
-from coraplex.robot_plans.actions.base import ActionDescription, DescriptionType
+from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
 from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
@@ -34,7 +34,6 @@ from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.reasoning.robot_predicates import is_body_in_gripper
 from semantic_digital_twin.spatial_types.spatial_types import Pose
-from semantic_digital_twin.world_description.connections import Connection6DoF
 from semantic_digital_twin.world_description.world_entity import Body
 
 
@@ -73,7 +72,7 @@ class PlaceAction(ActionDescription):
             )
         )
 
-        _, _, retract_pose = previous_grasp._pose_sequence(
+        _, _, retract_pose = previous_grasp.pose_sequence(
             self.target_location, self.object_designator, reverse=True
         )
 
@@ -93,77 +92,9 @@ class PlaceAction(ActionDescription):
             self.context,
         )
 
-        # # Detaches the object from the robot
-        # world_root = self.world.root
-        # obj_transform = self.world.compute_forward_kinematics(
-        #     world_root, self.object_designator
-        # )
-        # with self.world.modify_world():
-        #     self.world.remove_connection(self.object_designator.parent_connection)
-        #     connection = Connection6DoF.create_with_dofs(
-        #         parent=world_root, child=self.object_designator, world=self.world
-        #     )
-        #     self.world.add_connection(connection)
-        #     connection.origin = obj_transform
-
-        # self.add_subplan(
-        #     execute_single(MoveToolCenterPointMotion(retract_pose, self.arm))
-        # ).perform()
-
-    # def execute(self) -> None:
-    #     arm = ViewManager.get_arm_view(self.arm, self.robot)
-    #     manipulator = arm.manipulator
-    #
-    #     previous_pick = self.plan_node.get_previous_node_by_designator_type(
-    #         PickUpAction
-    #     )
-    #     previous_grasp = (
-    #         previous_pick.designator.grasp_description
-    #         if previous_pick
-    #         else GraspDescription(
-    #             ApproachDirection.FRONT, VerticalAlignment.NoAlignment, manipulator
-    #         )
-    #     )
-    #
-    #     self.add_subplan(
-    #         sequential(
-    #             [
-    #                 ReachAction(
-    #                     self.target_location,
-    #                     self.arm,
-    #                     previous_grasp,
-    #                     self.object_designator,
-    #                     reverse_reach_order=True,
-    #                 ),
-    #                 MoveGripperMotion(GripperState.OPEN, self.arm),
-    #             ]
-    #         )
-    #     ).perform()
-    #
-    #     # Detaches the object from the robot
-    #     world_root = self.world.root
-    #     obj_transform = self.world.compute_forward_kinematics(
-    #         world_root, self.object_designator
-    #     )
-    #     with self.world.modify_world():
-    #         self.world.remove_connection(self.object_designator.parent_connection)
-    #         connection = Connection6DoF.create_with_dofs(
-    #             parent=world_root, child=self.object_designator, world=self.world
-    #         )
-    #         self.world.add_connection(connection)
-    #         connection.origin = obj_transform
-    #
-    #     _, _, retract_pose = previous_grasp._pose_sequence(
-    #         self.target_location, self.object_designator, reverse=True
-    #     )
-    #
-    #     self.add_subplan(
-    #         execute_single(MoveToolCenterPointMotion(retract_pose, self.arm))
-    #     ).perform()
-
     @staticmethod
     def pre_condition(
-        variables, context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
         The object needs to be in the gripper frame
@@ -179,7 +110,7 @@ class PlaceAction(ActionDescription):
 
     @staticmethod
     def post_condition(
-        variables, context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
         the gripper must be free again and the object needs to be at the target location

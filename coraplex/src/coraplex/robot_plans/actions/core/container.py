@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing_extensions import Any, Dict
 
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
+from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import (
     and_,
     or_,
@@ -78,7 +79,7 @@ class OpenAction(ActionDescription):
 
     @staticmethod
     def pre_condition(
-        variables, context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
         The gripper with which to open the container has to be free and the handle has to be reachable.
@@ -99,7 +100,7 @@ class OpenAction(ActionDescription):
 
     @staticmethod
     def post_condition(
-        variables, context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
         The handle has to be in the gripper of the robot and the container has to be open.
@@ -168,7 +169,7 @@ class CloseAction(ActionDescription):
 
     @staticmethod
     def post_condition(
-        variables, context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> SymbolicExpression | bool:
         """
         The container has to be closed

@@ -6,11 +6,7 @@ from typing import List, Any
 
 from typing_extensions import TYPE_CHECKING
 
-from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import LifeCycleValues
-from giskardpy.motion_statechart.goals.templates import Sequence
-from giskardpy.motion_statechart.graph_node import EndMotion, MotionStatechartNode
-from giskardpy.motion_statechart.graph_node import Task
+from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.motion_statechart import (
     MotionStatechart,
 )

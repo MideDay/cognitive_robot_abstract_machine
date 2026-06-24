@@ -2762,6 +2762,22 @@ class ContextIsUnavailableDAO(
     )
 
 
+class UnknownExecutionTypeDAO(
+    Base, DataAccessObject[coraplex.exceptions.UnknownExecutionType]
+):
+    __tablename__ = "UnknownExecutionTypeDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    execution_type: Mapped[coraplex.datastructures.enums.ExecutionType] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+
 class LocationDAO(Base, DataAccessObject[coraplex.locations.base.Location]):
     __tablename__ = "LocationDAO"
 
@@ -3375,12 +3391,12 @@ class GiskardExecutableDAO(
         use_existing_column=True,
     )
 
-    pre_condition_node_id: Mapped[int] = mapped_column(
+    pre_condition_node_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
         ForeignKey("ConditionNodeDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
-    post_condition_node_id: Mapped[int] = mapped_column(
+    post_condition_node_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
         ForeignKey("ConditionNodeDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
@@ -4240,12 +4256,12 @@ class ActionNodeDAO(
         use_existing_column=True,
     )
 
-    execution_data_id: Mapped[int] = mapped_column(
+    execution_data_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
         ForeignKey("ExecutionDataDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
-    motion_executor_id: Mapped[int] = mapped_column(
+    motion_executor_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
         ForeignKey("MotionExecutorDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
@@ -4937,7 +4953,7 @@ class LookAtActionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    camera_id: Mapped[int] = mapped_column(
+    camera_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
         ForeignKey("CameraDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
@@ -5113,7 +5129,7 @@ class ReachActionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    object_designator_id: Mapped[int] = mapped_column(
+    object_designator_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
         ForeignKey("BodyDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,

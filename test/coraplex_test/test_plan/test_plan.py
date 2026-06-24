@@ -8,7 +8,7 @@ from coraplex.plans.executables import GiskardExecutable
 from coraplex.plans.failures import EmptyUnderspecified
 from coraplex.plans.condition_nodes import ConditionNode
 from coraplex.plans.plan import Plan
-from coraplex.plans.plan_node import PlanNode
+from coraplex.plans.plan_node import PlanNode, ActionNode
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
@@ -128,6 +128,47 @@ def test_add_edge_with_layer_index():
     assert child1.layer_index == 0
     assert child2.layer_index == 2
     assert child3.layer_index == 1
+
+
+def test_neighbours_at_edges_return_none():
+    """
+    The outermost siblings have no neighbour on the outer side, which must be
+    reported as ``None`` rather than raising ``IndexError``.
+    """
+    root = PlanNode()
+    plan = Plan()
+    plan.add_node(root)
+    left_child = PlanNode()
+    right_child = PlanNode()
+    plan.add_edge(root, left_child)
+    plan.add_edge(root, right_child)
+
+    assert left_child.left_neighbour is None
+    assert right_child.right_neighbour is None
+    assert left_child.right_neighbour is right_child
+    assert right_child.left_neighbour is left_child
+
+
+def test_simplify_keeps_designators_with_different_parameters():
+    """
+    ``DesignatorNode.simplify`` may only merge a child whose designator has the
+    same type *and* the same parameters; differing parameters must be preserved.
+    """
+    plan = Plan()
+    parent = ActionNode(designator=MoveTorsoAction(TorsoState.HIGH))
+    different_child = ActionNode(designator=MoveTorsoAction(TorsoState.LOW))
+    plan.add_node(parent)
+    plan.add_edge(parent, different_child)
+
+    parent.simplify()
+
+    assert different_child in parent.children
+
+    equal_child = ActionNode(designator=MoveTorsoAction(TorsoState.HIGH))
+    plan.add_edge(parent, equal_child)
+    parent.simplify()
+
+    assert equal_child not in parent.children
 
 
 def test_plan_all_parents():
@@ -511,7 +552,7 @@ def test_algebra_sequential_plan(apartment_world_pr2_copy_with_context):
     navigate_action = underspecified(NavigateAction)(
         target_location=target_location,
     )
-    navigate_action.resolve()
+    # navigate_action.resolve()
 
     context.query_backend = ProbabilisticBackend(
         model_registry=FullyFactorizedRegistry()

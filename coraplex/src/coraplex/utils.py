@@ -29,47 +29,29 @@ from coraplex.tf_transformations import (
     quaternion_about_axis,
     quaternion_multiply,
 )
-from coraplex.tf_transformations import (
-    quaternion_about_axis,
-    quaternion_multiply,
-)
-from semantic_digital_twin.collision_checking.collision_detector import ClosestPoints
-from semantic_digital_twin.collision_checking.collision_rules import AllowSelfCollisions
-from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.spatial_types.spatial_types import (
     Pose,
     Point3,
 )
-from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
 
 if TYPE_CHECKING:
     from coraplex.view_manager import CameraDescription
-    from coraplex.plans.executables import Executable
 
 
 def split_list_by_type(
-    flat_list: List, cluster_type: Type[Any]
-) -> List[List[Executable]]:
-    groups = list(
-        (
-            list(g)
-            for _, g in groupby(flat_list, key=lambda m: isinstance(m, cluster_type))
+    flat_list: List[Any], cluster_type: Type[Any]
+) -> List[List[Any]]:
+    """
+    Split a list into consecutive runs that alternate between elements that are
+    instances of ``cluster_type`` and those that are not, preserving order.
+    """
+    return [
+        list(group)
+        for _, group in groupby(
+            flat_list, key=lambda element: isinstance(element, cluster_type)
         )
-    )
-    return groups
-
-
-def group_by_type(
-    flat_list: List[Any], group_type: Type[Any]
-) -> List[List[Executable]]:
-    groups = list(
-        (
-            list(g)
-            for _, g in groupby(flat_list, key=lambda m: not isinstance(m, group_type))
-        )
-    )
-    return groups
+    ]
 
 
 def link_pose_for_joint_config(obj: Body, joint_config: Dict[str, float]) -> Pose:

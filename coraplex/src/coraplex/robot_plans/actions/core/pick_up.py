@@ -3,12 +3,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from typing_extensions import Any, Dict
+from typing_extensions import Any, Dict, Optional
 
 from coraplex.locations.pose_validator import AreReachableBy, IsObjectReachableBy
 from coraplex.plans.attachment_nodes import AttachNode
 from coraplex.plans.plan_node import PlanNode
-from krrood.entity_query_language.core.base_expressions import SymbolicExpression
+from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import (
     and_,
     or_,
@@ -61,16 +61,19 @@ class ReachAction(ActionDescription):
     The grasp description that should be used for picking up the object
     """
 
-    object_designator: Body = None
+    object_designator: Optional[Body] = None
     """
     Object designator_description describing the object that should be picked up
     """
 
     reverse_reach_order: bool = False
+    """
+    Whether the grasp pose sequence should be approached in reverse order.
+    """
 
     @property
     def _action_plan(self) -> PlanNode:
-        target_pre_pose, target_pose, _ = self.grasp_description._pose_sequence(
+        target_pre_pose, target_pose, _ = self.grasp_description.pose_sequence(
             self.target_pose, self.object_designator, reverse=self.reverse_reach_order
         )
         return sequential(
@@ -92,10 +95,10 @@ class ReachAction(ActionDescription):
 
     @staticmethod
     def pre_condition(
-        variables, context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The sequence in which the robot would reach the target pose needs to be achiveable
+        The sequence in which the robot would reach the target pose needs to be achievable
         """
         return and_(
             IsObjectReachableBy(
@@ -111,7 +114,7 @@ class ReachAction(ActionDescription):
 
     @staticmethod
     def post_condition(
-        variables, context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
         The end effector needs to be close to the target pose
@@ -206,7 +209,7 @@ class PickUpAction(ActionDescription):
         variables: Dict, context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The object needs to be in the griper frame
+        The object needs to be in the gripper frame
         """
         end_effector = ViewManager.get_end_effector_view(
             variables["arm"], context.robot
@@ -234,7 +237,7 @@ class GraspingAction(ActionDescription):
     """
     grasp_description: GraspDescription
     """
-    The distance in meters the gripper should be at before grasping the object
+    The grasp description that should be used to grasp the object
     """
 
     @property

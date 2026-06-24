@@ -258,8 +258,10 @@ class Plan:
 
         :return: A list of lists where each list represents a layer
         """
-        layer = rx.layers(self.plan_graph, [self.root.index], index_output=False)
-        return [sorted(l, key=lambda x: x.layer_index) for l in layer]
+        layers = rx.layers(self.plan_graph, [self.root.index], index_output=False)
+        return [
+            sorted(layer, key=lambda node: node.layer_index) for layer in layers
+        ]
 
     def _migrate_nodes_from_plan(self, other: Plan) -> PlanNode:
         """
@@ -269,12 +271,7 @@ class Plan:
         :param other: The plan to steal nodes from
         :return: The root node of the other plan mounted in this plan
         """
-        # other_plans_edge = other.edges
         root_ref = other.root
-        # other.plan_graph.clear()
-        #
-        # for edge in other_plans_edge:
-        #     self.add_edge(edge[0], edge[1])
 
         for layer in reversed(other.layers):
             for node in layer:

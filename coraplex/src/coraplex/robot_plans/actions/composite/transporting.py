@@ -150,7 +150,7 @@ class TransportAction(ActionDescription):
             target_location=variable(
                 Pose,
                 domain=reachability_location(
-                    self.target_location, self.context, self.arm, self.grasp_description
+                    self.target_location, self.context, self.arm, grasp_description
                 ),
             ),
             keep_joint_states=True,
@@ -202,7 +202,7 @@ class PickAndPlaceAction(ActionDescription):
 @dataclass
 class MoveAndPlaceAction(ActionDescription):
     """
-    Navigate to `standing_position`, then turn towards the object and pick it up.
+    Navigate to `standing_position`, then turn towards the target and place the object.
     """
 
     standing_position: Pose

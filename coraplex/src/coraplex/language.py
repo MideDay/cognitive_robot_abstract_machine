@@ -7,8 +7,6 @@ import threading
 import time
 from abc import ABC
 from dataclasses import dataclass, field
-from queue import Queue
-
 from typing_extensions import (
     Optional,
     Callable,
@@ -34,7 +32,7 @@ from coraplex.plans.plan_node import (
     PlanNode,
     UnderspecifiedNode,
 )
-from coraplex.utils import split_list_by_type, group_by_type
+from coraplex.utils import split_list_by_type
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +55,6 @@ class LanguageNode(PlanNode, ABC):
             self.merge(child)
 
     def notify(self):
-        # result = [child.perform() for child in self.children]
-        # return result
         for child in self.children:
             child.notify()
 
@@ -79,9 +75,14 @@ class LanguageNode(PlanNode, ABC):
         )
 
     def parse_with_non_giskard_executable(self) -> Executable:
+        """
+        Build an executable whose execution list keeps non-giskard executables
+        (model changes, deferred underspecified nodes) as sequential boundaries,
+        merging only the consecutive giskard executables between them.
+        """
         child_executables = [node.parse() for node in self.children]
 
-        giskard_exec_groups = group_by_type(child_executables, GiskardExecutable)
+        giskard_exec_groups = split_list_by_type(child_executables, GiskardExecutable)
 
         exec_list = []
 
@@ -123,11 +124,11 @@ class ExecutesInParallel(LanguageNode, ABC):
         """
         threads = []
         for child in nodes:
-            t = threading.Thread(
+            thread = threading.Thread(
                 target=child.perform,
             )
-            t.start()
-            threads.append(t)
+            thread.start()
+            threads.append(thread)
 
         for thread in threads:
             thread.join()
@@ -200,9 +201,12 @@ class MonitorNode(ExecutesSequentially):
     Thread for the subplan that is monitored.
     """
 
+    kill_event: threading.Event = field(init=False, default_factory=threading.Event)
+    """
+    Event used to stop the monitoring thread once the children have finished.
+    """
+
     def __post_init__(self):
-        self.kill_event = threading.Event()
-        self.exception_queue = Queue()
         if self.behavior == MonitorBehavior.RESUME:
             self.pause()
         if callable(self.condition):
@@ -246,8 +250,8 @@ class TryInOrderNode(ExecutesSequentially):
         for child in self.children:
             try:
                 child.perform()
-            except PlanFailure as e:
-                pass
+            except PlanFailure:
+                continue
         failed = all([child.status == TaskStatus.FAILED for child in self.children])
         if failed:
             raise AllChildrenFailed(self)

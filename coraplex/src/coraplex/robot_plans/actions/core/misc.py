@@ -51,7 +51,10 @@ class DetectAction(ActionDescription):
     """
     object_sem_annotation: Type[SemanticAnnotation] = None
     """
-    The type of the object that should be detected, only considered if technique is equal to Type
+    The type of the object that should be detected, only considered if technique is equal to Type.
+
+    .. note:: Defaults to ``None``; kept as ``Type[...]`` (not ``Optional``) because
+        ormatic cannot map ``Optional[Type]`` and would otherwise drop this column.
     """
     region: Optional[Region] = None
     """
@@ -68,7 +71,7 @@ class DetectAction(ActionDescription):
 
         :return: The perception query that the detection motion answers.
         """
-        if not self.object_sem_annotation and self.region:
+        if not self.object_sem_annotation and not self.region:
             raise AttributeError(
                 "Either a Semantic Annotation or a Region must be provided."
             )

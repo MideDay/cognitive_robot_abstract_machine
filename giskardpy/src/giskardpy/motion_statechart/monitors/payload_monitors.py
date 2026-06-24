@@ -113,7 +113,7 @@ class ThreadedPredicateMonitor(MotionStatechartNode):
     """
 
     predicate: Optional[Callable[[], bool]] = field(kw_only=True)
-    """The predicate to evaluate. Set via :meth:`from_predicate`."""
+    """The predicate to evaluate, passed as a constructor argument."""
 
     _thread: Optional[threading.Thread] = field(default=None, init=False, repr=False)
     _lock: threading.Lock = field(
@@ -146,7 +146,7 @@ class ThreadedPredicateMonitor(MotionStatechartNode):
         """
         if self.predicate is None:
             logger.error(
-                "%s has no predicate; use ThreadedPredicateMonitor.from_predicate.",
+                "%s has no predicate; pass one via the `predicate` argument.",
                 self.unique_name,
             )
             return

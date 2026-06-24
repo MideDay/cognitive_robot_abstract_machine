@@ -5,7 +5,7 @@ from abc import abstractmethod, ABC
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Any, List, Type, TYPE_CHECKING, Iterable, Iterator
+from typing import Optional, Any, List, Dict, Type, TYPE_CHECKING, Iterable, Iterator
 
 from typing_extensions import Union
 
@@ -21,9 +21,10 @@ from coraplex.plans.executables import (
 )
 from coraplex.plans.failures import PlanFailure
 from coraplex.plans.plan_entity import PlanEntity
-from coraplex.utils import group_by_type
+from coraplex.utils import split_list_by_type
 
 if TYPE_CHECKING:
+    from giskardpy.motion_statechart.graph_node import Task
     from coraplex.robot_plans import ActionDescription, BaseMotion
 
 
@@ -180,19 +181,19 @@ class PlanNode(PlanEntity):
 
     @property
     def left_neighbour(self) -> Optional[PlanNode]:
-        return [
-            sibling
-            for sibling in self.siblings
-            if sibling.layer_index < self.layer_index
-        ][-1]
+        """
+        :return: The closest sibling to the left, or None if this is the leftmost.
+        """
+        left_siblings = self.left_siblings
+        return left_siblings[-1] if left_siblings else None
 
     @property
     def right_neighbour(self) -> Optional[PlanNode]:
-        return [
-            sibling
-            for sibling in self.siblings
-            if sibling.layer_index > self.layer_index
-        ][0]
+        """
+        :return: The closest sibling to the right, or None if this is the rightmost.
+        """
+        right_siblings = self.right_siblings
+        return right_siblings[0] if right_siblings else None
 
     @property
     def previous_nodes(self) -> List[PlanNode]:
@@ -341,20 +342,29 @@ class PlanNode(PlanEntity):
     def merge_motion_executables(
         self, executables: List[Executable]
     ) -> List[Executable]:
+        """
+        Merge consecutive giskard executables into a single one while leaving the
+        other executables untouched and in their original order.
+        """
         result = []
-        for exec in group_by_type(executables, GiskardExecutable):
-            if not isinstance(exec[0], GiskardExecutable):
-                result.extend(exec)
-            else:
-                new_mappings = self.merge_motion_mappings(exec)
-                result.append(
-                    GiskardExecutable(
-                        motion_mappings=new_mappings, context=self.plan.context
-                    )
+        for group in split_list_by_type(executables, GiskardExecutable):
+            if not isinstance(group[0], GiskardExecutable):
+                result.extend(group)
+                continue
+            result.append(
+                GiskardExecutable(
+                    motion_mappings=self.merge_motion_mappings(group),
+                    context=self.plan.context,
                 )
+            )
         return result
 
-    def merge_motion_mappings(self, motions: List[GiskardExecutable]):
+    def merge_motion_mappings(
+        self, motions: List[GiskardExecutable]
+    ) -> Dict[MotionNode, Task]:
+        """
+        Combine the motion mappings of several giskard executables into one mapping.
+        """
         new_mappings = {}
         for motion in motions:
             new_mappings.update(motion.motion_mappings)
@@ -473,19 +483,20 @@ class DesignatorNode(PlanNode, ABC):
 
     def simplify(self):
         """
-        Merges this designator node with its child if they have the same paramters and are of the same type.
-
+        Merges this designator node with a child if they are of the same type and
+        carry the same parameters.
         """
-        self_fields = self.designator.fields
-        for child in self.children:
-            if isinstance(child, DesignatorNode) and type(self.designator) == type(
-                child.designator
+        for child in list(self.children):
+            if not isinstance(child, DesignatorNode):
+                continue
+            if type(self.designator) is not type(child.designator):
+                continue
+            if (
+                self.designator.designator_parameter
+                != child.designator.designator_parameter
             ):
-                child_fields = child.designator.fields
-                for self_field, child_field in zip(self_fields, child_fields):
-                    if not self_field == child_field:
-                        continue
-                self.merge(child)
+                continue
+            self.merge(child)
 
     def __hash__(self):
         return id(self)
@@ -497,19 +508,19 @@ class ActionNode(DesignatorNode):
     A node representing a fully specified action.
     """
 
-    execution_data: ExecutionData = None
+    execution_data: Optional[ExecutionData] = None
     """
-    Additional data that  is collected before and after the execution of the action.
+    Additional data that is collected before and after the execution of the action.
     """
 
-    motion_executor: MotionExecutor = None
+    motion_executor: Optional[MotionExecutor] = None
     """
     Instance of the MotionExecutor used to execute the motion chart of the sub-motions of this action.
     """
 
-    _world_modification_block_length_pre_perform: Optional[int] = None
+    _last_world_modification_block_pre_perform_index: Optional[int] = None
     """
-    The last model modification block before the execution of this node. 
+    Index of the last model modification block before the execution of this node.
     Used to check if the model has changed during execution.
     """
 
@@ -562,10 +573,6 @@ class ActionNode(DesignatorNode):
         for child in self.children:
             child.notify()
 
-        # only the outermost action parses and executes the fully expanded plan
-        # if self.parent_action_node is None:
-        #     self.parse().execute()
-
         # TODO: This can't stay here
         self.update_execution_data_post_perform()
 
@@ -577,7 +584,11 @@ class ActionNode(DesignatorNode):
         child_execs = [child.parse() for child in children]
         merged = self.merge_motion_executables(child_execs)
 
-        motion_execs = [e for e in merged if isinstance(e, GiskardExecutable)]
+        motion_execs = [
+            executable
+            for executable in merged
+            if isinstance(executable, GiskardExecutable)
+        ]
         if len(motion_execs) == 1:
             # The action body is a single motion state chart, so the conditions
             # can be evaluated inside it (gating start/end, aborting on failure).
@@ -587,7 +598,9 @@ class ActionNode(DesignatorNode):
             return motion_exec
 
         giskard_child_execs = [
-            e for e in child_execs[0].execution_list if isinstance(e, GiskardExecutable)
+            executable
+            for executable in child_execs[0].execution_list
+            if isinstance(executable, GiskardExecutable)
         ]
         giskard_child_execs[0].pre_condition_node = pre_condition_node
         giskard_child_execs[-1].post_condition_node = post_condition_node

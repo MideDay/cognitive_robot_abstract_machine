@@ -91,7 +91,6 @@ def test_pick_up_pre_conditions(mutable_model_world):
 
     with pytest.raises(ConditionNotSatisfied):
         _construct_and_evaluate_condition(pick_action, pick_action.pre_condition)
-        # pick_action.evaluate_pre_condition()
 
     view.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         1.9, 1.4, 0
@@ -128,7 +127,6 @@ def test_pick_up_post_condition(mutable_model_world):
 
     plan = sequential([pick_action], context)
 
-    # assert pick_action.evaluate_pre_condition()
     assert _construct_and_evaluate_condition(pick_action, pick_action.pre_condition)
 
     with simulated_robot:
@@ -140,7 +138,6 @@ def test_pick_up_post_condition(mutable_model_world):
         view.left_arm.end_effector.tool_frame
     )
 
-    # assert pick_action.evaluate_post_condition()
     assert _construct_and_evaluate_condition(pick_action, pick_action.post_condition)
 
 

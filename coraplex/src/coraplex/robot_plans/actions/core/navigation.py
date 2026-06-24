@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from typing_extensions import Optional, Any, Dict
 
-from krrood.entity_query_language.core.base_expressions import SymbolicExpression
+from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import variable_from, and_, ConditionType
 from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.dataclasses import Context
@@ -42,7 +42,7 @@ class NavigateAction(ActionDescription):
 
     @staticmethod
     def pre_condition(
-        variables, context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
         The robot needs to have a drive and the target location needs to be free from obstacles
@@ -55,7 +55,7 @@ class NavigateAction(ActionDescription):
 
     @staticmethod
     def post_condition(
-        variables, context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
         The robot needs to be within 3 cm of the target location
@@ -79,7 +79,7 @@ class LookAtAction(ActionDescription):
     Position at which the robot should look, given as 6D pose
     """
 
-    camera: Camera = None
+    camera: Optional[Camera] = None
     """
     Camera that should be looking at the target
     """

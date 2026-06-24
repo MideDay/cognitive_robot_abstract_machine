@@ -213,11 +213,12 @@ def test_parse_transport_plan(mutable_model_world, rclpy_node):
         exec.execute()
 
 
-def test_split_by_type():
+def test_split_by_type(immutable_model_world):
+    world, view, context = immutable_model_world
 
     split_list = [
         MoveToolCenterPointMotion(Pose(), Arms.LEFT),
-        ModelChangeNode(body=None, new_parent=None),
+        ModelChangeNode(body=world.get_body_by_name("milk.stl"), new_parent=world.root),
         MoveToolCenterPointMotion(Pose(), Arms.RIGHT),
     ]
 

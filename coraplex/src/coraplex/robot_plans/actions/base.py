@@ -98,13 +98,13 @@ class ActionDescription(Designator):
 
     @property
     @abstractmethod
-    def _action_plan(self) -> PlanNode: ...
+    def _action_plan(self) -> PlanNode:
+        """
+        Creates the whole plan for this action.
 
-    """
-    Creates the whole plan for this action. 
-    
-    :return: The root not of the plan of this action 
-    """
+        :return: The root node of the plan of this action
+        """
+        ...
 
     def expand(self) -> PlanNode:
 

@@ -30,17 +30,60 @@ class GraphVisualizer:
     """
 
     graph: Any
+    """
+    The rustworkx graph to visualize.
+    """
+
     graph_source: Optional[Callable[[], Any]] = None
+    """
+    Optional callable returning the current graph, polled on every update tick.
+    """
+
     node_params: Optional[Dict[int, Dict[str, Any]]] = None
+    """
+    Optional mapping from node index to the parameters shown when the node is clicked.
+    """
+
     node_label: Optional[Callable[[int, Any], str]] = None
+    """
+    Optional callable mapping (index, payload) to the label shown for a node.
+    """
+
     # attributes: Optional[Sequence[str]] = None # kroodd has problems with this
     attributes = None
+    """
+    Optional attribute names to display; ``None`` shows all parameters.
+    """
+
     layout: str = "bfs"
+    """
+    Layout algorithm to use: "spring", "kamada_kawai", or "bfs".
+    """
+
     start: Optional[int] = None
+    """
+    Optional start node index for the "bfs" layout.
+    """
+
     title: str = "Rustworkx Graph"
+    """
+    Title of the plot.
+    """
+
     width: int = 1200
+    """
+    Figure width in pixels.
+    """
+
     height: int = 800
+    """
+    Figure height in pixels.
+    """
+
     update_interval: int = 1000
+    """
+    Interval in milliseconds between graph-change checks.
+    """
 
     def _build_bokeh_app(self, doc: Document) -> None:
         # Local imports to keep dependency optional
@@ -300,8 +343,7 @@ def calculate_layout_positions(
 
 def build_nx_graph(graph: PyDiGraph, node_params, attributes, node_label) -> nx.Graph:
     """Convert a rustworkx graph to a networkx graph."""
-    is_directed = getattr(graph, "is_directed", lambda: True)()
-    nx_g = nx.DiGraph() if is_directed else nx.Graph()
+    nx_g = nx.DiGraph() if graph.is_directed() else nx.Graph()
 
     attributes = list(attributes) if attributes is not None else None
 
@@ -384,11 +426,7 @@ def _object_params_with_properties(payload: Any) -> Optional[Dict[str, Any]]:
                 if k.startswith("_") or k == "label":
                     continue
                 # Avoid adding callables
-                try:
-                    is_callable = callable(v)
-                except Exception:
-                    is_callable = False
-                if not is_callable:
+                if not callable(v):
                     params[k] = v
     except Exception:
         pass
@@ -417,11 +455,8 @@ def _collect_properties(payload) -> Dict[str, Any]:
             except Exception:
                 continue
             # Skip callables
-            try:
-                if callable(value):
-                    continue
-            except Exception:
-                pass
+            if callable(value):
+                continue
             params[name] = value
     except Exception:
         # If inspection fails, just ignore properties

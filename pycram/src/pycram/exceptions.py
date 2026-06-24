@@ -36,16 +36,24 @@ class ContextIsUnavailable(DataclassException):
 
 @dataclass
 class ConditionNotSatisfied(PlanFailure):
+    """
+    Raised when the pre- or post-condition of an action is not satisfied.
+    """
 
     pre_condition: bool
+    """
+    Whether the unsatisfied condition is a pre-condition (otherwise a post-condition).
+    """
+
     action: Type[ActionDescription]
+    """
+    The action whose condition was not satisfied.
+    """
+
     condition: ConditionType
-
-    # def __post_init__(self):
-    #     self.message = f"{"Pre" if self.pre_condition else "Post"}-Condition for Action '{self.action.__name__}' is not satisfied"
-    #     super().__post_init__()
-
-    # TODO would be nice if the error contains the wrong statements but the error message is passed to giskards cancel motion and that is not possible at the moment
+    """
+    The condition that evaluated to false.
+    """
 
     def __post_init__(self):
         if isinstance(self.condition, bool):
@@ -58,8 +66,14 @@ class ConditionNotSatisfied(PlanFailure):
 
 @dataclass
 class MotionDidNotFinish(PlanFailure):
+    """
+    Raised when a motion state chart did not reach its end motion.
+    """
 
     failed_motions: List[MotionStatechartNode]
+    """
+    The motion state chart nodes that did not finish.
+    """
 
     def __post_init__(self):
         self.message = (

@@ -8,6 +8,7 @@ from typing_extensions import Optional, Any
 
 from coraplex.config.action_conf import ActionConfig
 from coraplex.plans.factories import sequential
+from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.navigation import NavigateAction, LookAtAction
 from semantic_digital_twin.spatial_types import (
@@ -58,9 +59,3 @@ class FaceAtAction(ActionDescription):
                 LookAtAction(self.pose),  # look at the target
             ]
         )
-
-    def validate(
-        self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None
-    ):
-        # The validation will be done in the LookAtActionPerformable.perform() method so no need to validate here.
-        pass

@@ -32,9 +32,6 @@ from semantic_digital_twin.datastructures.definitions import (
     GripperState,
     StaticJointState,
 )
-from semantic_digital_twin.reasoning.predicates import allclose
-from semantic_digital_twin.robots.robot_parts import EndEffector
-from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 
 @dataclass
@@ -60,10 +57,10 @@ class MoveTorsoAction(ActionDescription):
 
     @staticmethod
     def post_condition(
-        variables, context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> SymbolicExpression | bool:
         """
-        The target joint state for the torso needs to be archived
+        The target joint state for the torso needs to be achieved
         """
         joint_state = context.robot.get_torso().get_joint_state_by_type(
             kwargs["torso_state"]
