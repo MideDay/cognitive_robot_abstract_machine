@@ -18,7 +18,9 @@ class NoInstancesProvidedError(InputError):
         return "At least one instance must be provided to build a FeatureExtractor."
 
     def suggest_correction(self) -> str:
-        return "Pass a non-empty list of DAO instances to FeatureExtractor.from_instances."
+        return (
+            "Pass a non-empty list of DAO instances to FeatureExtractor.from_instances."
+        )
 
 
 @dataclass
@@ -33,7 +35,7 @@ class MissingFieldNameError(InputError):
         return "field_name must be set to access aggregation_features."
 
     def suggest_correction(self) -> str:
-        return "Construct AggregationStatistic with field_name='<field name>'."
+        return "Construct AggregationStatistic with @aggregation_statistic(field_name='field name')."
 
 
 @dataclass
@@ -48,7 +50,7 @@ class OutOfDomainValueError(DataclassException):
     The name of the feature whose value was out of domain.
     """
 
-    value: object
+    value: Any
     """
     The computed value that violated the domain constraint.
     """
@@ -81,7 +83,9 @@ class UnsupportedFeatureTypeError(DataclassException):
     """
 
     def error_message(self) -> str:
-        return f"Unsupported type {self.feature_type!r} for column '{self.column_name}'."
+        return (
+            f"Unsupported type {self.feature_type!r} for column '{self.column_name}'."
+        )
 
     def suggest_correction(self) -> str:
         return (

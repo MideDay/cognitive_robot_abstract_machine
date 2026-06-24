@@ -44,8 +44,6 @@ class _AggregationStatisticDescriptor:
     """
 
     def __set_name__(self, owner: Type[AggregationStatistic], name: str) -> None:
-        if "aggregation_registry" not in owner.__dict__:
-            owner.aggregation_registry = defaultdict(list)
         owner.aggregation_registry[self.field_name].append(self.func)
         setattr(owner, name, self.func)
 
