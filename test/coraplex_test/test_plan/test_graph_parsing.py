@@ -99,6 +99,36 @@ def test_parse_pick_up(immutable_model_world):
     assert type(executable.execution_list[2]) == GiskardExecutable
 
 
+def test_parse_pick_up_merges_motions_around_model_change(immutable_model_world):
+    """
+    The motions on each side of the model change (the attach) must be merged into a
+    single giskard executable per side, so the model change splits the plan into
+    exactly [merged motions, model change, merged motions].
+    """
+    world, view, context = immutable_model_world
+
+    plan = execute_single(
+        PickUpAction(
+            world.get_body_by_name("milk.stl"),
+            Arms.RIGHT,
+            GraspDescription(
+                ApproachDirection.FRONT,
+                VerticalAlignment.NoAlignment,
+                view.right_arm.end_effector,
+            ),
+        ),
+        context=context,
+    )
+
+    plan.notify()
+    executable = plan.parse()
+
+    # The four motions before the attach (open gripper, reach pre-pose, reach pose,
+    # close gripper) merge into one executable; the lift after it into another.
+    assert len(executable.execution_list[0].motion_mappings) == 4
+    assert len(executable.execution_list[2].motion_mappings) == 1
+
+
 def test_parse_complex_plan(immutable_model_world):
     world, view, context = immutable_model_world
 
@@ -228,3 +258,63 @@ def test_split_by_type(immutable_model_world):
     assert len(splitted_list[0]) == 1
     assert len(splitted_list[1]) == 1
     assert len(splitted_list[2]) == 1
+
+
+def test_split_by_type_empty_list():
+    assert split_list_by_type([], ModelChangeNode) == []
+
+
+def test_split_by_type_without_match_stays_one_group():
+    no_model_change = [
+        MoveToolCenterPointMotion(Pose(), Arms.LEFT),
+        MoveToolCenterPointMotion(Pose(), Arms.RIGHT),
+    ]
+
+    splitted_list = split_list_by_type(no_model_change, ModelChangeNode)
+
+    assert len(splitted_list) == 1
+    assert splitted_list[0] == no_model_change
+
+
+def test_split_by_type_groups_consecutive_elements(immutable_model_world):
+    world, view, context = immutable_model_world
+    model_change = ModelChangeNode(
+        body=world.get_body_by_name("milk.stl"), new_parent=world.root
+    )
+
+    split_list = [
+        MoveToolCenterPointMotion(Pose(), Arms.LEFT),
+        MoveToolCenterPointMotion(Pose(), Arms.RIGHT),
+        model_change,
+        MoveToolCenterPointMotion(Pose(), Arms.LEFT),
+    ]
+
+    splitted_list = split_list_by_type(split_list, ModelChangeNode)
+
+    assert [len(group) for group in splitted_list] == [2, 1, 1]
+    assert splitted_list[1] == [model_change]
+    assert all(
+        not isinstance(element, ModelChangeNode) for element in splitted_list[0]
+    )
+
+
+def test_split_by_type_leading_and_trailing_match(immutable_model_world):
+    world, view, context = immutable_model_world
+    first_model_change = ModelChangeNode(
+        body=world.get_body_by_name("milk.stl"), new_parent=world.root
+    )
+    last_model_change = ModelChangeNode(
+        body=world.get_body_by_name("milk.stl"), new_parent=world.root
+    )
+
+    split_list = [
+        first_model_change,
+        MoveToolCenterPointMotion(Pose(), Arms.LEFT),
+        last_model_change,
+    ]
+
+    splitted_list = split_list_by_type(split_list, ModelChangeNode)
+
+    assert [len(group) for group in splitted_list] == [1, 1, 1]
+    assert splitted_list[0] == [first_model_change]
+    assert splitted_list[2] == [last_model_change]
