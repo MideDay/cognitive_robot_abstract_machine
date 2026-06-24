@@ -319,10 +319,10 @@ class DegreeOfFreedomLimitProfiler:
         """
         sign = direction.sign
         velocity_bound, _ = shifted_velocity_profile(
-            vel_profile=mpc_velocity_profile,
-            acc_profile=mpc_acceleration_profile,
+            velocity_profile=mpc_velocity_profile,
+            acceleration_profile=mpc_acceleration_profile,
             distance=sign * position_error,
-            dt=time_step,
+            delta_time=time_step,
         )
         velocity_bound *= sign
         one_step_change = jerk_limit * time_step**2
