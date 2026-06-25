@@ -1,15 +1,9 @@
 import json
+import time
 from copy import deepcopy
 
 import numpy as np
 import pytest
-import time
-
-from semantic_digital_twin.datastructures.definitions import StaticJointState
-from semantic_digital_twin.robots.pr2 import PR2
-from semantic_digital_twin.collision_checking.collision_rules import (
-    AllowCollisionBetweenGroups,
-)
 from giskardpy.executor import Executor, SimulationPacer
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
@@ -52,14 +46,19 @@ from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
 )
 from semantic_digital_twin.collision_checking.collision_rules import (
+    AllowCollisionBetweenGroups,
+)
+from semantic_digital_twin.collision_checking.collision_rules import (
     AvoidCollisionBetweenGroups,
     AvoidExternalCollisions,
     AvoidAllCollisions,
     AllowAllCollisions,
 )
+from semantic_digital_twin.datastructures.definitions import StaticJointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
-from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
+from semantic_digital_twin.robots.pr2 import PR2
+from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.robots.tracy import Tracy
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -555,10 +554,7 @@ def test_self_collision_avoidance(self_collision_bot_world: World):
     assert len(self_collision_bot_world.collision_manager.collision_consumers) == 0
 
 
-def test_avoid_collision_go_around_corner(pr2_with_box, rclpy_node):
-    viz = VizMarkerPublisher(
-        _world=pr2_with_box, node=rclpy_node
-    ).with_tf_and_collision_visualization()
+def test_avoid_collision_go_around_corner(pr2_with_box):
     r_tip = pr2_with_box.get_kinematic_structure_entity_by_name("r_gripper_tool_frame")
     robot = pr2_with_box.get_semantic_annotations_by_type(AbstractRobot)[0]
 
@@ -719,8 +715,7 @@ def test_avoid_self_collision_with_l_arm(pr2_with_box):
     kin_sim.tick_until_end(500)
 
 
-def test_hard_constraints_violated(cylinder_bot_world: World, rclpy_node):
-    VizMarkerPublisher(_world=cylinder_bot_world, node=rclpy_node).with_tf_publisher()
+def test_hard_constraints_violated(cylinder_bot_world: World):
     root = cylinder_bot_world.root
     with cylinder_bot_world.modify_world():
         env2 = Body(
