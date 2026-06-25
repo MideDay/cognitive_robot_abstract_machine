@@ -692,3 +692,38 @@ def test_move_to_reach(immutable_multiple_robot_apartment, rclpy_node):
     plan = execute_single(move_to_reach, context=context)
     with simulated_robot:
         plan.perform()
+
+
+def test_transport_open_container(mutable_multiple_robot_apartment, rclpy_node):
+    world, robot, context = mutable_multiple_robot_apartment
+
+    context.ros_node = rclpy_node
+    context.debug = True
+
+    VizMarkerPublisher(_world=world, node=rclpy_node).with_tf_publisher()
+
+    description = TransportAction(
+        object_designator=world.get_body_by_name("spoon.stl"),
+        target_location=Pose(
+            Point3.from_iterable([3.1, 2.2, 0.95]),
+            Quaternion.from_iterable([0.0, 0.0, 1.0, 0.0]),
+            reference_frame=world.root,
+        ),
+        arm=Arms.RIGHT,
+        grasp_description=GraspDescription(
+            ApproachDirection.FRONT,
+            VerticalAlignment.TOP,
+            ViewManager.get_end_effector_view(Arms.RIGHT, robot),
+        ),
+    )
+    plan = sequential(
+        [MoveTorsoAction(TorsoState.HIGH), ParkArmsAction(Arms.BOTH), description],
+        context,
+    )
+    with simulated_robot:
+        plan.perform()
+    milk_position = world.get_body_by_name("spoon.stl").global_transform.to_np()[:3, 3]
+    dist = np.linalg.norm(milk_position - np.array([3.1, 2.2, 0.95]))
+    assert dist <= 0.02
+
+    plan.plan.validate()

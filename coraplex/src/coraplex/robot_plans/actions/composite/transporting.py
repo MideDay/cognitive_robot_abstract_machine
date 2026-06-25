@@ -120,6 +120,7 @@ class TransportAction(ActionDescription):
                             self.context,
                             self.arm,
                             self.grasp_description,
+                            mean_distance_to_target=0.6,
                         ),
                     ),
                     keep_joint_states=True,
@@ -132,9 +133,7 @@ class TransportAction(ActionDescription):
                 ParkArmsAction(Arms.BOTH),
                 MoveTorsoAction(TorsoState.HIGH),
                 self._make_navigate_action_for_placing(self.grasp_description),
-                PlaceAction(
-                    self.object_designator, self.target_location, self.arm
-                ),
+                PlaceAction(self.object_designator, self.target_location, self.arm),
                 ParkArmsAction(Arms.BOTH),
             ]
         )
@@ -191,9 +190,7 @@ class PickAndPlaceAction(ActionDescription):
                     grasp_description=self.grasp_description,
                 ),
                 ParkArmsAction(Arms.BOTH),
-                PlaceAction(
-                    self.object_designator, self.target_location, self.arm
-                ),
+                PlaceAction(self.object_designator, self.target_location, self.arm),
                 ParkArmsAction(Arms.BOTH),
             ]
         )
@@ -234,15 +231,9 @@ class MoveAndPlaceAction(ActionDescription):
     def _action_plan(self) -> PlanNode:
         return sequential(
             [
-                NavigateAction(
-                    self.standing_position, self.keep_joint_states
-                ),
-                FaceAtAction(
-                    self.target_location, self.keep_joint_states
-                ),
-                PlaceAction(
-                    self.object_designator, self.target_location, self.arm
-                ),
+                NavigateAction(self.standing_position, self.keep_joint_states),
+                FaceAtAction(self.target_location, self.keep_joint_states),
+                PlaceAction(self.object_designator, self.target_location, self.arm),
             ]
         )
 
@@ -282,14 +273,10 @@ class MoveAndPickUpAction(ActionDescription):
     def _action_plan(self) -> PlanNode:
         return sequential(
             [
-                NavigateAction(
-                    self.standing_position, self.keep_joint_states
-                ),
+                NavigateAction(self.standing_position, self.keep_joint_states),
                 FaceAtAction(
                     self.object_designator.global_pose, self.keep_joint_states
                 ),
-                PickUpAction(
-                    self.object_designator, self.arm, self.grasp_description
-                ),
+                PickUpAction(self.object_designator, self.arm, self.grasp_description),
             ]
         )
