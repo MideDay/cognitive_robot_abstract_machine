@@ -8,6 +8,7 @@ from typing_extensions import Iterable, Protocol, Union, runtime_checkable
 from krrood.entity_query_language.predicate import Field
 from krrood.entity_query_language.verbalization import morphology
 from krrood.entity_query_language.verbalization.fragments.base import (
+    Clause,
     Fragment,
     NounPhrase,
     PhraseFragment,
@@ -212,17 +213,18 @@ class ClauseConstituent(Protocol):
         """:return: the fragment this constituent contributes to a clause."""
 
 
-def clause(*constituents: ClauseConstituent) -> PhraseFragment:
+def clause(*constituents: ClauseConstituent) -> Clause:
     """
     Build a predicate clause from typed part-of-speech constituents.
 
     A predicate states its affirmative form once — *"<subject> works in <object>"* —
     ``clause(Noun(subject), Verb("work"), Preposition.IN, Noun(object))`` — and the realisation
     passes handle agreement and negation. A raw :class:`Fragment` is accepted too, so a rendered
-    field fragment can be dropped in directly.
+    field fragment can be dropped in directly. The result is a :class:`Clause`, so coreference
+    treats the first constituent as the clause's subject (pronominalisation, verb agreement).
 
     :param constituents: The clause's elements in surface order.
-    :return: The inline phrase fragment for the clause.
+    :return: The clause fragment.
 
     >>> from krrood.entity_query_language.verbalization.fragments.base import (
     ...     flatten_fragment_to_plain_text, WordFragment,
@@ -233,6 +235,4 @@ def clause(*constituents: ClauseConstituent) -> PhraseFragment:
     ... )
     'an Employee work in a Department'
     """
-    return PhraseFragment(
-        parts=[constituent.as_fragment() for constituent in constituents]
-    )
+    return Clause(parts=[constituent.as_fragment() for constituent in constituents])
