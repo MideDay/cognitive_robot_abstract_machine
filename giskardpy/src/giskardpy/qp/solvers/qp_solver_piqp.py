@@ -17,7 +17,7 @@ class QPSolverPIQP(QPSolver[QPDataExplicit]):
     """
     The solver object of piqp.
     """
-    ignore_solver_failures: bool = False
+    big_ball_mode: bool = False
     """
     If the QP is known to be feasible, ignore non-SOLVED solver statuses and return the (possibly
     suboptimal) solution instead of raising.
@@ -58,7 +58,7 @@ class QPSolverPIQP(QPSolver[QPDataExplicit]):
             )
 
         status = self.solver.solve()
-        if status.value != piqp.PIQP_SOLVED and not self.ignore_solver_failures:
+        if status.value != piqp.PIQP_SOLVED and not self.big_ball_mode:
             raise InfeasibleException(solver_status=str(status.value))
         return self.solver.result.x
 
