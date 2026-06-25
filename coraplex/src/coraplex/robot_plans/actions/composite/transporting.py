@@ -15,6 +15,7 @@ from krrood.entity_query_language.factories import (
 from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
+from coraplex.locations.base import DeferredLocation
 from coraplex.locations.factories import reachability_location
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
@@ -115,25 +116,31 @@ class TransportAction(ActionDescription):
                 underspecified(NavigateAction)(
                     target_location=variable(
                         Pose,
-                        domain=reachability_location(
-                            self.object_designator,
-                            self.context,
-                            self.arm,
-                            self.grasp_description,
-                            mean_distance_to_target=0.6,
+                        domain=DeferredLocation(
+                            lambda: reachability_location(
+                                self.object_designator,
+                                self.context,
+                                self.arm,
+                                self.grasp_description,
+                                mean_distance_to_target=0.5,
+                            )
                         ),
                     ),
                     keep_joint_states=True,
                 ),
-                PickUpAction(
-                    self.object_designator,
-                    self.arm,
+                underspecified(PickUpAction)(
+                    object_designator=self.object_designator,
+                    arm=self.arm,
                     grasp_description=self.grasp_description,
                 ),
                 ParkArmsAction(Arms.BOTH),
                 MoveTorsoAction(TorsoState.HIGH),
                 self._make_navigate_action_for_placing(self.grasp_description),
-                PlaceAction(self.object_designator, self.target_location, self.arm),
+                underspecified(PlaceAction)(
+                    object_designator=self.object_designator,
+                    target_location=self.target_location,
+                    arm=self.arm,
+                ),
                 ParkArmsAction(Arms.BOTH),
             ]
         )

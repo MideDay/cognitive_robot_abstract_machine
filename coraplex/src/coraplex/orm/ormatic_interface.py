@@ -2775,6 +2775,16 @@ class ExecutionEnvironmentDAO(
     )
 
 
+class DeferredLocationDAO(
+    Base, DataAccessObject[coraplex.locations.base.DeferredLocation]
+):
+    __tablename__ = "DeferredLocationDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+
 class LocationDAO(Base, DataAccessObject[coraplex.locations.base.Location]):
     __tablename__ = "LocationDAO"
 

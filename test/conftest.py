@@ -544,10 +544,10 @@ def _apartment_world_setup():
     apartment_world.merge_world(
         spoon_world,
         FixedConnection(
-            parent=apartment_world.get_body_by_name("cabinet10_drawer_middle"),
+            parent=apartment_world.get_body_by_name("cabinet10_drawer_top"),
             child=spoon_world.root,
             parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                -0.05, -0.05, 0
+                -0.05, -0.05, -0.02
             ),
         ),
     )
@@ -562,8 +562,8 @@ def _apartment_world_setup():
         )
         apartment_world.add_semantic_annotation_recursively(
             Drawer(
-                root=apartment_world.get_body_by_name("cabinet10_drawer_middle"),
-                handle=Handle(root=apartment_world.get_body_by_name("handle_cab10_m")),
+                root=apartment_world.get_body_by_name("cabinet10_drawer_top"),
+                handle=Handle(root=apartment_world.get_body_by_name("handle_cab10_t")),
             )
         )
 
