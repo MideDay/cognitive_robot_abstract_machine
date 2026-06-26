@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-import rerun as rr
+import rerun
 from typing_extensions import Optional
 
 from semantic_digital_twin.callbacks.callback import (
@@ -48,7 +48,7 @@ class RerunModelCallback(ModelChangeCallback):
     on model changes, not on every state update.
     """
 
-    recording: rr.RecordingStream = field(kw_only=True)
+    recording: rerun.RecordingStream = field(kw_only=True)
     """
     The recording stream geometry is logged to.
     """
@@ -72,9 +72,9 @@ class RerunModelCallback(ModelChangeCallback):
 
         :param world: The world whose geometry is logged.
         """
-        rr.log(
+        rerun.log(
             self.root_entity_path,
-            rr.ViewCoordinates.RIGHT_HAND_Z_UP,
+            rerun.ViewCoordinates.RIGHT_HAND_Z_UP,
             static=True,
             recording=self.recording,
         )
@@ -84,9 +84,9 @@ class RerunModelCallback(ModelChangeCallback):
             for index, shape in enumerate(shapes):
                 visual_path = f"{entity_path}/visual_{index}"
                 origin = shape.origin.to_np()
-                rr.log(
+                rerun.log(
                     visual_path,
-                    rr.Transform3D(
+                    rerun.Transform3D(
                         translation=origin[:3, 3],
                         mat3x3=origin[:3, :3],
                     ),
@@ -96,9 +96,9 @@ class RerunModelCallback(ModelChangeCallback):
                 mesh = shape.mesh.copy()
                 if hasattr(mesh.visual, "to_color"):
                     mesh.visual = mesh.visual.to_color()
-                rr.log(
+                rerun.log(
                     visual_path,
-                    rr.Mesh3D(
+                    rerun.Mesh3D(
                         vertex_positions=mesh.vertices,
                         triangle_indices=mesh.faces,
                         vertex_normals=mesh.vertex_normals,
@@ -159,7 +159,7 @@ class RerunAdapter(StateChangeCallback):
     Only used by the ``SPAWN`` mode.
     """
 
-    recording: rr.RecordingStream = field(init=False)
+    recording: rerun.RecordingStream = field(init=False)
     """
     The Rerun recording stream all data is logged to.
     """
@@ -170,7 +170,7 @@ class RerunAdapter(StateChangeCallback):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        self.recording = rr.RecordingStream(self.application_id)
+        self.recording = rerun.RecordingStream(self.application_id)
         match self.mode:
             case RerunMode.SPAWN:
                 self.recording.spawn(memory_limit=self.memory_limit)
@@ -207,9 +207,9 @@ class RerunAdapter(StateChangeCallback):
         """
         for body in world.bodies:
             world_transform_body = world.compute_forward_kinematics_np(world.root, body)
-            rr.log(
+            rerun.log(
                 f"{self.root_entity_path}/{body.name.name}",
-                rr.Transform3D(
+                rerun.Transform3D(
                     translation=world_transform_body[:3, 3],
                     mat3x3=world_transform_body[:3, :3],
                 ),
@@ -219,7 +219,7 @@ class RerunAdapter(StateChangeCallback):
 
     def on_state_change(self, **kwargs) -> None:
         if self.state_history:
-            rr.set_time(
+            rerun.set_time(
                 self.timeline,
                 sequence=self._world.state.version,
                 recording=self.recording,
@@ -251,7 +251,7 @@ class RerunAdapter(StateChangeCallback):
             while reading.
         :return: The set of entity paths present in the recording.
         """
-        with rr.server.Server(datasets={dataset_name: [path]}) as server:
+        with rerun.server.Server(datasets={dataset_name: [path]}) as server:
             reader = server.client().get_dataset(dataset_name).reader(None)
             columns = reader.schema().names
         return {name.split(":", 1)[0] for name in columns}
