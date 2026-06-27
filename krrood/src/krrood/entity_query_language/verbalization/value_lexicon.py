@@ -5,9 +5,6 @@ import enum
 
 from typing_extensions import Any
 
-__all__ = ["value_phrase", "type_noun"]
-
-
 #: Human-readable nouns for the primitive types, whose bare ``__name__`` reads as programmer jargon
 #: (*"int"*, *"str"*). Every other type keeps its ``__name__``.
 _PRIMITIVE_TYPE_NOUNS = {

@@ -37,9 +37,9 @@ class Fragment:
     source: Optional[SymbolicExpression] = field(
         default=None, kw_only=True, compare=False, repr=False
     )
-    """Provenance: the EQL node this fragment was built from, stamped by the fold. A lossless
-    side-channel a later pass can follow back to the read model (e.g. coreference reads the focus
-    of a query-sourced fragment). Never participates in equality or rendering."""
+    """The EQL node this fragment was built from, recorded so a later pass can trace the fragment
+    back to the query it came from (for example, coreference looks up the focus of a query-sourced
+    fragment). It is never used for equality or rendering."""
 
     def as_fragment(self) -> "Fragment":
         """:return: this fragment itself — the identity that lets an already-rendered fragment be a
