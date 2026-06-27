@@ -66,18 +66,6 @@ COINDEXED_OPERATORS: Tuple[Callable, ...] = (
     operator.le,
 )
 
-#: Comparisons of a subject against a *value* (as opposed to another co-indexed chain): the order /
-#: equality operators plus ``ne``. The shared-subject conjunction fold coordinates these under one
-#: relative clause; named for what they are so it does not borrow the co-indexed fold's set.
-VALUE_COMPARISON_OPERATORS: Tuple[Callable, ...] = (
-    operator.eq,
-    operator.ne,
-    operator.gt,
-    operator.lt,
-    operator.ge,
-    operator.le,
-)
-
 
 # ── fold artifacts (the vocabulary the pass produces) ───────────────────────
 
@@ -192,7 +180,8 @@ class ConjunctFold(ABC):
     @abstractmethod
     def apply(self, conjuncts: ConjunctList) -> ConjunctList:
         """:param conjuncts: The (possibly already partly-folded) conjunct list.
-        :return: The list with every group this fold recognises collapsed to its artifact."""
+        :return: The list with every group this fold recognises collapsed to its artifact.
+        """
 
 
 class RangeBoundFold(ConjunctFold):
@@ -543,9 +532,7 @@ _Payload = TypeVar("_Payload")
 
 #: Classify a sibling item for owner-grouping: ``(owner, payload)`` when the item belongs to an
 #: owner (the owner is identified by its ``_id_``), or ``None`` when it does not group.
-OwnerClassifier = Callable[
-    [_Item], Optional[Tuple["SymbolicExpression", _Payload]]
-]
+OwnerClassifier = Callable[[_Item], Optional[Tuple["SymbolicExpression", _Payload]]]
 
 
 @dataclass(frozen=True)
@@ -594,7 +581,9 @@ def group_by_owner(
             builders[owner._id_] = (owner, [])
             order.append(owner._id_)
         builders[owner._id_][1].append(payload)
-    groups = [OwnerGroup(owner=builders[key][0], items=builders[key][1]) for key in order]
+    groups = [
+        OwnerGroup(owner=builders[key][0], items=builders[key][1]) for key in order
+    ]
     return groups, ungrouped
 
 

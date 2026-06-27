@@ -805,6 +805,23 @@ class Operators(Enum):
         """
         return _OPERATOR_CALLABLE_MAP.get(function)
 
+    @classmethod
+    def is_value_comparison(cls, function: Callable) -> bool:
+        """
+        :param function: Any callable.
+        :return: whether *function* is a scalar value comparison — an order/equality comparison of a
+            subject against a value (``==``, ``!=``, ``<``, ``<=``, ``>``, ``>=``), as opposed to
+            membership (``contains``) or an unmapped callable. The canonical set the shared-subject
+            folds coordinate over, read from this vocabulary rather than re-listed by each caller.
+
+        >>> Operators.is_value_comparison(operator.gt)
+        True
+        >>> Operators.is_value_comparison(operator.contains)
+        False
+        """
+        member = cls.for_callable(function)
+        return member is not None and member not in (cls.CONTAINS, cls.NOT_CONTAINS)
+
 
 #: Map Python ``operator`` callables to ``Operators`` members.
 _OPERATOR_CALLABLE_MAP: Dict[Callable, Operators] = {

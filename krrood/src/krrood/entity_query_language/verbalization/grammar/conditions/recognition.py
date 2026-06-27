@@ -30,8 +30,8 @@ from krrood.entity_query_language.verbalization.microplanning.coordination impor
     fold_range_pairs,
     SharedSubjectComparisons,
     SharedSubjectConjunction,
-    VALUE_COMPARISON_OPERATORS,
 )
+from krrood.entity_query_language.verbalization.vocabulary.english import Operators
 
 
 def attribute_names(left: SymbolicExpression) -> List[str]:
@@ -248,7 +248,7 @@ def fold_shared_subject_conjunction(
     for operand in operands:
         if not isinstance(operand, Comparator):
             return None
-        if operand.operation not in VALUE_COMPARISON_OPERATORS:
+        if not Operators.is_value_comparison(operand.operation):
             return None
         left = operand.left
         if not isinstance(left, Variable) or isinstance(left, Literal):
