@@ -186,7 +186,6 @@ class Keywords(VocabEnum):
     WHICH = KeyWord("which")
     THAT = KeyWord("that")
     GROUPED_BY = KeyWord("grouped by")
-    GROUPED = KeyWord("grouped")
     HAVING = KeyWord("having")
     ORDERED_BY = KeyWord("ordered by")
     PREDICT = KeyWord("predict")
