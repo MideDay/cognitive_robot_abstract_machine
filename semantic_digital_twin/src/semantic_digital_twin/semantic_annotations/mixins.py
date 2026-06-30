@@ -422,11 +422,7 @@ class PartWholeRelationship(HasRootKinematicStructureEntity, ABC):
 
         [match] = matches
         part._mount_strategy(self)
-        is_many = (
-            getattr(match, "is_many_to_many_relationship", False) or
-            getattr(match, "is_one_to_many_relationship", False)
-        )
-        if is_many:
+        if match.is_many_to_many_relationship:
             getattr(self, match.field.name).append(part)
         else:
             setattr(self, match.field.name, part)
@@ -460,13 +456,8 @@ class HasMechanicalJoint(HasRootBody, PartWholeRelationship, ABC):
     """
 
     def _kinematic_structure_entities(
-        self, visited_or_type
+        self, visited: Set[int]
     ) -> list[KinematicStructureEntity]:
-        if isinstance(visited_or_type, set):
-            visited = visited_or_type
-        else:
-            visited = set()
-
         if id(self) in visited:
             return []
         visited.add(id(self))
@@ -475,10 +466,6 @@ class HasMechanicalJoint(HasRootBody, PartWholeRelationship, ABC):
         )
         if self.mechanical_joint is not None:
             kinematic_structure_entities.append(self.mechanical_joint.root)
-
-        if not isinstance(visited_or_type, set) and isinstance(visited_or_type, type):
-            kinematic_structure_entities = [x for x in kinematic_structure_entities if isinstance(x, visited_or_type)]
-
         return kinematic_structure_entities
 
 
