@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from math import ceil
 
 import numpy as np
 import pytest
@@ -13,9 +14,12 @@ from giskardpy.middleware.ros2.utils.utils import load_xacro
 from giskardpy.middleware.ros2.utils.utils_for_tests import compare_poses, GiskardTester
 from giskardpy.motion_statechart.data_types import ObservationStateValues
 from giskardpy.motion_statechart.goals.collision_avoidance import SelfCollisionAvoidance
-from giskardpy.motion_statechart.goals.templates import Sequence, Parallel
+from giskardpy.motion_statechart.goals.templates import Parallel
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
+from giskardpy.motion_statechart.monitors.payload_monitors import (
+    CountControlCycles,
+)
 from giskardpy.motion_statechart.motion_statechart import (
     MotionStatechart,
 )
@@ -169,13 +173,13 @@ class TestJointGoals:
         )
         hand_T_finger_expected = PoseStamped()
         hand_T_finger_expected.header.frame_id = f"{arm}_base_link"
-        hand_T_finger_expected.pose.position.x = 0.3802
-        hand_T_finger_expected.pose.position.y = 0.1486
-        hand_T_finger_expected.pose.position.z = 0.5331
-        hand_T_finger_expected.pose.orientation.x = 0.4482
-        hand_T_finger_expected.pose.orientation.y = 0.7662
-        hand_T_finger_expected.pose.orientation.z = 0.3752
-        hand_T_finger_expected.pose.orientation.w = 0.2666
+        hand_T_finger_expected.pose.position.x = 0.3807
+        hand_T_finger_expected.pose.position.y = 0.1862
+        hand_T_finger_expected.pose.position.z = 0.5557
+        hand_T_finger_expected.pose.orientation.x = 0.8587
+        hand_T_finger_expected.pose.orientation.y = 0.2248
+        hand_T_finger_expected.pose.orientation.z = 0.4539
+        hand_T_finger_expected.pose.orientation.w = -0.0767
         compare_poses(hand_T_finger_current.pose, hand_T_finger_expected.pose)
 
     @pytest.mark.parametrize(
@@ -206,13 +210,13 @@ class TestJointGoals:
 
         base_T_tip = PoseStamped()
         base_T_tip.header.frame_id = base
-        base_T_tip.pose.position.x = 0.4027
-        base_T_tip.pose.position.y = 0.4686
-        base_T_tip.pose.position.z = 0.6614
-        base_T_tip.pose.orientation.x = -0.6180
-        base_T_tip.pose.orientation.y = 0.3386
-        base_T_tip.pose.orientation.z = 0.3400
-        base_T_tip.pose.orientation.w = 0.6226
+        base_T_tip.pose.position.x = 0.3945
+        base_T_tip.pose.position.y = 0.4690
+        base_T_tip.pose.position.z = 0.6194
+        base_T_tip.pose.orientation.x = -0.1977
+        base_T_tip.pose.orientation.y = 0.6767
+        base_T_tip.pose.orientation.z = 0.6804
+        base_T_tip.pose.orientation.w = 0.1996
         base_T_tip2 = giskard.compute_fk_pose(base.name.name, tip.name.name)
         compare_poses(base_T_tip2.pose, base_T_tip.pose)
 
@@ -302,10 +306,15 @@ class TestCollisionAvoidanceGoals:
                     ],
                 ),
                 SelfCollisionAvoidance(),
-                local_min := LocalMinimumReached(),
+                cycles := CountControlCycles(
+                    control_cycles=ceil(
+                        30
+                        * giskard_better_pose.giskard.qp_controller_config.target_frequency
+                    )
+                ),
             ]
         )
-        msc.add_node(EndMotion.when_true(local_min))
+        msc.add_node(EndMotion.when_true(cycles))
         giskard_better_pose.api.execute(msc)
 
         assert parallel.observation_state == ObservationStateValues.FALSE

@@ -15,8 +15,6 @@ class DAiSyVelocityInterface(RobotInterfaceConfig):
 
     def setup(self):
         self.sync_joint_state_topic("/joint_states")
-        # self.sync_joint_state_topic("/right_gripper/device_states")
-        # self.sync_joint_state_topic("/left_gripper/device_states")
         joints_left = [
             "left_shoulder_pan_joint",
             "left_shoulder_lift_joint",
