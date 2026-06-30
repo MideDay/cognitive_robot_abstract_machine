@@ -112,7 +112,10 @@ class WorldEntity(Symbol):
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
-            return False
+            # NotImplemented (instead of False) lets Python fall back to the
+            # other operand's __eq__, so base_instance == subclass_instance
+            # still works when the subclass's strict type check fails
+            return NotImplemented
         return hash(self) == hash(other)
 
     def add_to_world(self, world: World):
@@ -494,7 +497,16 @@ class Body(KinematicStructureEntity):
         :param surface_threshold: Ignore simple geometry shapes with a surface area less than this (in m^2)
         :return: True if collision geometry is mesh or simple shape exceeding thresholds
         """
-        return len(self.collision) > 0
+        for shape in self.collision:
+            if isinstance(shape, Mesh):
+                return True
+            shape_mesh = shape.mesh
+            if (
+                shape_mesh.volume > volume_threshold
+                or shape_mesh.area > surface_threshold
+            ):
+                return True
+        return False
 
     def get_semantic_annotations_by_type(
         self, type_: Type[GenericSemanticAnnotation]
@@ -514,6 +526,7 @@ class Body(KinematicStructureEntity):
             id=self.id,
             visual=self.visual.copy_for_world(new_world),
             collision=self.collision.copy_for_world(new_world),
+            inertial=deepcopy(self.inertial),
         )
 
 
@@ -612,6 +625,10 @@ class SemanticAnnotation(WorldEntityWithSimulatorProperties):
         return set(n.lower() for n in camel_case_split(cls.__name__))
 
     def __hash__(self):
+        return self.__cached_hash__
+
+    @cached_property
+    def __cached_hash__(self):
         introspector = DataclassOnlyIntrospector()
         result = [self.__class__]
         for field_ in introspector.discover(self.__class__):
@@ -761,7 +778,7 @@ class SemanticAnnotation(WorldEntityWithSimulatorProperties):
 
 
 @dataclass(eq=False)
-class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
+class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer, ABC):
     """
     Represents a connection between two entities in the world.
     """
@@ -826,14 +843,18 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
             and self.parent_T_connection_expression.reference_frame != self.parent
         ):
             raise ReferenceFrameMismatchError(
-                self.parent, self.parent_T_connection_expression.reference_frame
+                expected_frame=self.parent,
+                actual_frame=self.parent_T_connection_expression.reference_frame,
+                context=f"parent_T_connection_expression of connection '{self.name}'",
             )
         if (
             self.connection_T_child_expression.child_frame is not None
             and self.connection_T_child_expression.child_frame != self.child
         ):
             raise ReferenceFrameMismatchError(
-                self.parent, self.connection_T_child_expression.child_frame
+                expected_frame=self.child,
+                actual_frame=self.connection_T_child_expression.child_frame,
+                context=f"child frame of connection_T_child_expression of connection '{self.name}'",
             )
 
         self.parent_T_connection_expression.reference_frame = self.parent
@@ -846,6 +867,9 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
         result["child_id"] = to_json(self.child.id)
         result["parent_T_connection_expression"] = to_json(
             self.parent_T_connection_expression
+        )
+        result["connection_T_child_expression"] = to_json(
+            self.connection_T_child_expression
         )
         return result
 
@@ -860,6 +884,9 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
             child=child,
             parent_T_connection_expression=from_json(
                 data["parent_T_connection_expression"], **kwargs
+            ),
+            connection_T_child_expression=from_json(
+                data["connection_T_child_expression"], **kwargs
             ),
         )
 
@@ -924,41 +951,37 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
         return Matrix.vstack([position, orientation]).T
 
     @property
-    def dofs(self) -> Set[DegreeOfFreedom]:
+    def dofs(self) -> list[DegreeOfFreedom]:
         """
-        Returns the degrees of freedom associated with this connection.
+        Returns the degrees of freedom associated with this connection, active ones first.
         """
-        dofs = set()
-
-        if hasattr(self, "active_dofs"):
-            dofs.update(set(self.active_dofs))
-        if hasattr(self, "passive_dofs"):
-            dofs.update(set(self.passive_dofs))
-
-        return dofs
+        return self.active_dofs + self.passive_dofs
 
     @classmethod
+    @abstractmethod
     def create_with_dofs(
         cls,
         world: World,
         parent: KinematicStructureEntity,
         child: KinematicStructureEntity,
+        *,
         name: Optional[PrefixedName] = None,
-        *args,
-        **kwargs,
+        parent_T_connection_expression: Optional[
+            HomogeneousTransformationMatrix
+        ] = None,
+        connection_T_child_expression: Optional[HomogeneousTransformationMatrix] = None,
     ) -> Self:
         """
-        This method will automatically generate the degrees of freedom for this connection into the given world
-        and initialize the connection with the generated dofs.
+        Generates the degrees of freedom for this connection into the given world and initializes the
+        connection with them.
+
         :param world: Reference to the world where the dofs should be added.
-        :param parent: parent of the connection.
-        :param child: child of the connection.
-        :param name: name of the connection.
-        :param args: additional arguments the subclass might need
-        :param kwargs: additional keyword arguments the subclass might need
-        :return:
+        :param parent: Parent of the connection.
+        :param child: Child of the connection.
+        :param name: Name of the connection. If ``None``, a default is generated from parent and child.
+        :param parent_T_connection_expression: Constant pose of the connection relative to its parent.
+        :param connection_T_child_expression: Constant pose of the child relative to the connection.
         """
-        raise NotImplementedError(f"{cls}.create_with_dofs is not implemented.")
 
     def _find_references_in_world(self, world: World) -> Tuple[
         KinematicStructureEntity,
@@ -1009,17 +1032,37 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
             name=PrefixedName(self.name.name, prefix=self.name.prefix),
         )
 
+    def copy_with_new_parent(
+        self,
+        new_parent: KinematicStructureEntity,
+        parent_T_connection_expression: HomogeneousTransformationMatrix,
+    ) -> Self:
+        """
+        Create a copy of this connection re-parented under ``new_parent``, using
+        ``parent_T_connection_expression`` as the new parent offset and keeping the same child and
+        ``connection_T_child_expression``. Subclasses carrying extra state (e.g. an active degree of
+        freedom) override this to preserve it. Used to move a branch without collapsing its connection.
+        """
+        return self.__class__(
+            parent=new_parent,
+            child=self.child,
+            parent_T_connection_expression=parent_T_connection_expression,
+            connection_T_child_expression=self.connection_T_child_expression,
+        )
+
     def update_references_for_world(self, world: World):
         """
         Updates the parent and child references of this connection to the given world as well as the references from the expression.
         """
-        child_id = self.child.id
-        child = world.get_kinematic_structure_entity_by_id(child_id)
-        parent_id = self.parent.id
-        parent = world.get_kinematic_structure_entity_by_id(parent_id)
-        self.parent = parent
-        self.child = child
-        self.parent_T_connection_expression.reference_frame = parent
+        if world.is_kinematic_structure_entity_in_world(self.parent):
+            parent = world.get_kinematic_structure_entity_by_id(self.parent.id)
+            self.parent = parent
+
+        if world.is_kinematic_structure_entity_in_world(self.child):
+            child = world.get_kinematic_structure_entity_by_id(self.child.id)
+            self.child = child
+        self.parent_T_connection_expression.reference_frame = self.parent
+        self.parent_T_connection_expression.child_frame = self.child
 
 
 GenericConnection = TypeVar("GenericConnection", bound=Connection)

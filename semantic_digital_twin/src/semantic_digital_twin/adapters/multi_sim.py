@@ -5,7 +5,6 @@ import inspect
 import os
 from typing import Tuple
 
-import shutil
 import time
 import trimesh
 from abc import ABC, abstractmethod
@@ -24,7 +23,6 @@ from physics_simulators.base_simulator import (
     SimulatorConstraints,
 )
 from krrood.utils import recursive_subclasses
-from krrood.exceptions import DataclassException
 from scipy.spatial.transform import Rotation
 from trimesh.visual import TextureVisuals
 
@@ -33,6 +31,10 @@ from semantic_digital_twin.callbacks.callback import (
     StateChangeCallback,
 )
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.exceptions import (
+    QuaternionConversionError,
+    MujocoEntityNotFoundError,
+)
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
     Point3,
@@ -88,8 +90,7 @@ def cas_pose_to_list(pose: HomogeneousTransformationMatrix) -> List[float]:
     try:
         quat = Rotation.from_matrix(rotation_matrix).as_quat(scalar_first=True)
     except Exception as e:
-        error_msg = f"Error converting rotation matrix to quaternion. Rotation matrix:\n{rotation_matrix}\nError message: {str(e)}"
-        raise MultiSimError(error_msg)
+        raise QuaternionConversionError(rotation_matrix, str(e))
     return [pos[0], pos[1], pos[2], quat[0], quat[1], quat[2], quat[3]]
 
 
@@ -135,11 +136,6 @@ class GeomVisibilityAndCollisionType(IntEnum):
     """
     Undefined geometry type (variant 2).
     """
-
-
-@dataclass
-class MultiSimError(DataclassException):
-    """Base class for all MultiSim-related exceptions."""
 
 
 @dataclass(eq=False)
@@ -679,26 +675,6 @@ class CameraConverter(EntityConverter, ABC):
         return camera_props
 
 
-class MujocoError(MultiSimError):
-    """
-    Base class for all MuJoCo-related exceptions.
-    """
-
-
-class MujocoEntityNotFoundError(MujocoError):
-    """
-    Raised when a MuJoCo entity of a given type and name cannot be found.
-    """
-
-    entity_name: str
-    entity_type: mujoco.mjtObj
-    action: str = "find"
-
-    def __post_init__(self):
-        self.message = f"Failed to {self.action}: type={self.entity_type}, name='{self.entity_name}'"
-        super().__post_init__()
-
-
 @dataclass
 class MujocoActuator(SimulatorAdditionalProperty):
     """
@@ -922,7 +898,7 @@ class MujocoTendon(SimulatorAdditionalProperty):
     Inertia associated with changes in tendon length.
     """
 
-    damping: float = 0.0
+    damping: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     """
     Damping coefficient. A positive value generates a damping force (linear in velocity) acting along the tendon.
     """
@@ -992,7 +968,7 @@ class MujocoTendon(SimulatorAdditionalProperty):
     Spring resting position, can take either one or two values. If one value is given, it corresponds to the length of the tendon at rest.
     """
 
-    stiffness: float = 0.0
+    stiffness: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     """
     Stiffness coefficient. A positive value generates a spring force (linear in position) acting along the tendon.
     """
@@ -1044,7 +1020,7 @@ class MujocoJoint(SimulatorAdditionalProperty):
     An additional property declaring that a Connection is a MujocoJoint.
     """
 
-    stiffness: float = 0.0
+    stiffness: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     """
     The stiffness of the joint.
     """
@@ -1740,7 +1716,11 @@ class MujocoBuilder(MultiSimBuilder):
             equality.data = equality_joint["data"]
         for mujoco_joint in connection.simulator_additional_properties:
             if isinstance(mujoco_joint, MujocoJoint):
-                joint_props["stiffness"] = mujoco_joint.stiffness
+                joint_props["stiffness"] = (
+                    mujoco_joint.stiffness[0]
+                    if mujoco.mj_version() < 3007000
+                    else mujoco_joint.stiffness
+                )
                 joint_props["actfrcrange"] = mujoco_joint.actuator_force_range
                 break
 
@@ -1872,7 +1852,11 @@ class MujocoBuilder(MultiSimBuilder):
                 tendon.actfrclimited = mujoco_tendon.actuator_force_limited
                 tendon.actfrcrange = mujoco_tendon.actuator_force_range
                 tendon.armature = mujoco_tendon.armature
-                tendon.damping = mujoco_tendon.damping
+                tendon.damping = (
+                    mujoco_tendon.damping[0]
+                    if mujoco.mj_version() < 3007000
+                    else mujoco_tendon.damping
+                )
                 tendon.frictionloss = mujoco_tendon.frictionloss
                 tendon.group = mujoco_tendon.group
                 tendon.limited = mujoco_tendon.limited
@@ -1885,7 +1869,11 @@ class MujocoBuilder(MultiSimBuilder):
                 tendon.solref_friction = mujoco_tendon.solver_reference_friction
                 tendon.solref_limit = mujoco_tendon.solver_reference_limit
                 tendon.springlength = mujoco_tendon.spring_length
-                tendon.stiffness = mujoco_tendon.stiffness
+                tendon.stiffness = (
+                    mujoco_tendon.stiffness[0]
+                    if mujoco.mj_version() < 3007000
+                    else mujoco_tendon.stiffness
+                )
                 tendon.width = mujoco_tendon.width
                 for joint_name, joint_coef in mujoco_tendon.joints.items():
                     tendon.wrap_joint(joint_name, joint_coef)
@@ -2581,13 +2569,13 @@ class MujocoSynchronizer(MultiSimSynchronizer):
         conn_T_child = inverse_frame(parent_T_conn) @ mj_T_world
         dof_xyz, dof_quat_xyzw = self._decompose_pose_matrix(conn_T_child)
 
-        state[connection.x_id].position = float(dof_xyz[0])
-        state[connection.y_id].position = float(dof_xyz[1])
-        state[connection.z_id].position = float(dof_xyz[2])
-        state[connection.qw_id].position = float(dof_quat_xyzw[3])
-        state[connection.qx_id].position = float(dof_quat_xyzw[0])
-        state[connection.qy_id].position = float(dof_quat_xyzw[1])
-        state[connection.qz_id].position = float(dof_quat_xyzw[2])
+        state[connection.x.id].position = float(dof_xyz[0])
+        state[connection.y.id].position = float(dof_xyz[1])
+        state[connection.z.id].position = float(dof_xyz[2])
+        state[connection.qw.id].position = float(dof_quat_xyzw[3])
+        state[connection.qx.id].position = float(dof_quat_xyzw[0])
+        state[connection.qy.id].position = float(dof_quat_xyzw[1])
+        state[connection.qz.id].position = float(dof_quat_xyzw[2])
 
     def _read_1dof_from_qpos(
         self, connection: ActiveConnection1DOF, qpos_adr: int
@@ -2658,13 +2646,13 @@ class MujocoSynchronizer(MultiSimSynchronizer):
         block at ``qpos_adr``. No-op if the DoF values match the previous
         snapshot within tolerance.
         """
-        ix = state_index[connection.x_id]
-        iy = state_index[connection.y_id]
-        iz = state_index[connection.z_id]
-        iqx = state_index[connection.qx_id]
-        iqy = state_index[connection.qy_id]
-        iqz = state_index[connection.qz_id]
-        iqw = state_index[connection.qw_id]
+        ix = state_index[connection.x.id]
+        iy = state_index[connection.y.id]
+        iz = state_index[connection.z.id]
+        iqx = state_index[connection.qx.id]
+        iqy = state_index[connection.qy.id]
+        iqz = state_index[connection.qz.id]
+        iqw = state_index[connection.qw.id]
 
         dof_indices = [ix, iy, iz, iqx, iqy, iqz, iqw]
         if numpy.allclose(

@@ -1,11 +1,21 @@
-![](doc/source/_static/images/new_coraplex_logo_clean.svg#gh-light-mode-only)
-![](doc/source/_static/images/new_coraplex_logo_clean_dark.svg#gh-dark-mode-only)
+<img src="./doc/source/_static/images/cora-plex-dark.png" width="400">
 
 
+### Cite
+
+```bibtex
+@software{coraplex,
+  author  = {Dech, Jonas and Hassouna, Vanessa and Krohm, Luca},
+  title   = {CoraPlex: A Python Framework for Cognitive Orchestrated Reasoning Architecture Planning Executive},
+  url     = {https://github.com/cram2/cognitive_robot_abstract_machine/tree/main/coraplex},
+  version = {2.0.0},
+  year    = {2024}
+}
+```
 
 ## Key Features
 
-- Intent-based task specification: express “what” to do using designators; the framework decides the concrete “how” at run time.
+- Intent-based task specification: express "what" to do using designators; the framework decides the concrete "how" at run time.
 - Late binding and adaptability: defer grounding of actions, motions, objects, and locations until execution to match the current world and robot state.
 - Composable plans: build behaviors as trees of plan nodes with clear control-flow constructs (sequential, parallel, retry, repeat, monitor).
 - Introspection and observability: plans track node status, timing, and context for debugging, visualization, and monitoring.
@@ -35,12 +45,12 @@ pip install coraplex
 While this works out-of-the-box to execute the examples or tests CoraPlex needs a ROS installation to load URDFs or use the 
 visualization with RViz2. Look at the detailed installation instructions for more infos.  
 
-Detailed installation instructions and manual setup guides are available [here](https://coraplex.readthedocs.io/en/latest/installation.html).
+Detailed installation instructions and manual setup guides are available [here](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/installation.html).
 
 ## Live Demonstration in the Virtual Research Building
 
-Test CoraPlex directly in your browser via our [Virtual Research Building](https://vib.ai.uni-bremen.de/page/fallschool/).
-Explore a variety of labs and demonstrations showcasing CoraPlex's capabilities on the [Labs page](https://vib.ai.uni-bremen.de/page/labs/) of our virtual building.
+Test CoraPlex directly in your browser via our [Virtual Research Building](https://vrb.ease-crc.org/).
+Explore a variety of labs and demonstrations showcasing CoraPlex's capabilities on the [Labs page](https://vrb.ease-crc.org/explore-labs/) of our virtual building.
 
 
 ### Setting Up Your Own Lab
@@ -50,12 +60,10 @@ To create a custom lab in the virtual building, consult the `vrb` branch of this
 
 ## Documentation
 
-The full documentation is maintained at [Read the Docs](https://coraplex.readthedocs.io/en/latest/index.html).
+The full documentation is maintained at [Read the Docs](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/index.html).
 
 Source documentation is located in the `doc` directory. Instructions for building and viewing the documentation can be found in the corresponding `README` file.
 
 ## Examples
 
-Comprehensive examples are provided as Jupyter Notebooks in the `examples` folder and documented in the [Examples section](https://coraplex.readthedocs.io/en/latest/notebooks/intro.html). Refer to the examples folder's `README` for instructions on executing these notebooks.
-
-
+Comprehensive examples are provided as Jupyter Notebooks in the `examples` folder and documented in the [Examples section](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/notebooks/language.html).

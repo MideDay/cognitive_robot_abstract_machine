@@ -214,12 +214,35 @@ class ORMatic:
     @property
     def wrapped_classes_in_topological_order(self) -> List[WrappedClass]:
         """
-        :return: List of all tables in topological order.
+        :return: All wrapped classes in topological order (a parent precedes its children).
+
+        Sibling classes with no ordering constraint between them are emitted in a stable order keyed
+        on the class identity, so generation does not depend on the (hash-seed-dependent) order in
+        which classes were discovered. In particular, parametrised generic variants such as
+        ``GenericClass[float]`` and ``GenericClass[int]`` — which share a ``__name__`` — get a
+        deterministic relative order.
         """
+        wrapped_by_index = {
+            wrapped.index: wrapped
+            for wrapped in self.class_dependency_graph.wrapped_classes
+        }
+        tie_break_key = {
+            index: self._topological_tie_break_key(wrapped)
+            for index, wrapped in wrapped_by_index.items()
+        }
         return [
-            self.class_dependency_graph._dependency_graph[index]
-            for index in rx.topological_sort(self.inheritance_graph)
+            wrapped_by_index[index]
+            for index in rx.lexicographical_topological_sort(
+                self.inheritance_graph, key=lambda index: tie_break_key[index]
+            )
         ]
+
+    @staticmethod
+    def _topological_tie_break_key(wrapped_class: WrappedClass) -> str:
+        """:return: A stable, total-ordering string for a wrapped class — its ``str`` form, which
+        keeps parametrised generic variants (``GenericClass[float]`` vs ``GenericClass[int]``)
+        distinct even where their ``__name__`` coincides."""
+        return str(wrapped_class.clazz)
 
     @property
     def mapped_classes(self) -> List[Type]:
@@ -278,12 +301,14 @@ class ORMatic:
 
         # import classes from the existing interface
         for ormatic_interface in ormatic_interface_dependencies:
-            classes, alternative_mappings, type_mappings = (
-                get_classes_of_ormatic_interface(ormatic_interface)
-            )
-            all_classes |= set(classes)
-            all_alternative_mappings |= set(alternative_mappings)
-            all_type_mappings.update(type_mappings)
+            (
+                interface_classes,
+                interface_alternative_mappings,
+                interface_type_mappings,
+            ) = get_classes_of_ormatic_interface(ormatic_interface)
+            all_classes |= set(interface_classes)
+            all_alternative_mappings |= set(interface_alternative_mappings)
+            all_type_mappings.update(interface_type_mappings)
 
         for package in packages:
             all_classes |= set(classes_of_package(package))
@@ -293,8 +318,8 @@ class ORMatic:
         all_alternative_mappings |= set(
             am
             for am in recursive_subclasses(AlternativeMapping)
-            if ignore_krrood_test_classes
-            and "krrood_test" not in am.original_class().__module__
+            if not ignore_krrood_test_classes
+            or "krrood_test" not in am.original_class().__module__
         )
 
         # keep only dataclasses that are not AlternativeMapping or DataAccessObject subclasses

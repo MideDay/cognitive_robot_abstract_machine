@@ -184,7 +184,7 @@ def main():
     repos = [
         Repository("https://github.com/code-iai/iai_maps.git", "ros-jazzy", "iai_maps"),
         Repository(
-            "https://github.com/MideDay/iai_robots.git", "ros-jazzy", "iai_robots"
+            "https://github.com/code-iai/iai_robots.git", "ros-jazzy", "iai_robots"
         ),
         Repository(
             "https://github.com/code-iai/iai_pr2.git", "ros-jazzy-main", "iai_pr2"
@@ -201,7 +201,7 @@ def main():
             ["iai_tracy_bringup", "iai_tracy_ur"],
         ),
         Repository(
-            "https://github.com/maltehue/ros2_robotiq_gripper.git",
+            "https://github.com/code-iai/ros2_robotiq_gripper.git",
             "iai_dualarm",
             "ros2_robotiq_gripper",
             [
@@ -269,6 +269,7 @@ def main():
             "https://github.com/code-iai/iai_weiss_wpg_300-120-gripper.git",
             "main",
             "iai_weiss_wpg_300-120-gripper",
+            ["griplink"],
         ),
     ]
 
