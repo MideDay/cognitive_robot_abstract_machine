@@ -67,7 +67,6 @@ def reachability_location(
     context: Context,
     arm: Arms,
     grasp_description: GraspDescription = None,
-    mean_distance_to_target: float = 0.6,
 ) -> Location:
     """
     Factory method that creates a Location for robot poses from which the target can be picked up or placed.
@@ -76,7 +75,6 @@ def reachability_location(
     :param context: The context in which to create the location
     :param arm: The arm with which to reach the target
     :param grasp_description: The grasp description with which to grasp the target
-    :param mean_distance_to_target: The mean distance between the base pose of the robot and the target pose in the xy-plane, can be imagined as a ring around the target pose from which poses are sampled. The mean distance is the radius of the ring.
     :returns: A location that is reachable from the target pose.
     """
     target_pose, target_body = (

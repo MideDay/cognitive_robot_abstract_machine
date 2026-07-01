@@ -122,7 +122,6 @@ class TransportAction(ActionDescription):
                                 self.context,
                                 self.arm,
                                 self.grasp_description,
-                                mean_distance_to_target=0.5,
                             )
                         ),
                     ),
