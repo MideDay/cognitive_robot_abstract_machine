@@ -17,6 +17,7 @@ Only classmethods are considered; instance and static methods are ignored.
 from __future__ import annotations
 
 import inspect
+from dataclasses import dataclass
 from functools import lru_cache
 
 from typing_extensions import Any, Callable, Self, Tuple, Type
@@ -25,6 +26,7 @@ from krrood.class_diagrams.exceptions import FactoryMethodDecoratorError
 from krrood.class_diagrams.factory_method_registry import FactoryMethodRegistry
 
 
+@dataclass
 class FactoryMethodMarker:
     """
     Descriptor that marks the classmethod it wraps as a factory and registers it eagerly.
@@ -42,9 +44,8 @@ class FactoryMethodMarker:
         enforces this by rejecting anything that is not a ``classmethod``.
     """
 
-    def __init__(self, wrapped: classmethod) -> None:
-        self.wrapped = wrapped
-        """The ``classmethod`` being marked as a factory."""
+    wrapped: classmethod
+    """The ``classmethod`` being marked as a factory."""
 
     def __set_name__(self, owner: Type, name: str) -> None:
         """Register the factory with :class:`FactoryMethodRegistry` once the owner is known."""
