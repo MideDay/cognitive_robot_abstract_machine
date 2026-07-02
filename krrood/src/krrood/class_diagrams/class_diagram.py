@@ -185,9 +185,12 @@ class AssociationThroughRoleTaker(Association):
     """
     The path of fields that are traversed to get to the target class.
     """
+    inferred: bool = field(init=False, default=True)
+    """
+    Redefined inferred to be always true, and never initialized through the init method.
+    """
 
     def __post_init__(self):
-        self.inferred = True
         flat_association_path = []
         for assoc in self.association_path:
             if isinstance(assoc, AssociationThroughRoleTaker):
@@ -196,7 +199,7 @@ class AssociationThroughRoleTaker(Association):
                 flat_association_path.append(assoc)
         self.association_path = flat_association_path
         self.field_path = [assoc.wrapped_field for assoc in self.association_path]
-        self.field = self.field_path[-1]
+        self.wrapped_field = self.field_path[-1]
 
     @lru_cache(maxsize=None)
     def get_original_source_instance_given_this_relation_source_instance(
