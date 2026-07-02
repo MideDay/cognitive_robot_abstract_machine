@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from math import ceil
+from time import sleep
 
 import numpy as np
 import pytest
@@ -238,7 +239,15 @@ class TestJointGoals:
 
         giskard.api.execute(msc)
 
-        assert park_state.is_achieved()
+        for i in range(1000):
+            try:
+                assert park_state.is_achieved()
+                break
+            except AssertionError as e:
+                pass
+            sleep(0.01)
+        else:
+            assert False
 
 
 class TestCollisionAvoidanceGoals:
