@@ -152,7 +152,7 @@ class TestJointGoals:
         "arm",
         ["left", "right"],
     )
-    def test_mimic_joints(self, giskard: DAiSyTester, arm: str):
+    def test_joints1(self, giskard: DAiSyTester, arm: str):
         msc = MotionStatechart()
         msc.add_node(
             joint_goal := JointPositionList(
@@ -187,7 +187,7 @@ class TestJointGoals:
         "arm",
         ["left", "right"],
     )
-    def test_mimic_joints2(self, giskard: DAiSyTester, arm):
+    def test_joints2(self, giskard: DAiSyTester, arm):
         base = giskard.api.world.get_kinematic_structure_entity_by_name(
             f"{arm}_base_link"
         )
@@ -225,7 +225,7 @@ class TestJointGoals:
         "arm",
         [0, 1],  # 0: left, 1: right
     )
-    def test_mimic_joint3(self, giskard: DAiSyTester, arm):
+    def test_joint3(self, giskard: DAiSyTester, arm):
         for state in giskard.api.robot.arms[arm].joint_states:
             if state.state_type == StaticJointState.PARK:
                 park_state = state
