@@ -46,6 +46,15 @@ class RelationStep:
     entity, so a repeat mention of the same navigation reduces to a bare *"the <Type>"* (coreference)
     rather than repeating the whole *"the Robot to which it is assigned"*; ``None`` disables it."""
 
+    is_agentive: bool = False
+    """``True`` for an agentive relation (preposition *"by"*), read in the active voice (*"the Person
+    who owns a Book"*) instead of the passive relative clause (*"the Person by which a Book is
+    owned"*)."""
+
+    active_verb: str = ""
+    """The active present verb (*"owns"*) used for the active-voice reading of an agentive relation;
+    unused for a non-agentive relation."""
+
 
 @dataclass(frozen=True)
 class PathStep:
@@ -142,6 +151,8 @@ def build_path_parts(
                     verb.participle,
                     verb.preposition,
                     node._id_,
+                    is_agentive=verb.is_agentive,
+                    active_verb=verb.active_verb,
                 )
                 if verb is not None
                 else None

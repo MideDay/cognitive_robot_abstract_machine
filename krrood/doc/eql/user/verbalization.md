@@ -124,12 +124,15 @@ print(verbalize_expression(m.assigned_to))
 print(verbalize_expression(m.assigned_to.operational))
 ```
 
-The head noun (*"the Robot"*) is the attribute's declared type, and the owner stays the subject of
-the verb — so even agentive *by* relations read correctly (*"the Person by which a Book is owned"*,
-never the reversed *"the Person owned by a Book"*). When the owner is the query's subject it
-pronominalises (*"the battery of the Robot **to which it is assigned**"*). A plain noun attribute is
-unaffected and keeps the genitive *"the name of the department of an Employee"*; a noun that merely
-ends in a preposition (e.g. `color_in`) is not treated as a relation.
+The head noun (*"the Robot"*) is the attribute's declared type. An **agentive** *by* relation
+(`owned_by`, `written_by`) reads in the active voice with the related type as the verb's subject —
+*"the Person **who owns** a Book"*, *"the Author **who writes** a Document"* — rather than the
+passive *"the Person by which a Book is owned"*. Every other relation keeps the passive relative
+clause, the owner staying the verb's subject. When the owner is the query's subject it
+pronominalises (*"the battery of the Robot **to which it is assigned**"*, *"the Person **who owns
+it**"*). A plain noun attribute is unaffected and keeps the genitive *"the name of the department of
+an Employee"*; a noun that merely ends in a preposition (e.g. `color_in`) is not treated as a
+relation.
 
 When the robot is the **subject** of a clause — a boolean attribute, *"the Robot to which it is
 assigned is operational"* — the attributes that follow read *"its battery … its power"*, uniformly

@@ -457,16 +457,34 @@ def test_relational_navigation_standalone():
     )
 
 
-def test_relational_navigation_agentive_by_does_not_reverse():
-    """The relative-clause frame keeps the owner the verb's subject, so agentive *by* relations
-    read correctly rather than reversed (*not* "the Person owned by a Book")."""
+def test_relational_navigation_agentive_by_reads_active():
+    """An agentive *by* relation reads in the active voice with the related type as the verb's
+    subject (*"the Person who owns a Book"*), including for an irregular participle
+    (*"written"* → *"writes"*)."""
     assert (
         verbalize_expression(variable(_NavBook, []).owned_by)
-        == "the _NavPerson by which a _NavBook is owned"
+        == "the _NavPerson who owns a _NavBook"
     )
     assert (
         verbalize_expression(variable(_NavDoc, []).written_by)
-        == "the _NavAuthor by which a _NavDoc is written"
+        == "the _NavAuthor who writes a _NavDoc"
+    )
+
+
+def test_relational_navigation_agentive_by_pronominalises_owner():
+    """When the owner is the query subject, the active-voice agentive clause pronominalises it
+    (*"the Person who owns it"*)."""
+    book = variable(_NavBook, [])
+    text = verbalize_expression(an(entity(book).where(book.owned_by.name == "Bob")))
+    assert "the name of the _NavPerson who owns it is 'Bob'" in text
+
+
+def test_relational_navigation_goal_relation_stays_passive():
+    """A non-agentive *to* relation keeps the passive relative clause (only *by* relations go
+    active)."""
+    assert (
+        verbalize_expression(variable(_NavParcel, []).sent_to)
+        == "the _NavAddress to which a _NavParcel is sent"
     )
 
 

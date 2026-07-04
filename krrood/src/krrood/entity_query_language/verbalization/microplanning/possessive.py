@@ -133,11 +133,11 @@ def _relative_clause(
     owner_fragment: VerbalizationFragment,
     owner_number: GrammaticalNumber = GrammaticalNumber.SINGULAR,
 ) -> VerbalizationFragment:
-    """:return: *"the <Type> <preposition> which <owner> is <participle>"* — one relational hop
-    wrapping its owner as a relative clause (the preposition pied-piped before *which*: *"the Robot
-    to which a Mission is assigned"*). Keeping the owner the verb's subject means the meaning never
-    flips for agentive relations (*"the Person by which a Book is owned"*); the copula agrees with
-    the owner's *owner_number* (*"it is"* / *"they are"*).
+    """:return: one relational hop wrapping its owner as a relative clause. An agentive relation
+    reads in the active voice — *"the Person who owns a Book"* — with the related type as the verb's
+    subject; every other relation reads as the passive *"the <Type> <preposition> which <owner> is
+    <participle>"* (the preposition pied-piped before *which*: *"the Robot to which a Mission is
+    assigned"*), the copula agreeing with the owner's *owner_number* (*"it is"* / *"they are"*).
 
     The clause is a *referring* noun phrase headed by the related type, so a repeat mention of the
     same navigation reduces to a bare *"the <Type>"* during coreference (the relative clause is a
@@ -147,10 +147,16 @@ def _relative_clause(
     'the Robot to which a Mission is assigned'
     """
     relation = step.relation
-    return NounPhrase(
-        head=RoleFragment.for_type(relation.value_type),
-        definiteness=Definiteness.DEFINITE,
-        modifiers=[
+    if relation.is_agentive:
+        modifiers = [
+            Keywords.WHO.as_fragment(),
+            RoleFragment.for_attribute(
+                relation.owner_class, step.name, text=relation.active_verb
+            ),
+            owner_fragment,
+        ]
+    else:
+        modifiers = [
             WordFragment(text=relation.preposition),
             Keywords.WHICH.as_fragment(),
             owner_fragment,
@@ -158,7 +164,11 @@ def _relative_clause(
             RoleFragment.for_attribute(
                 relation.owner_class, step.name, text=relation.participle
             ),
-        ],
+        ]
+    return NounPhrase(
+        head=RoleFragment.for_type(relation.value_type),
+        definiteness=Definiteness.DEFINITE,
+        modifiers=modifiers,
         referent_id=relation.referent_id,
         relative_clause=True,
     )
