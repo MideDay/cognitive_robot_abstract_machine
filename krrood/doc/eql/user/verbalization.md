@@ -94,8 +94,9 @@ print(verbalize_expression(w.tasks[0].completed))
 print(verbalize_expression(not_(w.tasks[0].completed)))
 ```
 
-A numeric index like `[0]` becomes an ordinal (*"the first …"*), and the terminal boolean
-field maps to *"is completed"* / *"is not completed"*.
+A numeric index like `[0]` folds into the collection noun as an ordinal, which singularizes
+(*"the first task"*, not *"the first of the tasks"*), and the terminal boolean field maps to
+*"is completed"* / *"is not completed"*.
 
 Comparing a boolean attribute to a boolean **value** folds the value into the verb's polarity,
 rather than tacking on *"is True"*:

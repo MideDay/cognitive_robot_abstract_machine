@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from typing_extensions import List, Optional
 
+from krrood.entity_query_language.verbalization import morphology
 from krrood.entity_query_language.verbalization.navigation_path import PathStep
 from krrood.entity_query_language.verbalization.fragments.base import (
     NounPhrase,
@@ -45,6 +48,46 @@ def attribute_fragment(
         return RoleFragment.for_attribute(None, step.name, number)
     return RoleFragment.for_attribute(
         step.source_reference.owner_type, step.source_reference.attribute, number
+    )
+
+
+def indexed_noun(
+    step: PathStep, number: GrammaticalNumber = GrammaticalNumber.SINGULAR
+) -> List[VerbalizationFragment]:
+    """:return: the ordinal followed by the singularized collection noun for an indexed hop — the
+    *"first task"* body of *"the first task of a Worker"*, without its article or owner.
+
+    The collection noun singularizes (*"tasks"* → *"task"*) because a single element is named, and
+    the ordinal precedes it as a modifier.
+
+    >>> from krrood.entity_query_language.verbalization.fragments.base import flatten_fragment_to_plain_text, PhraseFragment
+    >>> step = PathStep("tasks", ordinal="first")
+    >>> flatten_fragment_to_plain_text(PhraseFragment(parts=indexed_noun(step)))
+    'first task'
+    """
+    noun = attribute_fragment(step, number)
+    singular_noun = replace(noun, text=morphology.singular(noun.text))
+    return [WordFragment(text=step.ordinal), singular_noun]
+
+
+def _ordinal_genitive_step(
+    step: PathStep, owner_fragment: VerbalizationFragment
+) -> VerbalizationFragment:
+    """:return: *"the <ordinal> <noun> of <owner>"* — an indexed collection hop naming one element
+    (*"the first task of a Worker"*).
+
+    >>> from krrood.entity_query_language.verbalization.fragments.base import flatten_fragment_to_plain_text, WordFragment
+    >>> step = PathStep("tasks", ordinal="first")
+    >>> flatten_fragment_to_plain_text(_ordinal_genitive_step(step, WordFragment(text="Worker")))
+    'the first task of Worker'
+    """
+    return PhraseFragment(
+        parts=[
+            Articles.THE.as_fragment(),
+            *indexed_noun(step),
+            Prepositions.OF.as_fragment(),
+            owner_fragment,
+        ]
     )
 
 
@@ -158,11 +201,11 @@ def _extend_hop(
     >>> flatten_fragment_to_plain_text(_extend_hop(PathStep("battery"), WordFragment(text="Robot")))
     'the battery of Robot'
     """
-    return (
-        _relative_clause(step, owner_fragment)
-        if step.is_relation
-        else _genitive_step(step, owner_fragment)
-    )
+    if step.is_relation:
+        return _relative_clause(step, owner_fragment)
+    if step.ordinal is not None:
+        return _ordinal_genitive_step(step, owner_fragment)
+    return _genitive_step(step, owner_fragment)
 
 
 def possessive_path(
@@ -209,6 +252,25 @@ def chain_head_number(
     return GrammaticalNumber.SINGULAR
 
 
+def _pronominal_first_hop(
+    first: PathStep,
+    possessive_pronoun: VerbalizationFragment,
+    nominative_pronoun: VerbalizationFragment,
+    subject_number: GrammaticalNumber,
+    attribute_number: GrammaticalNumber,
+) -> VerbalizationFragment:
+    """:return: the innermost hop rendered against the elided (pronominalised) root — the relative
+    clause *"the <Type> <prep> which it is <participle>"* for a relation, *"its first task"* for an
+    indexed collection, else the plain possessive *"its <attribute>"*."""
+    if first.is_relation:
+        return _relative_clause(first, nominative_pronoun, subject_number)
+    if first.ordinal is not None:
+        return PhraseFragment(parts=[possessive_pronoun, *indexed_noun(first)])
+    return PhraseFragment(
+        parts=[possessive_pronoun, attribute_fragment(first, attribute_number)]
+    )
+
+
 def pronominal_path(
     parts: List[PathStep], subject_number: GrammaticalNumber
 ) -> VerbalizationFragment:
@@ -238,12 +300,8 @@ def pronominal_path(
     attribute_number = (
         subject_number if first.is_scalar_value else GrammaticalNumber.SINGULAR
     )
-    owner: VerbalizationFragment = (
-        _relative_clause(first, nominative_pronoun, subject_number)
-        if first.is_relation
-        else PhraseFragment(
-            parts=[possessive_pronoun, attribute_fragment(first, attribute_number)]
-        )
+    owner = _pronominal_first_hop(
+        first, possessive_pronoun, nominative_pronoun, subject_number, attribute_number
     )
     for step in rest:
         owner = _extend_hop(step, owner)

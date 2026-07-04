@@ -284,8 +284,9 @@ def test_verbalize_index_access_rendered_as_ordinal():
     r = variable(Robot, [])
     text = verbalize_expression(r.tasks[0])
     assert "Robot" in text
-    assert "tasks" in text
-    # An integer index reads as an ordinal ("the first of the tasks"), not a raw subscript leak.
+    assert "task" in text
+    # An integer index folds its ordinal into the singularized noun ("the first task"), not a raw
+    # subscript leak.
     assert "first" in text
     assert "[0]" not in text
 
@@ -296,11 +297,8 @@ def test_verbalize_negative_index_reads_from_the_end():
         tasks: list
 
     r = variable(Robot, [])
-    assert verbalize_expression(r.tasks[-1]) == "the last of the tasks of a Robot"
-    assert (
-        verbalize_expression(r.tasks[-2])
-        == "the second to last of the tasks of a Robot"
-    )
+    assert verbalize_expression(r.tasks[-1]) == "the last task of a Robot"
+    assert verbalize_expression(r.tasks[-2]) == "the second to last task of a Robot"
 
 
 def test_verbalize_index_then_attribute_is_ordinal_chain():
@@ -314,7 +312,7 @@ def test_verbalize_index_then_attribute_is_ordinal_chain():
 
     r = variable(Robot, [])
     text = verbalize_expression(r.tasks[0].name)
-    assert text == "the name of the first of the tasks of a Robot"
+    assert text == "the name of the first task of a Robot"
     assert "[0]" not in text
 
 
@@ -346,7 +344,7 @@ def test_verbalize_indexed_bool_attribute_predicative():
     r = variable(_Robot, [])
     text = verbalize_expression(r.tasks[0].completed)
     assert "first" in text
-    assert "tasks" in text
+    assert "task" in text
     assert "is" in text
     assert "completed" in text
     # must NOT be "completed of tasks[0] of …"
@@ -357,7 +355,7 @@ def test_verbalize_indexed_bool_attribute_negated():
     r = variable(_Robot, [])
     text = verbalize_expression(not_(r.tasks[0].completed))
     assert "first" in text
-    assert "tasks" in text
+    assert "task" in text
     assert "is not" in text
     assert "completed" in text
 
@@ -366,7 +364,7 @@ def test_verbalize_second_index_ordinal():
     r = variable(_Robot, [])
     text = verbalize_expression(r.tasks[1].completed)
     assert "second" in text
-    assert "tasks" in text
+    assert "task" in text
     assert "is" in text
     assert "completed" in text
 
@@ -716,7 +714,7 @@ def test_verbalize_non_bool_indexed_attribute_possession():
     r = variable(_Robot, [])
     text = verbalize_expression(r.tasks[0].name)
     # name is a str — should use possession/of form, NOT "is"
-    assert "tasks" in text
+    assert "task" in text
     assert "name" in text
     assert " is " not in text
 
@@ -1187,7 +1185,7 @@ def test_verbalize_presentation_example():
     assert "is greater than" in text
     assert "50" in text
     assert "first" in text
-    assert "tasks" in text
+    assert "task" in text
     assert "is not completed" in text
 
 
