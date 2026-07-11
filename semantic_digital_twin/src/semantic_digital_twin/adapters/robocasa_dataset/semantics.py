@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 
 from typing_extensions import ClassVar, Dict, Optional, Type
 
@@ -36,6 +37,48 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Tomato,
 )
 from semantic_digital_twin.utils import camel_case_split
+
+
+class RoboCasaFixtureCategory(StrEnum):
+    """
+    RoboCasa fixture categories that this adapter knows how to map to a SemanticAnnotation subclass.
+    """
+
+    CABINET = "cabinet"
+    DRAWER = "drawer"
+    FRIDGE = "fridge"
+    MICROWAVE = "microwave"
+    OVEN = "oven"
+    DISHWASHER = "dishwasher"
+    HOOD = "hood"
+    COUNTER = "counter"
+    SINK = "sink"
+    STOVE = "stove"
+    TOASTER = "toaster"
+    COFFEE_MACHINE = "coffee_machine"
+
+
+class RoboCasaObjectCategory(StrEnum):
+    """
+    RoboCasa object categories that this adapter knows how to map to a SemanticAnnotation subclass.
+    """
+
+    APPLE = "apple"
+    BANANA = "banana"
+    ORANGE = "orange"
+    TOMATO = "tomato"
+    LETTUCE = "lettuce"
+    CARROT = "carrot"
+    POTATO = "potato"
+    BOTTLE = "bottle"
+    CUP = "cup"
+    MUG = "mug"
+    BOWL = "bowl"
+    PLATE = "plate"
+    PAN = "pan"
+    POT = "pot"
+    KETTLE = "kettle"
+    BREAD = "bread"
 
 
 def _tokenize_category(category: str) -> set[str]:
@@ -110,19 +153,19 @@ class RoboCasaFixtureResolver(RoboCasaCategoryResolver):
     the fixture's Python class name) to the matching SemanticAnnotation subclass.
     """
 
-    category_to_annotation_class: ClassVar[Dict[str, Type[HasRootBody]]] = {
-        "cabinet": Cabinet,
-        "drawer": Drawer,
-        "fridge": Fridge,
-        "microwave": Microwave,
-        "oven": Oven,
-        "dishwasher": Dishwasher,
-        "hood": Hood,
-        "counter": CounterTop,
-        "sink": Sink,
-        "stove": Cooktop,
-        "toaster": Toaster,
-        "coffee_machine": CoffeeMachine,
+    category_to_annotation_class: ClassVar[Dict[RoboCasaFixtureCategory, Type[HasRootBody]]] = {
+        RoboCasaFixtureCategory.CABINET: Cabinet,
+        RoboCasaFixtureCategory.DRAWER: Drawer,
+        RoboCasaFixtureCategory.FRIDGE: Fridge,
+        RoboCasaFixtureCategory.MICROWAVE: Microwave,
+        RoboCasaFixtureCategory.OVEN: Oven,
+        RoboCasaFixtureCategory.DISHWASHER: Dishwasher,
+        RoboCasaFixtureCategory.HOOD: Hood,
+        RoboCasaFixtureCategory.COUNTER: CounterTop,
+        RoboCasaFixtureCategory.SINK: Sink,
+        RoboCasaFixtureCategory.STOVE: Cooktop,
+        RoboCasaFixtureCategory.TOASTER: Toaster,
+        RoboCasaFixtureCategory.COFFEE_MACHINE: CoffeeMachine,
     }
 
 
@@ -134,21 +177,21 @@ class RoboCasaObjectResolver(RoboCasaCategoryResolver):
     subclass.
     """
 
-    category_to_annotation_class: ClassVar[Dict[str, Type[HasRootBody]]] = {
-        "apple": Apple,
-        "banana": Banana,
-        "orange": Orange,
-        "tomato": Tomato,
-        "lettuce": Lettuce,
-        "carrot": Carrot,
-        "potato": Potato,
-        "bottle": Bottle,
-        "cup": Cup,
-        "mug": Mug,
-        "bowl": Bowl,
-        "plate": Plate,
-        "pan": Pan,
-        "pot": Pot,
-        "kettle": Kettle,
-        "bread": Bread,
+    category_to_annotation_class: ClassVar[Dict[RoboCasaObjectCategory, Type[HasRootBody]]] = {
+        RoboCasaObjectCategory.APPLE: Apple,
+        RoboCasaObjectCategory.BANANA: Banana,
+        RoboCasaObjectCategory.ORANGE: Orange,
+        RoboCasaObjectCategory.TOMATO: Tomato,
+        RoboCasaObjectCategory.LETTUCE: Lettuce,
+        RoboCasaObjectCategory.CARROT: Carrot,
+        RoboCasaObjectCategory.POTATO: Potato,
+        RoboCasaObjectCategory.BOTTLE: Bottle,
+        RoboCasaObjectCategory.CUP: Cup,
+        RoboCasaObjectCategory.MUG: Mug,
+        RoboCasaObjectCategory.BOWL: Bowl,
+        RoboCasaObjectCategory.PLATE: Plate,
+        RoboCasaObjectCategory.PAN: Pan,
+        RoboCasaObjectCategory.POT: Pot,
+        RoboCasaObjectCategory.KETTLE: Kettle,
+        RoboCasaObjectCategory.BREAD: Bread,
     }

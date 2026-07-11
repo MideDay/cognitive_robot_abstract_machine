@@ -14,23 +14,37 @@ if TYPE_CHECKING:
 
 from semantic_digital_twin.adapters.mjcf import MJCFParser
 from semantic_digital_twin.adapters.robocasa_dataset.semantics import (
+    RoboCasaFixtureCategory,
     RoboCasaFixtureResolver,
+    RoboCasaObjectCategory,
     RoboCasaObjectResolver,
 )
 from semantic_digital_twin.exceptions import WorldEntityNotFoundError
+from semantic_digital_twin.semantic_annotations.mixins import (
+    HasDoors,
+    HasDrawers,
+    HasHandle,
+)
 from semantic_digital_twin.semantic_annotations.natural_language import (
     NaturalLanguageWithTypeDescription,
 )
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Door,
+    Drawer,
+    Handle,
+)
 from semantic_digital_twin.utils import camel_case_split
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.world_entity import Body
+from semantic_digital_twin.world_description.world_entity import (
+    Body,
+    SemanticAnnotation,
+)
 
 logger = logging.getLogger(__name__)
 
 try:
     import yaml
     from robocasa.models.arenas.kitchen_arena import KitchenArena
-    from robocasa.models.objects.kitchen_objects import OBJ_CATEGORIES
     from robocasa.models.scenes import scene_builder, scene_registry
     from robocasa.models.scenes.scene_builder import FIXTURES
     from robosuite.models.tasks import ManipulationTask
@@ -43,7 +57,7 @@ except ImportError:
     )
 
 
-def _mjcf_document_from_element(element: ET.Element) -> str:
+def _mjcf_document_from_element_copy(element: ET.Element) -> str:
     """
     Wrap a copy of a single MJCF XML element (for example one fixture's geometry) into a minimal
     standalone MJCF document so it can be parsed on its own. A copy is used so the original element
@@ -99,14 +113,14 @@ class RoboCasaDatasetLoader:
     ``python -m robocasa.scripts.download_kitchen_assets``.
     """
 
-    fixture_resolver: RoboCasaFixtureResolver = field(
+    kitchen_appliance_annotator: RoboCasaFixtureResolver = field(
         default_factory=RoboCasaFixtureResolver
     )
     """
     Resolver mapping RoboCasa fixture category names to SemanticAnnotation subclasses.
     """
 
-    object_resolver: RoboCasaObjectResolver = field(
+    object_annotator: RoboCasaObjectResolver = field(
         default_factory=RoboCasaObjectResolver
     )
     """
@@ -151,11 +165,11 @@ class RoboCasaDatasetLoader:
         self._apply_fixture_semantics(world, fixtures)
         return world
 
-    def load_fixture(self, category: str, **fixture_kwargs) -> World:
+    def load_fixture(self, category: RoboCasaFixtureCategory, **fixture_kwargs) -> World:
         """
         Load a single RoboCasa fixture as a standalone world.
 
-        :param category: The fixture category, for example ``"cabinet"`` or ``"microwave"``, a key of
+        :param category: The fixture category, a key of
             ``robocasa.models.scenes.scene_builder.FIXTURES``.
         :param fixture_kwargs: Extra keyword arguments forwarded to the fixture's constructor.
         :return: The loaded world, with a SemanticAnnotation attached to the fixture's root body.
@@ -164,12 +178,14 @@ class RoboCasaDatasetLoader:
         fixture = fixture_class(name=category, **fixture_kwargs)
 
         world = MJCFParser.from_xml_string(
-            _mjcf_document_from_element(fixture._obj)
+            _mjcf_document_from_element_copy(fixture._obj)
         ).parse()
         self._apply_fixture_semantics(world, {category: fixture})
         return world
 
-    def load_object(self, category: str, instance_index: int = 0) -> World:
+    def load_object(
+        self, category: RoboCasaObjectCategory, instance_index: int = 0
+    ) -> World:
         """
         Load a single RoboCasa object as a standalone world.
 
@@ -178,12 +194,6 @@ class RoboCasaDatasetLoader:
         :param instance_index: Which of the category's downloaded asset instances to load.
         :return: The loaded world, with a SemanticAnnotation attached to the object's root body.
         """
-        if category not in OBJ_CATEGORIES:
-            raise ValueError(
-                f"Unknown RoboCasa object category '{category}'. "
-                f"Known categories: {sorted(OBJ_CATEGORIES)}"
-            )
-
         model_files = sorted((self.directory / "objects" / category).glob("**/model.xml"))
         if not model_files:
             raise FileNotFoundError(
@@ -239,25 +249,68 @@ class RoboCasaDatasetLoader:
     def _attach_semantic_annotation(self, world: World, body: Body, category: str) -> None:
         """
         Attach the SemanticAnnotation matching ``category`` to ``body``, falling back to
-        NaturalLanguageWithTypeDescription if no matching SemanticAnnotation subclass is known.
+        NaturalLanguageWithTypeDescription if no matching SemanticAnnotation subclass is known, and
+        attaching any handle/door/drawer sub-part annotations found under ``body``.
 
         :param world: The world ``body`` belongs to.
         :param body: The body to annotate.
         :param category: The RoboCasa fixture or object category of ``body``.
         """
-        annotation_class = self.fixture_resolver.resolve(
+        annotation_class = self.kitchen_appliance_annotator.resolve(
             category
-        ) or self.object_resolver.resolve(category)
+        ) or self.object_annotator.resolve(category)
 
         with world.modify_world():
             if annotation_class is not None:
-                world.add_semantic_annotation(annotation_class(root=body))
+                annotation = annotation_class(root=body)
             else:
-                world.add_semantic_annotation(
-                    NaturalLanguageWithTypeDescription(
-                        root=body, description=category, type_description=category
-                    )
+                annotation = NaturalLanguageWithTypeDescription(
+                    root=body, description=category, type_description=category
                 )
+            world.add_semantic_annotation(annotation)
+            self._attach_sub_part_annotations(world, annotation, body)
+
+    def _attach_sub_part_annotations(
+        self, world: World, parent_annotation: SemanticAnnotation, parent_body: Body
+    ) -> None:
+        """
+        Detect handle/door/drawer bodies already present under a fixture's root body (RoboCasa
+        fixtures like cabinets ship these as real articulated sub-bodies in their own MJCF, not
+        something this adapter synthesizes) and record them as parts of ``parent_annotation`` by
+        their RoboCasa body-naming convention (mirroring the naming-convention detection
+        ``adapters/procthor/procthor_pipelines.py`` already uses for ProcTHOR dressers).
+
+        The sub-bodies are already correctly connected in the kinematic structure by
+        :class:`~semantic_digital_twin.adapters.mjcf.MJCFParser`, respecting their real hinge/slide
+        joints. This intentionally sets the target field directly instead of calling
+        ``parent_annotation.add(...)``, which would re-parent the body via ``World.move_branch`` and
+        risk collapsing that real joint.
+
+        :param world: The world ``parent_body`` belongs to.
+        :param parent_annotation: The SemanticAnnotation already attached to ``parent_body``.
+        :param parent_body: The fixture's root body to search for sub-part bodies under.
+        """
+        for child_body in world.get_kinematic_structure_entities_of_branch(parent_body):
+            if child_body is parent_body or not isinstance(child_body, Body):
+                continue
+            child_name = child_body.name.name.lower()
+
+            if (
+                "handle" in child_name
+                and isinstance(parent_annotation, HasHandle)
+                and parent_annotation.handle is None
+            ):
+                handle = Handle(root=child_body)
+                world.add_semantic_annotation(handle)
+                parent_annotation.handle = handle
+            elif "door" in child_name and isinstance(parent_annotation, HasDoors):
+                door = Door(root=child_body)
+                world.add_semantic_annotation(door)
+                parent_annotation.doors.append(door)
+            elif "drawer" in child_name and isinstance(parent_annotation, HasDrawers):
+                drawer = Drawer(root=child_body)
+                world.add_semantic_annotation(drawer)
+                parent_annotation.drawers.append(drawer)
 
     @staticmethod
     def _find_body(world: World, name: str) -> Optional[Body]:
