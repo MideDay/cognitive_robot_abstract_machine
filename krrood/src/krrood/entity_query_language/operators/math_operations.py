@@ -19,7 +19,9 @@ from typing_extensions import Callable
 @dataclass(frozen=True)
 class MathOperatorSpecification:
     """
-    The symbol and callable that make up one :class:`MathOperator`.
+    The symbol and callable that make up one :class:`MathOperator`. Mixed into ``MathOperator`` itself
+    (an Enum mix-in type), so each member's ``symbol``/``function`` are its own attributes directly,
+    with no separate value object to forward through.
     """
 
     symbol: str
@@ -28,31 +30,17 @@ class MathOperatorSpecification:
     """The callable that performs the operation over already-resolved operand values."""
 
 
-class MathOperator(Enum):
+class MathOperator(MathOperatorSpecification, Enum):
     """
     An arithmetic operator usable inside a query. Each member carries the symbol it renders as and the
     callable that computes it over already-resolved operand values.
     """
 
-    ADD = MathOperatorSpecification("+", operator.add)
-    SUBTRACT = MathOperatorSpecification("-", operator.sub)
-    MULTIPLY = MathOperatorSpecification("*", operator.mul)
-    DIVIDE = MathOperatorSpecification("/", operator.truediv)
-    FLOOR_DIVIDE = MathOperatorSpecification("//", operator.floordiv)
-    MODULO = MathOperatorSpecification("%", operator.mod)
-    POWER = MathOperatorSpecification("**", operator.pow)
-    NEGATE = MathOperatorSpecification("-", operator.neg)
-
-    @property
-    def symbol(self) -> str:
-        """
-        :return: The mathematical symbol used when rendering this operator.
-        """
-        return self.value.symbol
-
-    @property
-    def function(self) -> Callable[..., numbers.Number]:
-        """
-        :return: The callable that performs this operation over already-resolved operand values.
-        """
-        return self.value.function
+    ADD = ("+", operator.add)
+    SUBTRACT = ("-", operator.sub)
+    MULTIPLY = ("*", operator.mul)
+    DIVIDE = ("/", operator.truediv)
+    FLOOR_DIVIDE = ("//", operator.floordiv)
+    MODULO = ("%", operator.mod)
+    POWER = ("**", operator.pow)
+    NEGATE = ("-", operator.neg)
