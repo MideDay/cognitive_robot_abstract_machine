@@ -33,6 +33,9 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Drawer,
     Handle,
 )
+from semantic_digital_twin.spatial_types.spatial_types import (
+    HomogeneousTransformationMatrix,
+)
 from semantic_digital_twin.utils import camel_case_split
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import (
@@ -43,9 +46,12 @@ from semantic_digital_twin.world_description.world_entity import (
 logger = logging.getLogger(__name__)
 
 try:
+    import robosuite
     import yaml
+    from robocasa.environments.kitchen.kitchen import Kitchen
     from robocasa.models.scenes.kitchen_arena import KitchenArena
     from robocasa.models.scenes import scene_builder, scene_registry
+    from robosuite.environments.base import REGISTERED_ENVS
     from robosuite.models.tasks import ManipulationTask
 except ImportError:
     logger.warning(
@@ -70,6 +76,64 @@ class RoboCasaApplianceNotFoundError(LookupError):
         super().__init__(
             f"No RoboCasa fixture for appliance category '{category}' was found in any kitchen layout."
         )
+
+
+class RoboCasaTaskNotFoundError(LookupError):
+    """
+    Raised when a requested task name does not correspond to a registered RoboCasa kitchen task
+    environment.
+    """
+
+    def __init__(self, task_name: str, available_task_names: List[str]):
+        self.task_name = task_name
+        """
+        The task name that could not be resolved to a registered RoboCasa kitchen task.
+        """
+        super().__init__(
+            f"No RoboCasa kitchen task named '{task_name}' is registered. Available tasks: "
+            f"{', '.join(available_task_names)}."
+        )
+
+
+@dataclass
+class RoboCasaTask:
+    """
+    A RoboCasa manipulation task bound to the :class:`~semantic_digital_twin.world.World` it is
+    defined over.
+
+    RoboCasa expresses a task as an environment class that, on top of a kitchen scene, places the
+    objects to manipulate, describes the activity in natural language, and positions the robot. This
+    wrapper carries the parsed world together with those task-level facts, so a task and the scene it
+    plays out in can be passed around as a single value.
+
+    .. note::
+        RoboCasa's robot is only used to compose the scene and is not represented here: the robot is
+        owned by ``semantic_digital_twin`` and is expected to be spawned separately at
+        :attr:`robot_base_pose`.
+    """
+
+    world: World
+    """
+    The kitchen scene the task is defined over, with semantic annotations attached to its appliances
+    and manipulated objects.
+    """
+
+    instruction: str
+    """
+    The natural-language description of the task (for example ``"Press the start button on the
+    microwave."``).
+    """
+
+    manipulated_objects: List[Body]
+    """
+    The bodies in :attr:`world` that the task requires the robot to interact with.
+    """
+
+    robot_base_pose: HomogeneousTransformationMatrix
+    """
+    The pose, relative to the world root, at which RoboCasa intends the robot to start, for spawning
+    the ``semantic_digital_twin``-owned robot.
+    """
 
 
 def _mjcf_document_from_element_copy(element: ET.Element) -> str:
@@ -151,6 +215,36 @@ class RoboCasaDatasetLoader:
     textures by absolute paths from the dataset author's machine, so they fail to load elsewhere.
     """
 
+    scene_composition_robot: ClassVar[str] = "PandaOmron"
+    """
+    The RoboCasa robot used to compose a task scene. RoboCasa requires a robot to build a task, but
+    it is stripped from the resulting world because ``semantic_digital_twin`` owns the robot.
+    """
+
+    robot_body_name_prefixes: ClassVar[Tuple[str, ...]] = (
+        "robot",
+        "mobilebase",
+        "gripper",
+        "mount",
+    )
+    """
+    Prefixes of the MJCF body names RoboCasa/robosuite give to the robot and its mounts, used to
+    remove the robot from a composed task scene.
+    """
+
+    robot_referencing_mjcf_sections: ClassVar[Tuple[str, ...]] = (
+        "actuator",
+        "sensor",
+        "tendon",
+        "equality",
+        "contact",
+        "keyframe",
+    )
+    """
+    Top-level MJCF sections that reference the robot's joints or bodies and must be removed together
+    with the robot so the remaining document parses without dangling references.
+    """
+
     def load_kitchen(
         self,
         layout_id: LayoutType,
@@ -188,6 +282,185 @@ class RoboCasaDatasetLoader:
         world = MJCFParser.from_xml_string(task.get_xml()).parse()
         self._apply_kitchen_appliance_semantics(world, kitchen_appliances)
         return world
+
+    def load_task(
+        self,
+        task_name: str,
+        layout_id: LayoutType,
+        style_id: StyleType,
+    ) -> RoboCasaTask:
+        """
+        Compose a RoboCasa task scene and return it bound to its parsed World.
+
+        RoboCasa builds the task's scene, places the objects to manipulate, and positions the robot
+        when the task environment is reset. The robot is removed from the resulting world because
+        ``semantic_digital_twin`` owns the robot; its intended start pose is preserved on the
+        returned :class:`RoboCasaTask`.
+
+        :param task_name: The name of a registered RoboCasa kitchen task environment (for example
+            ``"TurnOnMicrowave"``).
+        :param layout_id: A member of ``robocasa.models.scenes.scene_registry.LayoutType``.
+        :param style_id: A member of ``robocasa.models.scenes.scene_registry.StyleType``.
+        :return: The task bound to the world it is defined over.
+        :raises RoboCasaTaskNotFoundError: if ``task_name`` is not a registered RoboCasa kitchen
+            task.
+        """
+        if task_name not in self._available_task_names():
+            raise RoboCasaTaskNotFoundError(task_name, self._available_task_names())
+
+        environment = robosuite.make(
+            env_name=task_name,
+            robots=self.scene_composition_robot,
+            layout_ids=int(layout_id),
+            style_ids=int(style_id),
+            has_renderer=False,
+            has_offscreen_renderer=False,
+            use_camera_obs=False,
+            control_freq=20,
+            ignore_done=True,
+        )
+        environment.reset()
+
+        episode_metadata = environment.get_ep_meta()
+        object_world_poses = self._object_world_poses(environment)
+        stripped_document = self._strip_robot_and_bake_object_poses(
+            environment.sim.model.get_xml(), object_world_poses
+        )
+
+        world = MJCFParser.from_xml_string(stripped_document).parse()
+        self._apply_kitchen_appliance_semantics(world, environment.fixtures)
+        manipulated_objects = self._apply_task_object_semantics(
+            world, environment.object_cfgs, environment.objects
+        )
+
+        return RoboCasaTask(
+            world=world,
+            instruction=episode_metadata["lang"],
+            manipulated_objects=manipulated_objects,
+            robot_base_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
+                *episode_metadata["init_robot_base_pos"],
+                *episode_metadata["init_robot_base_ori"],
+            ),
+        )
+
+    @staticmethod
+    def _available_task_names() -> List[str]:
+        """
+        Return the names of the registered RoboCasa kitchen task environments, in sorted order.
+
+        :return: The registered kitchen task names.
+        """
+        return sorted(
+            name
+            for name, environment_class in REGISTERED_ENVS.items()
+            if isinstance(environment_class, type)
+            and issubclass(environment_class, Kitchen)
+        )
+
+    @staticmethod
+    def _object_world_poses(environment: Any) -> Dict[str, Tuple[Any, Any]]:
+        """
+        Read the world pose of each manipulated object's root body from the reset simulation.
+
+        RoboCasa places manipulated objects by writing their pose into the simulation state (they are
+        attached with free joints), so the pose is not present in the composed MJCF document and must
+        be read from the simulation and baked back in.
+
+        :param environment: The reset RoboCasa task environment.
+        :return: Mapping from each object's root body name to its ``(position, orientation)`` world
+            pose, with the orientation as a scalar-first quaternion.
+        """
+        object_world_poses: Dict[str, Tuple[Any, Any]] = {}
+        for robocasa_object in environment.objects.values():
+            body_id = environment.sim.model.body_name2id(robocasa_object.root_body)
+            object_world_poses[robocasa_object.root_body] = (
+                environment.sim.data.body_xpos[body_id].copy(),
+                environment.sim.data.body_xquat[body_id].copy(),
+            )
+        return object_world_poses
+
+    @classmethod
+    def _strip_robot_and_bake_object_poses(
+        cls, mjcf_document: str, object_world_poses: Dict[str, Tuple[Any, Any]]
+    ) -> str:
+        """
+        Remove the robot from a composed task's MJCF document and write the sampled world poses of
+        the manipulated objects into it.
+
+        The robot bodies and the MJCF sections referencing them are removed so the document parses
+        without a robot. Each manipulated object body is given the pose RoboCasa sampled for it,
+        which the composed document does not carry because free-jointed objects are placed via the
+        simulation state.
+
+        :param mjcf_document: The composed task's MJCF document.
+        :param object_world_poses: Mapping from object root body name to its sampled world pose, as
+            returned by :meth:`_object_world_poses`.
+        :return: The robot-free MJCF document with object poses baked in.
+        """
+        root = ET.fromstring(mjcf_document)
+        worldbody = root.find("worldbody")
+        for body in list(worldbody.findall("body")):
+            body_name = body.get("name") or ""
+            if body_name.startswith(
+                cls.robot_body_name_prefixes
+            ) or body_name.endswith("_eef_target"):
+                worldbody.remove(body)
+
+        for section_tag in cls.robot_referencing_mjcf_sections:
+            for section in root.findall(section_tag):
+                root.remove(section)
+
+        for body in worldbody.iter("body"):
+            pose = object_world_poses.get(body.get("name"))
+            if pose is None:
+                continue
+            position, orientation = pose
+            body.set("pos", cls._format_vector(position))
+            body.set("quat", cls._format_vector(orientation))
+
+        return ET.tostring(root, encoding="unicode")
+
+    @staticmethod
+    def _format_vector(vector: Any) -> str:
+        """
+        Format a numeric vector as a space-separated MJCF attribute value.
+
+        :param vector: The numeric vector to format.
+        :return: The space-separated string representation.
+        """
+        return " ".join(f"{component:.10g}" for component in vector)
+
+    def _apply_task_object_semantics(
+        self, world: World, object_configurations: List[Dict[str, Any]], objects: Dict[str, Any]
+    ) -> List[Body]:
+        """
+        Attach a SemanticAnnotation to each manipulated object's body and collect those bodies.
+
+        The object's sampled category drives the annotation, falling back to
+        NaturalLanguageWithTypeDescription when the category has no matching SemanticAnnotation
+        subclass. An object whose body is not present in ``world`` (RoboCasa's object sampling is
+        stochastic per reset) is skipped.
+
+        :param world: The world the task scene was parsed into.
+        :param object_configurations: The task's object configurations, as produced by RoboCasa's
+            ``env.object_cfgs``.
+        :param objects: Mapping from object name to the RoboCasa object instance, as produced by
+            RoboCasa's ``env.objects``.
+        :return: The annotated manipulated object bodies.
+        """
+        manipulated_objects: List[Body] = []
+        for object_configuration in object_configurations:
+            robocasa_object = objects.get(object_configuration["name"])
+            if robocasa_object is None:
+                continue
+            body = self._find_body(world, robocasa_object.root_body)
+            if body is None:
+                continue
+            self._attach_semantic_annotation(
+                world, body, str(object_configuration["info"]["cat"])
+            )
+            manipulated_objects.append(body)
+        return manipulated_objects
 
     def load_kitchen_appliance(
         self,

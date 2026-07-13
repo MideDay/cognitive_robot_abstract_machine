@@ -22,6 +22,7 @@ Run with (the ``experiments`` package must be importable)::
 from __future__ import annotations
 
 import argparse
+import math
 import threading
 from dataclasses import dataclass
 from typing import Callable, List, Optional
@@ -29,6 +30,7 @@ from typing import Callable, List, Optional
 from robocasa.models.scenes.scene_registry import LayoutType, StyleType
 
 from semantic_digital_twin.adapters.robocasa_dataset.loader import RoboCasaDatasetLoader
+from semantic_digital_twin.semantic_annotations.semantic_annotations import CounterTop
 from semantic_digital_twin.world import World
 
 
@@ -172,14 +174,100 @@ def _start_rviz_publisher(
     return spinner
 
 
+@dataclass
+class CounterSurface:
+    """
+    The horizontal top surface of a kitchen counter, expressed in the world frame, that an object
+    can be placed on.
+    """
+
+    top_z: float
+    """
+    Height of the counter's top surface.
+    """
+
+    accessible_edge_y: float
+    """
+    The ``y`` coordinate of the counter edge that faces the open floor, where the robot stands.
+    """
+
+    min_x: float
+    """
+    Lower ``x`` bound of the counter surface.
+    """
+
+    max_x: float
+    """
+    Upper ``x`` bound of the counter surface.
+    """
+
+
+_COUNTER_SURFACE_MAX_HEIGHT: float = 2.0
+"""
+Height below which a counter collision box counts as part of the top surface. Some RoboCasa counters
+carry stray marker geometry several metres above the surface that would otherwise corrupt the
+inferred surface height; this threshold sits well above any real counter and below that geometry.
+"""
+
+_COUNTER_END_MARGIN: float = 0.55
+"""
+How far inboard of the counter's end the object is placed, keeping it on a solid part of the surface
+and clear of a central sink cut-out.
+"""
+
+
+def _counter_top_surface(world: World, counter: CounterTop) -> CounterSurface:
+    """
+    Compute the placement surface of a counter from its collision geometry.
+
+    :param world: The world the counter belongs to.
+    :param counter: The counter annotation to measure.
+    :return: The counter's top surface in the world frame.
+    """
+    surface_boxes = [
+        box
+        for box in counter.as_bounding_box_collection_in_frame(world.root).bounding_boxes
+        if box.max_z < _COUNTER_SURFACE_MAX_HEIGHT
+    ]
+    return CounterSurface(
+        top_z=max(box.max_z for box in surface_boxes),
+        accessible_edge_y=max(box.max_y for box in surface_boxes),
+        min_x=min(box.min_x for box in surface_boxes),
+        max_x=max(box.max_x for box in surface_boxes),
+    )
+
+
+def _largest_counter_top(world: World) -> CounterTop:
+    """
+    Return the counter with the largest footprint, the most convenient one to place an object on.
+
+    :param world: The kitchen world to search.
+    :return: The counter annotation with the largest footprint.
+    :raises LookupError: if the world has no counter.
+    """
+    counters = [
+        annotation
+        for annotation in world.semantic_annotations
+        if isinstance(annotation, CounterTop)
+    ]
+    if not counters:
+        raise LookupError("The kitchen has no counter to place an object on.")
+
+    def footprint(counter: CounterTop) -> float:
+        bounding_box = counter.as_bounding_box_collection_in_frame(world.root).bounding_box()
+        return bounding_box.width * bounding_box.depth
+
+    return max(counters, key=footprint)
+
+
 def _spawn_robot_and_prepare_pick_up(
     world: World,
-    robot_base_position: tuple[float, float] = (2.0, 0.9),
-    reach_distance: float = 0.6,
-    object_height: float = 0.95,
+    standoff_distance: float = 0.55,
+    edge_inset: float = 0.15,
 ) -> Callable[[], None]:
     """
-    Spawn a PR2 and an apple into the kitchen, and return a callable that performs the pick-up.
+    Spawn a PR2 at a kitchen counter with an apple resting on the counter surface, and return a
+    callable that performs the pick-up.
 
     Splitting spawning from performing lets the caller start the RViz publisher in between: the
     robot and object are added to the world first (a one-off topology change), then the returned
@@ -189,11 +277,13 @@ def _spawn_robot_and_prepare_pick_up(
     RoboCasa door or drawer needs joint velocity/acceleration limits that its MJCF does not provide,
     which the motion planner requires.
 
+    .. note::
+        The robot is placed facing the counter's :attr:`~CounterSurface.accessible_edge_y` edge,
+        assuming that edge faces open floor, which holds for the default layout.
+
     :param world: The kitchen world to spawn the robot into, modified in place.
-    :param robot_base_position: The ``(x, y)`` floor position for the robot, chosen to be a clear
-        area of the default layout.
-    :param reach_distance: How far in front of the robot the object is placed.
-    :param object_height: The height the object is placed at.
+    :param standoff_distance: How far in front of the counter edge the robot stands.
+    :param edge_inset: How far in from the counter edge the apple is placed.
     :return: A callable that performs the pick-up plan and reports the outcome.
     """
     from coraplex.datastructures.dataclasses import Context
@@ -219,9 +309,23 @@ def _spawn_robot_and_prepare_pick_up(
     )
     from semantic_digital_twin.world_description.connections import OmniDrive
 
-    robot_x, robot_y = robot_base_position
+    surface = _counter_top_surface(world, _largest_counter_top(world))
+
     apple_world = RoboCasaDatasetLoader().load_object(RoboCasaObjectCategory.APPLE)
-    apple_name = apple_world.bodies_with_collision[0].name
+    apple_body = apple_world.bodies_with_collision[0]
+    apple_name = apple_body.name
+    apple_half_height = (
+        apple_body.collision.as_bounding_box_collection_in_frame(apple_world.root)
+        .bounding_box()
+        .height
+        / 2
+    )
+
+    place_x = surface.max_x - _COUNTER_END_MARGIN
+    apple_y = surface.accessible_edge_y - edge_inset
+    apple_z = surface.top_z + apple_half_height
+    robot_y = apple_y + standoff_distance
+    robot_yaw = -math.pi / 2
 
     pr2_world = URDFParser.from_file(
         "package://iai_pr2_description/robots/pr2_with_ft2_cableguide.xacro"
@@ -232,14 +336,14 @@ def _spawn_robot_and_prepare_pick_up(
         )
         world.merge_world(pr2_world, drive)
         drive.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
-            robot_x, robot_y, 0.0
+            place_x, robot_y, 0.0, 0.0, 0.0, robot_yaw
         )
         world.merge_world_at_pose(
             apple_world,
             HomogeneousTransformationMatrix.from_xyz_quaternion(
-                robot_x + reach_distance,
-                robot_y,
-                object_height,
+                place_x,
+                apple_y,
+                apple_z,
                 reference_frame=world.root,
             ),
         )
