@@ -53,6 +53,7 @@ def test_unary_negation():
 def test_reflected_non_commutative_operators():
     numbers = variable(int, domain=[2, 4])
     assert an(entity(10 - numbers)).tolist() == [8, 6]
+    assert an(entity(10 / numbers)).tolist() == [5, 2.5]
     assert an(entity(20 // numbers)).tolist() == [10, 5]
     assert an(entity(10 % numbers)).tolist() == [0, 2]
     assert an(entity(2 ** numbers)).tolist() == [4, 16]
@@ -60,6 +61,8 @@ def test_reflected_non_commutative_operators():
 
 def test_literal_operand_in_either_position():
     numbers = variable(int, domain=[2, 3])
+    assert an(entity(numbers + 10)).tolist() == [12, 13]
+    assert an(entity(10 + numbers)).tolist() == [12, 13]
     assert an(entity(numbers * 10)).tolist() == [20, 30]
     assert an(entity(10 * numbers)).tolist() == [20, 30]
 

@@ -88,11 +88,13 @@ class ArithmeticOperation(
 @dataclass(eq=False, repr=False)
 class UnaryArithmeticOperation(UnaryExpression, CanBehaveLikeAVariable[T]):
     """
-    A symbolic unary arithmetic operation, i.e. negation (``-amount``).
+    A symbolic unary arithmetic operation (for example negation, ``-amount``).
     """
 
     _child_: CanBehaveLikeAVariable[T]
-    """The operand being negated."""
+    """The operand the operator is applied to."""
+    math_operator: MathOperator
+    """The operator applied to the operand."""
 
     def __post_init__(self) -> None:
         self._var_ = self
@@ -100,24 +102,24 @@ class UnaryArithmeticOperation(UnaryExpression, CanBehaveLikeAVariable[T]):
 
     @property
     def _name_(self) -> str:
-        return f"(-{self._child_._name_})"
+        return f"({self.math_operator.symbol}{self._child_._name_})"
 
     def _evaluate__(self, sources: OperationResult) -> Iterable[OperationResult]:
         """
-        Negate every value produced by the child expression.
+        Apply the operator to every value produced by the child expression.
         """
         yield from (
             self._build_operation_result_and_update_truth_value_(
-                child_result.bindings | {self._id_: self._negated_value_(child_result)},
+                child_result.bindings | {self._id_: self._operation_value_(child_result)},
                 child_result,
             )
             for child_result in self._child_._evaluate_(sources)
         )
 
-    def _negated_value_(self, child_result: OperationResult) -> Any:
+    def _operation_value_(self, child_result: OperationResult) -> Any:
         """
         :param child_result: The result carrying the child's value.
-        :return: The negation of the child's value using the active backend.
+        :return: The operator applied to the child's value.
         """
         value = self._child_._process_result_(child_result)
-        return MathOperator.NEGATE.function(value)
+        return self.math_operator.function(value)

@@ -9,9 +9,22 @@ Python callable that performs it, so the node stays decoupled from the concrete 
 from __future__ import annotations
 
 import operator
+from dataclasses import dataclass
 from enum import Enum
 
 from typing_extensions import Any, Callable
+
+
+@dataclass(frozen=True)
+class MathOperatorSpec:
+    """
+    The symbol and callable that make up one :class:`MathOperator`.
+    """
+
+    symbol: str
+    """The mathematical symbol used when rendering the operator."""
+    function: Callable[..., Any]
+    """The callable that performs the operation over already-resolved operand values."""
 
 
 class MathOperator(Enum):
@@ -20,21 +33,25 @@ class MathOperator(Enum):
     callable that computes it over already-resolved operand values.
     """
 
-    ADD = ("add", "+", operator.add)
-    SUBTRACT = ("subtract", "-", operator.sub)
-    MULTIPLY = ("multiply", "*", operator.mul)
-    DIVIDE = ("divide", "/", operator.truediv)
-    FLOOR_DIVIDE = ("floor_divide", "//", operator.floordiv)
-    MODULO = ("modulo", "%", operator.mod)
-    POWER = ("power", "**", operator.pow)
-    NEGATE = ("negate", "-", operator.neg)
+    ADD = MathOperatorSpec("+", operator.add)
+    SUBTRACT = MathOperatorSpec("-", operator.sub)
+    MULTIPLY = MathOperatorSpec("*", operator.mul)
+    DIVIDE = MathOperatorSpec("/", operator.truediv)
+    FLOOR_DIVIDE = MathOperatorSpec("//", operator.floordiv)
+    MODULO = MathOperatorSpec("%", operator.mod)
+    POWER = MathOperatorSpec("**", operator.pow)
+    NEGATE = MathOperatorSpec("-", operator.neg)
 
-    def __init__(
-        self, identifier: str, symbol: str, function: Callable[..., Any]
-    ) -> None:
-        self._identifier = identifier
-        """The unique identifier of the operator (keeps the enum values distinct)."""
-        self.symbol = symbol
-        """The mathematical symbol used when rendering the operator."""
-        self.function = function
-        """The callable that performs the operation over already-resolved operand values."""
+    @property
+    def symbol(self) -> str:
+        """
+        :return: The mathematical symbol used when rendering this operator.
+        """
+        return self.value.symbol
+
+    @property
+    def function(self) -> Callable[..., Any]:
+        """
+        :return: The callable that performs this operation over already-resolved operand values.
+        """
+        return self.value.function
