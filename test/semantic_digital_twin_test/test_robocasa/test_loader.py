@@ -3,9 +3,11 @@ import pytest
 pytest.importorskip("robocasa", reason="robocasa is not installed")
 pytest.importorskip("robosuite", reason="robosuite is not installed")
 
+from semantic_digital_twin.adapters.robocasa_dataset.exceptions import (
+    RoboCasaTaskNotFoundError,
+)
 from semantic_digital_twin.adapters.robocasa_dataset.loader import (
     RoboCasaDatasetLoader,
-    RoboCasaTaskNotFoundError,
 )
 from semantic_digital_twin.adapters.robocasa_dataset.semantics import (
     RoboCasaKitchenApplianceCategory,

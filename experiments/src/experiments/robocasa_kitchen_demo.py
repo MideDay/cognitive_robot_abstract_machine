@@ -24,6 +24,7 @@ Run with (the ``experiments`` package must be importable)::
 from __future__ import annotations
 
 import argparse
+import logging
 import math
 import threading
 from dataclasses import dataclass
@@ -31,9 +32,44 @@ from typing import Callable, List, Optional
 
 from robocasa.models.scenes.scene_registry import LayoutType, StyleType
 
+from coraplex.datastructures.dataclasses import Context
+from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
+from coraplex.datastructures.grasp import GraspDescription
+from coraplex.execution_environment import simulated_robot
+from coraplex.plans.factories import sequential
+from coraplex.plans.failures import PlanFailure
+from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.robot_body import (
+    MoveTorsoAction,
+    ParkArmsAction,
+)
 from semantic_digital_twin.adapters.robocasa_dataset.loader import RoboCasaDatasetLoader
-from semantic_digital_twin.semantic_annotations.semantic_annotations import CounterTop
+from semantic_digital_twin.adapters.robocasa_dataset.semantics import (
+    RoboCasaObjectCategory,
+)
+from semantic_digital_twin.adapters.urdf import URDFParser
+from semantic_digital_twin.datastructures.definitions import TorsoState
+from semantic_digital_twin.robots.pr2 import PR2
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Apple,
+    CounterTop,
+)
+from semantic_digital_twin.spatial_types.spatial_types import (
+    HomogeneousTransformationMatrix,
+)
 from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.connections import OmniDrive
+
+try:
+    import rclpy
+    from semantic_digital_twin.adapters.ros.tf_publisher import TFPublisher
+    from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
+        VizMarkerPublisher,
+    )
+except ImportError:
+    rclpy = None
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -144,16 +180,9 @@ def _start_rviz_publisher(
     :param marker_period_seconds: How often to re-publish the marker array.
     :return: The background spinner thread, or None if ROS 2 is unavailable.
     """
-    try:
-        import rclpy
-    except ImportError:
-        print("ROS 2 (rclpy) not available; skipping RViz visualization.")
+    if rclpy is None:
+        logger.warning("ROS 2 (rclpy) not available; skipping RViz visualization.")
         return None
-
-    from semantic_digital_twin.adapters.ros.tf_publisher import TFPublisher
-    from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
-        VizMarkerPublisher,
-    )
 
     if not rclpy.ok():
         rclpy.init()
@@ -165,11 +194,12 @@ def _start_rviz_publisher(
     node.create_timer(marker_period_seconds, marker_publisher.on_model_change)
 
     root_frame = str(world.root.name)
-    print(
+    logger.info(
         "Publishing kitchen to RViz. In RViz set:\n"
-        f"  - Fixed Frame: {root_frame}\n"
+        "  - Fixed Frame: %s\n"
         "  - add a MarkerArray display on topic '/semworld/viz_marker' "
-        "with Durability Policy 'Transient Local'"
+        "with Durability Policy 'Transient Local'",
+        root_frame,
     )
     spinner = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
     spinner.start()
@@ -256,6 +286,12 @@ def _largest_counter_top(world: World) -> CounterTop:
         raise LookupError("The kitchen has no counter to place an object on.")
 
     def footprint(counter: CounterTop) -> float:
+        """
+        Compute the horizontal area a counter occupies in the world frame.
+
+        :param counter: The counter to measure.
+        :return: The counter's footprint area.
+        """
         bounding_box = counter.as_bounding_box_collection_in_frame(world.root).bounding_box()
         return bounding_box.width * bounding_box.depth
 
@@ -288,29 +324,6 @@ def _spawn_robot_and_prepare_pick_up(
     :param edge_inset: How far in from the counter edge the apple is placed.
     :return: A callable that performs the pick-up plan and reports the outcome.
     """
-    from coraplex.datastructures.dataclasses import Context
-    from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
-    from coraplex.datastructures.grasp import GraspDescription
-    from coraplex.execution_environment import simulated_robot
-    from coraplex.plans.factories import sequential
-    from coraplex.plans.failures import PlanFailure
-    from coraplex.robot_plans.actions.core.pick_up import PickUpAction
-    from coraplex.robot_plans.actions.core.robot_body import (
-        MoveTorsoAction,
-        ParkArmsAction,
-    )
-    from semantic_digital_twin.adapters.robocasa_dataset.semantics import (
-        RoboCasaObjectCategory,
-    )
-    from semantic_digital_twin.adapters.urdf import URDFParser
-    from semantic_digital_twin.datastructures.definitions import TorsoState
-    from semantic_digital_twin.robots.pr2 import PR2
-    from semantic_digital_twin.semantic_annotations.semantic_annotations import Apple
-    from semantic_digital_twin.spatial_types.spatial_types import (
-        HomogeneousTransformationMatrix,
-    )
-    from semantic_digital_twin.world_description.connections import OmniDrive
-
     surface = _counter_top_surface(world, _largest_counter_top(world))
 
     apple_world = RoboCasaDatasetLoader().load_object(RoboCasaObjectCategory.APPLE)
@@ -378,17 +391,17 @@ def _spawn_robot_and_prepare_pick_up(
         height_before = world.compute_forward_kinematics(world.root, apple).to_np()[
             2, 3
         ]
-        print("Spawned PR2; parking arms, raising torso, picking up an apple ...")
+        logger.info("Spawned PR2; parking arms, raising torso, picking up an apple ...")
         try:
             with simulated_robot:
                 plan.perform()
         except PlanFailure as failure:
-            print(f"Robot could not complete the pick-up: {failure}")
+            logger.warning("Robot could not complete the pick-up: %s", failure)
             return
         height_after = world.compute_forward_kinematics(world.root, apple).to_np()[2, 3]
         lift = float(height_after - height_before)
         outcome = "PICKED UP" if lift > 0.01 else "not lifted"
-        print(f"Apple lifted by {lift:.3f} m -> {outcome}")
+        logger.info("Apple lifted by %.3f m -> %s", lift, outcome)
 
     return perform
 
@@ -445,16 +458,17 @@ def _parse_arguments() -> argparse.Namespace:
 
 def main() -> None:
     """
-    Load a RoboCasa kitchen, print a summary of its bodies and semantic annotations, optionally
+    Load a RoboCasa kitchen, report a summary of its bodies and semantic annotations, optionally
     spawn a PR2 that picks up an apple off a counter, and optionally publish the scene to RViz.
     """
+    logging.basicConfig(level=logging.INFO)
     arguments = _parse_arguments()
     layout = LayoutType[arguments.layout]
     style = StyleType[arguments.style]
 
     world = load_kitchen(layout, style)
-    print(world.root.name)
-    print(KitchenSceneSummary.from_world(world, layout, style).render())
+    logger.info("%s", world.root.name)
+    logger.info("%s", KitchenSceneSummary.from_world(world, layout, style).render())
 
     # Spawn the robot (a one-off topology change) before starting the publisher, then start the
     # publisher, then perform the plan: this way the publisher is already live and shows the robot
@@ -469,7 +483,7 @@ def main() -> None:
         perform_pick_up()
 
     if spinner is not None:
-        print("Press Ctrl+C to stop.")
+        logger.info("Press Ctrl+C to stop.")
         try:
             spinner.join()
         except KeyboardInterrupt:

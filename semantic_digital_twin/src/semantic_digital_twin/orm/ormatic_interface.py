@@ -31,6 +31,7 @@ import semantic_digital_twin.adapters.partnet_mobility_dataset.generated_semanti
 import semantic_digital_twin.adapters.partnet_mobility_dataset.loader
 import semantic_digital_twin.adapters.partnet_mobility_dataset.semantic_annotations
 import semantic_digital_twin.adapters.procthor.procthor_parser
+import semantic_digital_twin.adapters.robocasa_dataset.exceptions
 import semantic_digital_twin.adapters.robocasa_dataset.loader
 import semantic_digital_twin.adapters.robocasa_dataset.semantics
 import semantic_digital_twin.adapters.ros.messages
@@ -3623,7 +3624,7 @@ class ProcthorWallDAO(
 class RoboCasaApplianceNotFoundErrorDAO(
     Base,
     DataAccessObject[
-        semantic_digital_twin.adapters.robocasa_dataset.loader.RoboCasaApplianceNotFoundError
+        semantic_digital_twin.adapters.robocasa_dataset.exceptions.RoboCasaApplianceNotFoundError
     ],
 ):
     __tablename__ = "RoboCasaApplianceNotFoundErrorDAO"
@@ -3638,6 +3639,103 @@ class RoboCasaApplianceNotFoundErrorDAO(
         krrood.ormatic.custom_types.PolymorphicEnumType,
         nullable=False,
         use_existing_column=True,
+    )
+
+
+class RoboCasaObjectAssetsNotFoundErrorDAO(
+    Base,
+    DataAccessObject[
+        semantic_digital_twin.adapters.robocasa_dataset.exceptions.RoboCasaObjectAssetsNotFoundError
+    ],
+):
+    __tablename__ = "RoboCasaObjectAssetsNotFoundErrorDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    category: Mapped[
+        semantic_digital_twin.adapters.robocasa_dataset.semantics.RoboCasaObjectCategory
+    ] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+    objects_directory: Mapped[pathlib.Path] = mapped_column(
+        krrood.ormatic.custom_types.PathType, nullable=False, use_existing_column=True
+    )
+
+
+class RoboCasaObjectHasNoCollisionErrorDAO(
+    Base,
+    DataAccessObject[
+        semantic_digital_twin.adapters.robocasa_dataset.exceptions.RoboCasaObjectHasNoCollisionError
+    ],
+):
+    __tablename__ = "RoboCasaObjectHasNoCollisionErrorDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    category: Mapped[
+        semantic_digital_twin.adapters.robocasa_dataset.semantics.RoboCasaObjectCategory
+    ] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+
+class RoboCasaObjectInstanceIndexErrorDAO(
+    Base,
+    DataAccessObject[
+        semantic_digital_twin.adapters.robocasa_dataset.exceptions.RoboCasaObjectInstanceIndexError
+    ],
+):
+    __tablename__ = "RoboCasaObjectInstanceIndexErrorDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    requested_instance_index: Mapped[builtins.int] = mapped_column(
+        use_existing_column=True
+    )
+    available_instance_count: Mapped[builtins.int] = mapped_column(
+        use_existing_column=True
+    )
+
+    category: Mapped[
+        semantic_digital_twin.adapters.robocasa_dataset.semantics.RoboCasaObjectCategory
+    ] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+    objects_directory: Mapped[pathlib.Path] = mapped_column(
+        krrood.ormatic.custom_types.PathType, nullable=False, use_existing_column=True
+    )
+
+
+class RoboCasaTaskNotFoundErrorDAO(
+    Base,
+    DataAccessObject[
+        semantic_digital_twin.adapters.robocasa_dataset.exceptions.RoboCasaTaskNotFoundError
+    ],
+):
+    __tablename__ = "RoboCasaTaskNotFoundErrorDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    task_name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+
+    available_task_names: Mapped[typing.List[builtins.str]] = mapped_column(
+        JSON, nullable=False, use_existing_column=True
     )
 
 
@@ -3681,82 +3779,6 @@ class RoboCasaDatasetLoaderDAO(
         uselist=False,
         foreign_keys=[object_annotator_id],
         post_update=True,
-    )
-
-
-class RoboCasaObjectAssetsNotFoundErrorDAO(
-    Base,
-    DataAccessObject[
-        semantic_digital_twin.adapters.robocasa_dataset.loader.RoboCasaObjectAssetsNotFoundError
-    ],
-):
-    __tablename__ = "RoboCasaObjectAssetsNotFoundErrorDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        Integer, primary_key=True, use_existing_column=True
-    )
-
-    category: Mapped[
-        semantic_digital_twin.adapters.robocasa_dataset.semantics.RoboCasaObjectCategory
-    ] = mapped_column(
-        krrood.ormatic.custom_types.PolymorphicEnumType,
-        nullable=False,
-        use_existing_column=True,
-    )
-    objects_directory: Mapped[pathlib.Path] = mapped_column(
-        krrood.ormatic.custom_types.PathType, nullable=False, use_existing_column=True
-    )
-
-
-class RoboCasaObjectHasNoCollisionErrorDAO(
-    Base,
-    DataAccessObject[
-        semantic_digital_twin.adapters.robocasa_dataset.loader.RoboCasaObjectHasNoCollisionError
-    ],
-):
-    __tablename__ = "RoboCasaObjectHasNoCollisionErrorDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        Integer, primary_key=True, use_existing_column=True
-    )
-
-    category: Mapped[
-        semantic_digital_twin.adapters.robocasa_dataset.semantics.RoboCasaObjectCategory
-    ] = mapped_column(
-        krrood.ormatic.custom_types.PolymorphicEnumType,
-        nullable=False,
-        use_existing_column=True,
-    )
-
-
-class RoboCasaObjectInstanceIndexErrorDAO(
-    Base,
-    DataAccessObject[
-        semantic_digital_twin.adapters.robocasa_dataset.loader.RoboCasaObjectInstanceIndexError
-    ],
-):
-    __tablename__ = "RoboCasaObjectInstanceIndexErrorDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        Integer, primary_key=True, use_existing_column=True
-    )
-
-    requested_instance_index: Mapped[builtins.int] = mapped_column(
-        use_existing_column=True
-    )
-    available_instance_count: Mapped[builtins.int] = mapped_column(
-        use_existing_column=True
-    )
-
-    category: Mapped[
-        semantic_digital_twin.adapters.robocasa_dataset.semantics.RoboCasaObjectCategory
-    ] = mapped_column(
-        krrood.ormatic.custom_types.PolymorphicEnumType,
-        nullable=False,
-        use_existing_column=True,
-    )
-    objects_directory: Mapped[pathlib.Path] = mapped_column(
-        krrood.ormatic.custom_types.PathType, nullable=False, use_existing_column=True
     )
 
 
@@ -3806,27 +3828,6 @@ class RoboCasaTaskDAO(
         uselist=False,
         foreign_keys=[robot_base_pose_id],
         post_update=True,
-    )
-
-
-class RoboCasaTaskNotFoundErrorDAO(
-    Base,
-    DataAccessObject[
-        semantic_digital_twin.adapters.robocasa_dataset.loader.RoboCasaTaskNotFoundError
-    ],
-):
-    __tablename__ = "RoboCasaTaskNotFoundErrorDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        Integer, primary_key=True, use_existing_column=True
-    )
-
-    task_name: Mapped[builtins.str] = mapped_column(
-        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
-    )
-
-    available_task_names: Mapped[typing.List[builtins.str]] = mapped_column(
-        JSON, nullable=False, use_existing_column=True
     )
 
 
@@ -19765,7 +19766,7 @@ class HingeDAO(
 
 
 class MicrowaveDAO(
-    HasRootBodyDAO,
+    IsStorageSpaceDAO,
     DataAccessObject[
         semantic_digital_twin.semantic_annotations.semantic_annotations.Microwave
     ],
@@ -19773,7 +19774,7 @@ class MicrowaveDAO(
     __tablename__ = "MicrowaveDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(HasRootBodyDAO.database_id),
+        ForeignKey(IsStorageSpaceDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
@@ -19788,7 +19789,7 @@ class MicrowaveDAO(
 
     __mapper_args__ = {
         "polymorphic_identity": "MicrowaveDAO",
-        "inherit_condition": database_id == HasRootBodyDAO.database_id,
+        "inherit_condition": database_id == IsStorageSpaceDAO.database_id,
         "polymorphic_load": "selectin",
     }
 

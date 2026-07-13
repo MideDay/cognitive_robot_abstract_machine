@@ -1202,9 +1202,10 @@ class Cooktop(HasRootBody):
 
 
 @dataclass(eq=False)
-class Microwave(HasRootBody, HasDoors):
+class Microwave(IsStorageSpace, HasDoors):
     """
-    A microwave oven, a kitchen appliance with a door that heats food using microwave radiation.
+    A microwave oven, a kitchen appliance with a door that heats food placed inside it using
+    microwave radiation.
     """
 
 
