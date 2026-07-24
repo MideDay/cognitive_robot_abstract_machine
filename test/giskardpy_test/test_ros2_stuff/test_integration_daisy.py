@@ -254,8 +254,8 @@ class TestCollisionAvoidanceGoals:
     def test_self_collision_avoidance(self, giskard_better_pose: DAiSyTester):
         msc = MotionStatechart()
 
-        offset_x = 0.1
-        offset_y = 0.8
+        offset_x = 0.8
+        offset_y = -0.1
         offset_z = -0.1
 
         msc.add_nodes(
@@ -296,7 +296,7 @@ class TestCollisionAvoidanceGoals:
     def test_self_collision_avoidance2(self, giskard_better_pose: DAiSyTester):
         msc = MotionStatechart()
         goal = Pose.from_xyz_axis_angle(
-            x=-0.65, y=-0.3, z=1.0, reference_frame=giskard_better_pose.map
+            x=0.3, y=0.6, z=1.0, reference_frame=giskard_better_pose.map
         )
         msc.add_nodes(
             [
