@@ -2,7 +2,6 @@ from copy import deepcopy
 
 import numpy as np
 import pytest
-import rclpy
 from rustworkx import NoEdgeBetweenNodes
 
 from giskardpy.utils.utils_for_tests import compare_axis_angle, compare_orientations
@@ -27,15 +26,12 @@ from coraplex.robot_plans.actions.core.robot_body import (
 from coraplex.testing import _make_sine_scan_poses
 from coraplex.view_manager import ViewManager
 
-from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
-    VizMarkerPublisher,
-)
 from semantic_digital_twin.datastructures.definitions import (
-    JointStateType,
     GripperState,
     StaticJointState,
 )
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.robots.daisy import DAiSy
 from semantic_digital_twin.robots.tracy import Tracy
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Point3
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -45,8 +41,12 @@ from semantic_digital_twin.world_description.shape_collection import ShapeCollec
 from semantic_digital_twin.world_description.world_entity import Body
 
 
-@pytest.fixture(scope="session")
-def tracy_block_world(tracy_world):
+@pytest.fixture(
+    scope="session", params=[["tracy_world", Tracy], ["daisy_world", DAiSy]]
+)
+def robot_setup(request):
+    world = request.getfixturevalue(request.param[0])
+
     box1 = Body(
         name=PrefixedName("box1"),
         collision=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
@@ -59,49 +59,85 @@ def tracy_block_world(tracy_world):
         visual=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
     )
 
-    with tracy_world.modify_world():
-        box1_connection = Connection6DoF.create_with_dofs(
-            world=tracy_world,
-            parent=tracy_world.root,
-            child=box1,
-            name=PrefixedName("box1_connection"),
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                0.8, 0.5, 0.93
-            ),
-        )
+    with world.modify_world():
+        if request.param[1] == Tracy:
+            box1_connection = Connection6DoF.create_with_dofs(
+                world=world,
+                parent=world.root,
+                child=box1,
+                name=PrefixedName("box1_connection"),
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    0.8, 0.5, 0.93
+                ),
+            )
 
-        box2_connection = Connection6DoF.create_with_dofs(
-            world=tracy_world,
-            parent=tracy_world.root,
-            child=box2,
-            name=PrefixedName("box2_connection"),
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                0.8, -0.5, 0.93
-            ),
-        )
-        tracy_world.add_connection(box1_connection)
-        tracy_world.add_connection(box2_connection)
-    return tracy_world
+            box2_connection = Connection6DoF.create_with_dofs(
+                world=world,
+                parent=world.root,
+                child=box2,
+                name=PrefixedName("box2_connection"),
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    0.8, -0.5, 0.93
+                ),
+            )
+        elif request.param[1] == DAiSy:
+            box1_connection = Connection6DoF.create_with_dofs(
+                world=world,
+                parent=world.root,
+                child=box1,
+                name=PrefixedName("box1_connection"),
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    0.6, 1.0, 1.2
+                ),
+            )
+            box2_connection = Connection6DoF.create_with_dofs(
+                world=world,
+                parent=world.root,
+                child=box2,
+                name=PrefixedName("box2_connection"),
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    0.6, 0.1, 1.2
+                ),
+            )
+        else:
+            box1_connection = Connection6DoF.create_with_dofs(
+                world=world,
+                parent=world.root,
+                child=box1,
+                name=PrefixedName("box1_connection"),
+            )
+            box2_connection = Connection6DoF.create_with_dofs(
+                world=world,
+                parent=world.root,
+                child=box2,
+                name=PrefixedName("box2_connection"),
+            )
+
+        world.add_connection(box1_connection)
+        world.add_connection(box2_connection)
+    return world, request.param[1]
 
 
 @pytest.fixture
-def immutable_tracy_block_world(tracy_block_world):
-    state = deepcopy(tracy_block_world.state._data)
-    view = tracy_block_world.get_semantic_annotations_by_type(Tracy)[0]
-    yield tracy_block_world, view, Context(tracy_block_world, view)
-    tracy_block_world.state._data[:] = state
-    tracy_block_world.notify_state_change()
+def immutable_stationary_block_world(robot_setup):
+    block_world, robot_class = robot_setup
+    state = deepcopy(block_world.state._data)
+    view = block_world.get_semantic_annotations_by_type(robot_class)[0]
+    yield block_world, view, Context(block_world, view)
+    block_world.state._data[:] = state
+    block_world.notify_state_change()
 
 
 @pytest.fixture
-def mutable_tracy_block_world(tracy_block_world):
-    copy_world = deepcopy(tracy_block_world)
-    copy_view = copy_world.get_semantic_annotations_by_type(Tracy)[0]
+def mutable_stationary_block_world(robot_setup):
+    block_world, robot_class = robot_setup
+    copy_world = deepcopy(block_world)
+    copy_view = copy_world.get_semantic_annotations_by_type(robot_class)[0]
     return copy_world, copy_view, Context(copy_world, copy_view)
 
 
-def test_park_arms_tracy(immutable_tracy_block_world):
-    world, view, context = immutable_tracy_block_world
+def test_park_arms_multi(immutable_stationary_block_world):
+    world, view, context = immutable_stationary_block_world
 
     description = ParkArmsAction(Arms.BOTH)
     plan = execute_single(description, context=context).plan
@@ -124,8 +160,8 @@ def test_park_arms_tracy(immutable_tracy_block_world):
         )
 
 
-def test_reach_action_multi(immutable_tracy_block_world):
-    world, view, context = immutable_tracy_block_world
+def test_reach_action_multi(immutable_stationary_block_world):
+    world, view, context = immutable_stationary_block_world
     left_arm = ViewManager.get_arm_view(Arms.LEFT, view)
 
     grasp_description = GraspDescription(
@@ -134,13 +170,14 @@ def test_reach_action_multi(immutable_tracy_block_world):
         left_arm.end_effector,
     )
     box_body = world.get_body_by_name("box1")
+    position = box_body.global_pose.position.to_np()
 
     plan = sequential(
         [
             ParkArmsAction(Arms.BOTH),
             ReachAction(
                 target_pose=Pose(
-                    Point3.from_iterable([0.8, 0.5, 0.93]), reference_frame=world.root
+                    Point3.from_iterable(position), reference_frame=world.root
                 ),
                 object_designator=box_body,
                 arm=Arms.LEFT,
@@ -159,12 +196,14 @@ def test_reach_action_multi(immutable_tracy_block_world):
 
     target_orientation = grasp_description.grasp_orientation()
 
-    assert end_effector_position[:3] == pytest.approx([0.8, 0.5, 0.93], abs=0.01)
-    compare_orientations(end_effector_orientation, target_orientation, decimal=2)
+    assert end_effector_position[:3] == pytest.approx(position[:3], abs=0.01)
+    compare_orientations(
+        end_effector_orientation, target_orientation.to_np(), decimal=2
+    )
 
 
-def test_move_gripper_multi(immutable_tracy_block_world):
-    world, view, context = immutable_tracy_block_world
+def test_move_gripper_multi(immutable_stationary_block_world):
+    world, view, context = immutable_stationary_block_world
 
     plan = execute_single(
         SetGripperAction(Arms.LEFT, GripperState.OPEN), context=context
@@ -191,8 +230,8 @@ def test_move_gripper_multi(immutable_tracy_block_world):
         assert connection.position == pytest.approx(target, abs=0.01)
 
 
-def test_grasping(immutable_tracy_block_world):
-    world, robot_view, context = immutable_tracy_block_world
+def test_grasping(immutable_stationary_block_world):
+    world, robot_view, context = immutable_stationary_block_world
     left_arm = ViewManager.get_arm_view(Arms.LEFT, robot_view)
 
     grasp_description = GraspDescription(
@@ -215,8 +254,8 @@ def test_grasping(immutable_tracy_block_world):
     assert dist < 0.01
 
 
-def test_pick_up_tracy(mutable_tracy_block_world):
-    world, view, context = mutable_tracy_block_world
+def test_pick_up_multi(mutable_stationary_block_world):
+    world, view, context = mutable_stationary_block_world
 
     left_arm = ViewManager.get_arm_view(Arms.LEFT, view)
     grasp_description = GraspDescription(
@@ -246,8 +285,20 @@ def test_pick_up_tracy(mutable_tracy_block_world):
     plan.validate()
 
 
-def test_place_tracy(mutable_tracy_block_world):
-    world, view, context = mutable_tracy_block_world
+PLACE_POSITIONS = {
+    Tracy: [0.9, 0.0, 0.93],
+    DAiSy: [0.6, 1.2, 1.2],
+}
+
+
+@pytest.fixture
+def place_position(robot_setup):
+    _, robot_class = robot_setup
+    return PLACE_POSITIONS[robot_class]
+
+
+def test_place_multi(mutable_stationary_block_world, place_position):
+    world, view, context = mutable_stationary_block_world
 
     left_arm = ViewManager.get_arm_view(Arms.LEFT, view)
     grasp_description = GraspDescription(
@@ -262,7 +313,7 @@ def test_place_tracy(mutable_tracy_block_world):
             PickUpAction(world.get_body_by_name("box1"), Arms.LEFT, grasp_description),
             PlaceAction(
                 world.get_body_by_name("box1"),
-                Pose(Point3.from_iterable([0.9, 0, 0.93]), reference_frame=world.root),
+                Pose(Point3.from_iterable(place_position), reference_frame=world.root),
                 Arms.LEFT,
             ),
         ],
@@ -280,14 +331,28 @@ def test_place_tracy(mutable_tracy_block_world):
     box_body = world.get_body_by_name("box1")
     milk_position = box_body.global_transform.to_position().to_np()
 
-    assert milk_position[:3] == pytest.approx([0.9, 0, 0.93], abs=0.01)
+    assert milk_position[:3] == pytest.approx(place_position, abs=0.01)
     plan.validate()
 
 
-def test_move_tcp_follows_sine_waypoints(immutable_tracy_block_world):
-    world, view, context = immutable_tracy_block_world
+ANCHOR_POSITIONS = {
+    Tracy: [0.85, -0.25, 0.95],
+    DAiSy: [0.0, 0.0, 0.95],
+}
+
+
+@pytest.fixture
+def anchor_position(robot_setup):
+    _, robot_class = robot_setup
+    return ANCHOR_POSITIONS[robot_class]
+
+
+def test_move_tcp_follows_sine_waypoints(
+    immutable_stationary_block_world, anchor_position
+):
+    world, view, context = immutable_stationary_block_world
     right_arm = ViewManager.get_arm_view(Arms.RIGHT, view)
-    anchor = Pose(Point3.from_iterable([0.85, -0.25, 0.95]), reference_frame=world.root)
+    anchor = Pose(Point3.from_iterable(anchor_position), reference_frame=world.root)
     anchor_T = anchor.to_homogeneous_matrix()
     offset_T = HomogeneousTransformationMatrix.from_xyz_axis_angle(
         z=-0.03,
