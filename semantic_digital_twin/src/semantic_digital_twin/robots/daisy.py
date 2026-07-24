@@ -236,7 +236,9 @@ class DAiSyLeftArm(Arm[DAiSyLeftGripper]):
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
         return cls(
-            root=robot_root._world.get_body_in_branch_by_name(robot_root, "table"),
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "table_center"
+            ),
             tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "left_wrist_3_link"
             ),
@@ -263,7 +265,9 @@ class DAiSyRightArm(Arm[DAiSyRightGripper]):
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
         return cls(
-            root=robot_root._world.get_body_in_branch_by_name(robot_root, "table"),
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "table_center"
+            ),
             tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "right_wrist_3_link"
             ),
