@@ -15,17 +15,20 @@ from semantic_digital_twin.datastructures.definitions import (
     StaticJointState,
     GripperState,
 )
+from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasLeftRightArm,
     HasTwoFingers,
+    HasSensors,
 )
 from semantic_digital_twin.robots.robot_parts import (
     AbstractRobot,
     Arm,
     EndEffector,
     Finger,
+    Camera,
 )
 from semantic_digital_twin.spatial_types import Quaternion, Vector3
 from semantic_digital_twin.world_description.world_entity import (
@@ -275,7 +278,38 @@ class DAiSyRightArm(Arm[DAiSyRightGripper]):
 
 
 @dataclass(eq=False)
-class DAiSy(AbstractRobot, HasLeftRightArm[DAiSyLeftArm, DAiSyRightArm]):
+class DAiSyCamera(Camera):
+    """
+    DAiSy does not currently have a dedicated camera.
+    Setup a fake camera link in URDF to satisfy SemDT
+    """
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "camera_link"
+            ),
+            forward_facing_axis=Vector3.Z(),
+            field_of_view=FieldOfView(horizontal_angle=1.047, vertical_angle=0.785),
+            minimal_height=1.4,
+            maximal_height=1.4,
+            default_camera=True,
+        )
+
+
+@dataclass(eq=False)
+class DAiSy(
+    AbstractRobot, HasLeftRightArm[DAiSyLeftArm, DAiSyRightArm], HasSensors[DAiSyCamera]
+):
     """
     Represents two UR5 Arms mounted on a table.
     The arms are equipped with WEISS WPG 300-120 grippers
