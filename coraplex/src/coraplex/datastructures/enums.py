@@ -16,6 +16,7 @@ class VisualizationLayout(Enum):
     """
     Spring layout, root is in the center and nodes are ordered in circles around it.
     """
+from typing import List, Tuple
 
 
 class AdjacentBodyMethod(Enum):
@@ -177,6 +178,20 @@ class Grasp(Enum):
         return next((grasp for grasp in cls if grasp.value == (axis, direction)), None)
 
 
+class WPGGripPreset(Enum):
+    """
+    Enum for the different WPG grip presets.
+    """
+    PRESET_0 = 0
+    PRESET_1 = 1
+    PRESET_2 = 2
+    PRESET_3 = 3
+    PRESET_4 = 4
+    PRESET_5 = 5
+    PRESET_6 = 6
+    PRESET_7 = 7
+
+
 class ApproachDirection(Grasp):
     """
     Enum for the approach direction of a gripper.
@@ -189,13 +204,23 @@ class ApproachDirection(Grasp):
     BACK = (AxisIdentifier.X, 1)
     RIGHT = (AxisIdentifier.Y, -1)
     LEFT = (AxisIdentifier.Y, 1)
+    DIAGONAL = (AxisIdentifier.X, 1), (AxisIdentifier.Y, 1)
+
+    @property
+    def axes(self) -> List[Tuple[AxisIdentifier, int]]:
+        """
+        Returns the axes and directions of the approach direction.
+        """
+        if isinstance(self.value[0], AxisIdentifier):
+            return [self.value]
+        return list(self.value)
 
     @property
     def axis(self) -> AxisIdentifier:
         """
-        Returns the axis of the approach direction.
+        Returns the (first) axis of the approach direction.
         """
-        return self.value[0]
+        return self.axes[0][0]
 
 
 class VerticalAlignment(Grasp):

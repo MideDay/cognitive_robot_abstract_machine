@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import Optional
 
 from geometry_msgs.msg import (
     PoseStamped as ROSPoseStamped,
@@ -10,6 +11,14 @@ from geometry_msgs.msg import (
     Point as ROSPoint,
     Quaternion as ROSQuaternion,
 )
+
+from griplink_interfaces.action import Grip, Release, Flexgrip, Flexrelease
+
+from coraplex.datastructures.enums import WPGGripPreset
+from semantic_digital_twin.datastructures.definitions import GripperState
+from semantic_digital_twin.robots.robot_parts import EndEffector
+
+from giskardpy.middleware.ros2 import rospy
 
 try:
     from nav2_msgs.action import NavigateToPose
@@ -27,7 +36,7 @@ from giskardpy.motion_statechart.ros_context import RosContextExtension
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("giskard")
 
 
 Action = TypeVar("Action")
@@ -87,7 +96,7 @@ class ActionServerTask(
             ros_context_extension.ros_node, self.message_type, self.action_topic
         )
         self.build_msg(context)
-        logger.info(f"Waiting for action server {self.action_topic}")
+        rospy.node.get_logger().info(f"Waiting for action server {self.action_topic}")
         self._action_client.wait_for_server()
         return NodeArtifacts()
 
@@ -209,4 +218,142 @@ class NavigateActionServerTask(
                 if self._result.error_code == NavigateToPose.Result.NONE
                 else ObservationStateValues.FALSE
             )
+        return ObservationStateValues.UNKNOWN
+
+
+@dataclass(eq=False, repr=False)
+class WPGGripperActionServerTask(
+    ActionServerTask[Grip, Grip.Goal, Grip.Result, Grip.Feedback]
+):
+    """
+    Node for calling a WPG-300 ROS2 action server to grip the object.
+    """
+
+    grip_preset: WPGGripPreset = WPGGripPreset.PRESET_0
+    """
+    Grip preset.
+    """
+
+    grip_position: int | None = None
+    """
+    Opening width of the gripper in mm [-5..120].
+
+    Converted to µm when building the Flexgrip/Flexrelease goal message.
+    """
+
+    grip_force: int | None = None
+    """
+    Force the gripper applies to the object in N [30..300].
+
+    Converted to mN when building the Flexgrip goal message.
+    """
+
+    grip_speed: int | None = None
+    """
+    Motion speed of the gripper in mm/s [5..350].
+
+    Converted to µm/s when building the Flexgrip/Flexrelease goal message.
+    """
+
+    grip_acceleration: int | None = None
+    """
+    Motion acceleration of the gripper in mm/s² [100..4000].
+
+    Converted to µm/s² when building the Flexgrip/Flexrelease goal message.
+    """
+
+    def build_msg(self, context: MotionStatechartContext):
+        """
+        Creates and returns a message based on the provided MotionStatechartContext.
+
+        The method processes the given context to construct a specific message
+        that can be utilized for further communication or logging purposes. The
+        context determines the message's content and structure.
+
+        Parameters:
+            context: MotionStatechartContext
+                The context from which the message is built. It contains information
+                necessary to construct the message.
+
+        Returns:
+            str: The constructed message based on the provided context.
+        """
+        super().build_msg(context)
+
+        preset_index = self.grip_preset.value
+
+        if self.message_type == Flexgrip:
+            if self.grip_position is None:
+                self.grip_position = 0
+            if self.grip_force is None:
+                self.grip_force = 90
+            if self.grip_speed is None:
+                self.grip_speed = 150
+            if self.grip_acceleration is None:
+                self.grip_acceleration = 600
+            self._msg = Flexgrip.Goal(
+                port=0,
+                position=self.grip_position * 1000,
+                force=self.grip_force * 1000,
+                speed=self.grip_speed * 1000,
+                acceleration=self.grip_acceleration * 1000,
+            )
+        elif self.message_type == Flexrelease:
+            if self.grip_position is None:
+                self.grip_position = 120
+            if self.grip_force is None:
+                self.grip_force = 90
+            if self.grip_speed is None:
+                self.grip_speed = 250
+            if self.grip_acceleration is None:
+                self.grip_acceleration = 2000
+            self._msg = Flexrelease.Goal(
+                port=0,
+                position=self.grip_position * 1000,
+                speed=self.grip_speed * 1000,
+                acceleration=self.grip_acceleration * 1000,
+            )
+        elif self.message_type == Grip:
+            self._msg = Grip.Goal(
+                port=0,
+                index=preset_index,
+            )
+        elif self.message_type == Release:
+            self._msg = Release.Goal(
+                port=0,
+                index=preset_index,
+            )
+        else:
+            raise ValueError(f"Unknown message type: {self.message_type}")
+
+    def on_tick(self, context: MotionStatechartContext) -> ObservationStateValues:
+        if self._result:
+            gripper_status = self._result.result.status
+            print(self._result)
+            if self.message_type == Flexgrip:
+                return (
+                    ObservationStateValues.TRUE
+                    if gripper_status == 0
+                    else ObservationStateValues.FALSE
+                )
+            elif self.message_type == Flexrelease:
+                return (
+                    ObservationStateValues.TRUE
+                    if gripper_status == 0
+                    else ObservationStateValues.FALSE
+                )
+            elif self.message_type == Grip:
+                return (
+                    ObservationStateValues.TRUE
+                    if gripper_status == 0
+                    else ObservationStateValues.FALSE
+                )
+            elif self.message_type == Release:
+                return (
+                    ObservationStateValues.TRUE
+                    if gripper_status == 0
+                    else ObservationStateValues.FALSE
+                )
+            else:
+                raise ValueError(f"Unknown message type: {self.message_type}")
         return ObservationStateValues.UNKNOWN
