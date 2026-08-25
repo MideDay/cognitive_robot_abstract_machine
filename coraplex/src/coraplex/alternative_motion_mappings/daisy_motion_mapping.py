@@ -4,6 +4,9 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
+from coraplex.plans.factories import sequential
+from coraplex.plans.plan_node import PlanNode
+from coraplex.robot_plans.actions.base import ActionDescription
 from giskardpy.motion_statechart.goals.templates import Parallel
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from semantic_digital_twin.datastructures.definitions import GripperState
@@ -164,6 +167,40 @@ class DAiSyGripMotion(MoveGripperMotion, AlternativeMotion[DAiSy]):
 
 
 @dataclass
+class SetDAiSyGripAction(ActionDescription):
+    """
+    Set the gripper state of the robot.
+    """
+
+    gripper: Arms
+    """
+    The gripper that should be set.
+    """
+
+    motion: GripperState
+    """
+    The motion that should be set on the gripper.
+    """
+
+    grip_preset: WPGGripPreset = WPGGripPreset.PRESET_0
+    """
+    Grip preset index passed to the Grip/Release action.
+    """
+
+    @property
+    def _action_plan(self) -> PlanNode:
+        arms = [Arms.LEFT, Arms.RIGHT] if self.gripper == Arms.BOTH else [self.gripper]
+        return sequential(
+            [
+                DAiSyGripMotion(
+                    gripper=arm, motion=self.motion, grip_preset=self.grip_preset
+                )
+                for arm in arms
+            ]
+        )
+
+
+@dataclass
 class DAiSyFlexGripMotion(MoveGripperMotion, AlternativeMotion[DAiSy]):
     """
     Use flex grip and release motions for the WPG grippers, or a joint position goal for
@@ -320,3 +357,57 @@ class DAiSyFlexGripMotion(MoveGripperMotion, AlternativeMotion[DAiSy]):
             raise ValueError(f"Gripper {self.gripper} not supported")
 
         return Parallel(tasks)
+
+
+@dataclass
+class SetDAiSyFlexGripAction(ActionDescription):
+    """
+    Set the gripper state of the robot.
+    """
+
+    gripper: Arms
+    """
+    The gripper that should be set.
+    """
+
+    motion: GripperState
+    """
+    The motion that should be set on the gripper.
+    """
+
+    grip_position: Optional[int] = None
+    """
+    Opening width of the gripper [-5..120 mm].
+    """
+
+    grip_force: Optional[int] = None
+    """
+    Force the gripper applies to the object [30..300 N].
+    """
+
+    grip_speed: Optional[int] = None
+    """
+    Motion speed of the gripper [5..350 mm/s].
+    """
+
+    grip_acceleration: Optional[int] = None
+    """
+    Motion acceleration of the gripper [100..4000 mm/s^2].
+    """
+
+    @property
+    def _action_plan(self) -> PlanNode:
+        arms = [Arms.LEFT, Arms.RIGHT] if self.gripper == Arms.BOTH else [self.gripper]
+        return sequential(
+            [
+                DAiSyFlexGripMotion(
+                    gripper=arm,
+                    motion=self.motion,
+                    grip_position=self.grip_position,
+                    grip_force=self.grip_force,
+                    grip_speed=self.grip_speed,
+                    grip_acceleration=self.grip_acceleration,
+                )
+                for arm in arms
+            ]
+        )
