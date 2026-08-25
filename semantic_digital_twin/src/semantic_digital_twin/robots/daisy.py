@@ -154,7 +154,7 @@ class DAiSyLeftGripper(
                 zip(
                     left_gripper_joints,
                     [
-                        0.04,
+                        0.05,
                     ],
                 )
             ),
@@ -199,7 +199,7 @@ class DAiSyRightGripper(
 
         gripper_close = JointState.from_mapping(
             name=PrefixedName("right_gripper_close", prefix=self.name.name),
-            mapping=dict(zip(right_gripper_joints, [0.04])),
+            mapping=dict(zip(right_gripper_joints, [0.05])),
             state_type=GripperState.CLOSE,
         )
 
@@ -230,7 +230,19 @@ class DAiSyLeftArm(Arm[DAiSyLeftGripper]):
         connections = self.active_connections
         arm_park = JointState.from_mapping(
             name=PrefixedName("left_arm_park", prefix=self.name.name),
-            mapping=dict(zip(connections, [0, -1.57, 1, 0, 0, 0.785])),
+            mapping=dict(
+                zip(
+                    connections,
+                    [
+                        -1.84,  # left_shoulder_pan_joint
+                        -1.94,  # left_shoulder_lift_joint
+                        1.81,  # left_elbow_joint
+                        -1.45,  # left_wrist_1_joint
+                        -1.60,  # left_wrist_2_joint
+                        -3.40,  # left_wrist_3_joint
+                    ],
+                )
+            ),
             state_type=StaticJointState.PARK,
         )
         return [arm_park]
@@ -259,7 +271,19 @@ class DAiSyRightArm(Arm[DAiSyRightGripper]):
         connections = self.active_connections
         arm_park = JointState.from_mapping(
             name=PrefixedName("right_arm_park", prefix=self.name.name),
-            mapping=dict(zip(connections, [2.355, -1.57, 1, 0, 0, 0.785])),
+            mapping=dict(
+                zip(
+                    connections,
+                    [
+                        1.19,  # right_shoulder_pan_joint
+                        -1.00,  # right_shoulder_lift_joint
+                        -1.90,  # right_elbow_joint
+                        -1.81,  # right_wrist_1_joint
+                        1.56,  # right_wrist_2_joint
+                        0.40,  # right_wrist_3_joint
+                    ],
+                )
+            ),
             state_type=StaticJointState.PARK,
         )
         return [arm_park]
@@ -344,42 +368,6 @@ class DAiSy(
                     buffer_zone_distance=0.03,
                     violated_distance=0.0,
                     robot=self,
-                ),
-                AvoidCollisionBetweenGroups(
-                    buffer_zone_distance=0.015,
-                    violated_distance=0.0,
-                    body_group_a=[self._world.get_body_by_name("left_forearm_link")],
-                    body_group_b=[
-                        self._world.get_body_by_name(
-                            "left_gripper_wrist_collision_cylinder_link"
-                        )
-                    ],
-                ),
-                AvoidCollisionBetweenGroups(
-                    buffer_zone_distance=0.015,
-                    violated_distance=0.0,
-                    body_group_a=[self._world.get_body_by_name("right_forearm_link")],
-                    body_group_b=[
-                        self._world.get_body_by_name(
-                            "right_gripper_wrist_collision_cylinder_link"
-                        )
-                    ],
-                ),
-                AvoidCollisionBetweenGroups(
-                    buffer_zone_distance=0.015,
-                    violated_distance=0.0,
-                    body_group_a=[self._world.get_body_by_name("right_forearm_link")],
-                    body_group_b=[
-                        self._world.get_body_by_name("right_gripper_side_cylinder_link")
-                    ],
-                ),
-                AvoidCollisionBetweenGroups(
-                    buffer_zone_distance=0.015,
-                    violated_distance=0.0,
-                    body_group_a=[self._world.get_body_by_name("right_forearm_link")],
-                    body_group_b=[
-                        self._world.get_body_by_name("left_gripper_side_cylinder_link")
-                    ],
                 ),
             ]
         )
