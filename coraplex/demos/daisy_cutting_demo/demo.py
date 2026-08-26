@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+import os
 
 # %% Imports
 
@@ -16,7 +17,7 @@ from coraplex.datastructures.enums import (
     CuttingTechnique,
     WPGGripPreset,
 )
-from coraplex.execution_environment import simulated_robot
+from coraplex.execution_environment import simulated_robot, real_robot, semi_real_robot
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans import MoveGripperMotion, MoveJointsMotion
 from coraplex.robot_plans.actions.composite.tool_based import CuttingAction
@@ -31,16 +32,24 @@ from experiments.tool_based_actions.simple_demo.demo_world import (
     parse_object,
     BREAD_COLOR,
 )
+from semantic_digital_twin.adapters.mesh import STLParser
 from semantic_digital_twin.datastructures.definitions import GripperState
+from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.exceptions import (
+    WorldEntityNotFoundError,
+    SemanticAnnotationNotInWorldError,
+)
+from semantic_digital_twin.robots.daisy import DAiSy
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     CuttingKnife,
     Bread,
 )
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.world_description.connections import FixedConnection
 
 verbose = True
 collision_avoidance = False
-execution_mode = ExecutionType.SIMULATED
+execution_mode = ExecutionType.REAL
 # execution_mode = ExecutionType.SEMI_REAL
 
 print(f"Running in: {execution_mode}")
@@ -51,34 +60,127 @@ if execution_mode == ExecutionType.REAL or execution_mode == ExecutionType.SEMI_
 else:
     node, world, robot_view, context = setup_sim_daisy()
 
-bread_world = parse_object("bread.stl", color=BREAD_COLOR)
-with world.modify_world():
-    world.merge_world_at_pose(
-        bread_world,
-        HomogeneousTransformationMatrix.from_xyz_quaternion(
-            pos_x=0.5,
-            pos_y=0.5,
-            pos_z=0.65,
-            quat_w=0.707,
-            quat_x=0,
-            quat_y=0,
-            quat_z=-0.707,
-            reference_frame=world.root,
-        ),
+try:
+    cable_post = world.get_bodies_by_name(PrefixedName("item_profile_8_40x40_720.stl"))[
+        0
+    ]
+except (WorldEntityNotFoundError, IndexError):
+    cable_post = STLParser(
+        os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "resources",
+            "objects",
+            "item_profile_8_40x40_720.stl",
+        )
+    ).parse()
+    cable_post_root = cable_post.root
+
+    with world.modify_world():
+        world.merge_world(
+            cable_post,
+            FixedConnection(
+                world.get_semantic_annotations_by_type(DAiSy)[0].root,
+                cable_post_root,
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    x=0.62,
+                    y=0.42,
+                    z=0.8477,
+                    roll=pi / 2,
+                    yaw=-pi / 2,
+                    reference_frame=world.get_semantic_annotations_by_type(DAiSy)[
+                        0
+                    ].root,
+                ),
+            ),
+        )
+
+try:
+    cable_hanger = world.get_bodies_by_name(PrefixedName("cable_hanger_2.stl"))[0]
+except (WorldEntityNotFoundError, IndexError):
+    cable_hanger = STLParser(
+        os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "resources",
+            "objects",
+            "cable_hanger_2.stl",
+        )
+    ).parse()
+    cable_hanger_root = cable_hanger.root
+
+    with world.modify_world():
+        world.merge_world(
+            cable_hanger,
+            FixedConnection(
+                cable_post_root,
+                cable_hanger_root,
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    x=0.0,
+                    y=0.310,  # 720/2 - 50
+                    z=0.02,
+                    roll=-pi / 2,
+                    # pitch=-pi / 2,
+                    reference_frame=cable_post_root,
+                ),
+            ),
+        )
+
+try:
+    bread_body = world.get_body_by_name(PrefixedName("bread.stl"))
+except (WorldEntityNotFoundError, IndexError):
+    bread_world = parse_object("bread.stl", color=BREAD_COLOR)
+    with world.modify_world():
+        world.merge_world(
+            bread_world,
+            FixedConnection(
+                world.get_semantic_annotations_by_type(DAiSy)[0].root,
+                bread_world.get_body_by_name("bread.stl"),
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_quaternion(
+                    pos_x=0.37,
+                    pos_y=0.45,
+                    pos_z=0.655,
+                    quat_w=0.707,
+                    quat_x=0,
+                    quat_y=0,
+                    quat_z=-0.707,
+                    reference_frame=world.get_semantic_annotations_by_type(DAiSy)[
+                        0
+                    ].root,
+                ),
+            ),
+        )
+    bread_body = world.get_body_by_name("bread.stl")
+
+try:
+    knife_body = world.get_body_by_name(PrefixedName("big-knife.stl"))
+except (WorldEntityNotFoundError, IndexError):
+    knife_body = attach_tool(
+        world,
+        robot_view,
+        Arms.RIGHT,
+        parse_object("big-knife.stl"),
+        {"y": 0.08, "z": 0.02, "roll": pi, "pitch": 0, "yaw": pi / 2},
     )
 
-knife_body = attach_tool(
-    world,
-    robot_view,
-    Arms.RIGHT,
-    parse_object("big-knife.stl"),
-    {"y": 0.08, "z": 0.02, "roll": pi, "pitch": 0, "yaw": pi / 2},
-)
-bread_body = world.get_body_by_name("bread.stl")
+knife_name = PrefixedName("knife")
+bread_name = PrefixedName("bread")
 
-knife = CuttingKnife(root=knife_body)
-with world.modify_world():
-    world.add_semantic_annotations([Bread(root=bread_body), knife])
+try:
+    knife = world.get_semantic_annotations_by_type(CuttingKnife)[0]
+except (WorldEntityNotFoundError, IndexError):
+    knife = CuttingKnife(root=knife_body, name=knife_name)
+    with world.modify_world():
+        world.add_semantic_annotations([knife])
+
+try:
+    bread = world.get_semantic_annotations_by_type(Bread)[0]
+except (WorldEntityNotFoundError, IndexError):
+    bread = Bread(root=bread_body, name=bread_name)
+    with world.modify_world():
+        world.add_semantic_annotations([bread])
 
 context.evaluate_conditions = False
 
@@ -120,12 +222,19 @@ daisy_safe_right_arm_positions = [
 
 plan = sequential(
     [
-        SetDAiSyGripAction(motion=GripperState.OPEN, gripper=Arms.BOTH),
+        # SetDAiSyGripAction(motion=GripperState.OPEN, gripper=Arms.BOTH),
         ParkArmsAction(arm=Arms.RIGHT),
         MoveJointsMotion(
             names=daisy_left_arm_names, positions=daisy_safe_left_arm_positions
         ),
-        SetDAiSyGripAction(motion=GripperState.CLOSE, gripper=Arms.RIGHT),
+        # SetDAiSyFlexGripAction(
+        #     motion=GripperState.FLEXCLOSE,
+        #     gripper=Arms.RIGHT,
+        #     grip_force=150,
+        #     grip_position=2,
+        #     grip_acceleration=1200,
+        #     grip_speed=52,
+        # ),
         CuttingAction(
             object_to_cut=bread_body,
             arm=Arms.RIGHT,
@@ -134,11 +243,20 @@ plan = sequential(
             number_of_cuts_on_local_x_axis=3,
             slice_thickness=0.03,
         ),
+        ParkArmsAction(arm=Arms.RIGHT),
+        # SetDAiSyGripAction(motion=GripperState.OPEN, gripper=Arms.RIGHT),
     ],
     context,
 )
 
-with simulated_robot:
-    plan.perform()
+if execution_mode == ExecutionType.REAL:
+    with real_robot(collision_avoidance=collision_avoidance):
+        plan.perform()
+elif execution_mode == ExecutionType.SEMI_REAL:
+    with semi_real_robot(collision_avoidance=collision_avoidance):
+        plan.perform()
+else:
+    with simulated_robot:
+        plan.perform()
 
 print("Plan finished.")
