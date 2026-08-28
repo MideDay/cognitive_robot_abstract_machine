@@ -1,9 +1,7 @@
+from giskardpy.middleware.ros2.server_config import ExecutionMode, GiskardServerConfig
 import argparse
-import os
-import sys
 from threading import Thread
 
-from giskardpy.middleware.ros2.behavior_tree_config import StandAloneBTConfig
 from giskardpy.middleware.ros2.giskard import Giskard
 from giskardpy.middleware.ros2.scripts.iai_robots.daisy.configs import (
     WorldWithDAiSyConfig,
@@ -52,9 +50,11 @@ def main():
     if robot_description is None:
         robot_description = default_robot_desc
     giskard = Giskard(
-        world_config=WorldWithDAiSyConfig(urdf=robot_description),
-        robot_interface_config=DAiSyStandAloneRobotInterfaceConfig(),
-        behavior_tree_config=StandAloneBTConfig(debug_mode=True),
+        world_config=WorldWithDaisyConfig(urdf=robot_description),
+        robot_interface_config=DaisyStandAloneRobotInterfaceConfig(),
+        server_config=GiskardServerConfig(
+            execution_mode=ExecutionMode.STANDALONE, debug_mode=True
+        ),
         qp_controller_config=QPControllerConfig(target_frequency=33),
     )
 

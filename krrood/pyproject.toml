@@ -64,6 +64,7 @@ krrood = [
   "ormatic/templates/*.jinja",
   "rustworkx_utils/visualization/templates/*.jinja",
   "code_generation/templates/*.jinja",
+  "entity_query_language/testing/templates/*.jinja",
 ]
 
 [tool.pytest.ini_options]

@@ -42,7 +42,9 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 
 @pytest.fixture(
-    scope="session", params=[["tracy_world", Tracy], ["daisy_world", DAiSy]]
+    scope="session",
+    params=[["tracy_world", Tracy], ["daisy_world", DAiSy]],
+    ids=["Tracy", "DAiSy"],
 )
 def robot_setup(request):
     world = request.getfixturevalue(request.param[0])
@@ -61,57 +63,38 @@ def robot_setup(request):
 
     with world.modify_world():
         if request.param[1] == Tracy:
-            box1_connection = Connection6DoF.create_with_dofs(
-                world=world,
-                parent=world.root,
-                child=box1,
-                name=PrefixedName("box1_connection"),
-                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                    0.8, 0.5, 0.93
-                ),
+            box1_transformationmatrix = HomogeneousTransformationMatrix.from_xyz_rpy(
+                0.8, 0.5, 0.93
             )
-
-            box2_connection = Connection6DoF.create_with_dofs(
-                world=world,
-                parent=world.root,
-                child=box2,
-                name=PrefixedName("box2_connection"),
-                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                    0.8, -0.5, 0.93
-                ),
+            box2_transformationmatrix = HomogeneousTransformationMatrix.from_xyz_rpy(
+                0.8, -0.5, 0.93
             )
         elif request.param[1] == DAiSy:
-            box1_connection = Connection6DoF.create_with_dofs(
-                world=world,
-                parent=world.root,
-                child=box1,
-                name=PrefixedName("box1_connection"),
-                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                    0.6, 1.0, 1.2
-                ),
+            box1_transformationmatrix = HomogeneousTransformationMatrix.from_xyz_rpy(
+                0.6, 1.0, 1.2
             )
-            box2_connection = Connection6DoF.create_with_dofs(
-                world=world,
-                parent=world.root,
-                child=box2,
-                name=PrefixedName("box2_connection"),
-                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                    0.6, 0.1, 1.2
-                ),
+            box2_transformationmatrix = HomogeneousTransformationMatrix.from_xyz_rpy(
+                0.6, 0.1, 1.2
             )
         else:
-            box1_connection = Connection6DoF.create_with_dofs(
-                world=world,
-                parent=world.root,
-                child=box1,
-                name=PrefixedName("box1_connection"),
-            )
-            box2_connection = Connection6DoF.create_with_dofs(
-                world=world,
-                parent=world.root,
-                child=box2,
-                name=PrefixedName("box2_connection"),
-            )
+            box1_transformationmatrix = HomogeneousTransformationMatrix.from_xyz_rpy()
+            box2_transformationmatrix = HomogeneousTransformationMatrix.from_xyz_rpy()
+
+        box1_connection = Connection6DoF.create_with_dofs(
+            world=world,
+            parent=world.root,
+            child=box1,
+            name=PrefixedName("box1_connection"),
+            parent_T_connection_expression=box1_transformationmatrix,
+        )
+
+        box2_connection = Connection6DoF.create_with_dofs(
+            world=world,
+            parent=world.root,
+            child=box2,
+            name=PrefixedName("box2_connection"),
+            parent_T_connection_expression=box2_transformationmatrix,
+        )
 
         world.add_connection(box1_connection)
         world.add_connection(box2_connection)
@@ -285,16 +268,15 @@ def test_pick_up_multi(mutable_stationary_block_world):
     plan.validate()
 
 
-PLACE_POSITIONS = {
-    Tracy: [0.9, 0.0, 0.93],
-    DAiSy: [0.6, 1.2, 1.2],
-}
-
-
 @pytest.fixture
-def place_position(robot_setup):
-    _, robot_class = robot_setup
-    return PLACE_POSITIONS[robot_class]
+def place_position(robot_setup) -> Point3:
+    world, robot_class = robot_setup
+    if robot_class == Tracy:
+        return Point3(0.9, 0.0, 0.93, reference_frame=world.root)
+    elif robot_class == DAiSy:
+        return Point3(0.6, 1.2, 1.2, reference_frame=world.root)
+    else:
+        raise ValueError(f"Unsupported robot class: {robot_class}")
 
 
 def test_place_multi(mutable_stationary_block_world, place_position):
@@ -313,7 +295,7 @@ def test_place_multi(mutable_stationary_block_world, place_position):
             PickUpAction(world.get_body_by_name("box1"), Arms.LEFT, grasp_description),
             PlaceAction(
                 world.get_body_by_name("box1"),
-                Pose(Point3.from_iterable(place_position), reference_frame=world.root),
+                Pose(place_position, reference_frame=world.root),
                 Arms.LEFT,
             ),
         ],
@@ -331,20 +313,19 @@ def test_place_multi(mutable_stationary_block_world, place_position):
     box_body = world.get_body_by_name("box1")
     milk_position = box_body.global_transform.to_position().to_np()
 
-    assert milk_position[:3] == pytest.approx(place_position, abs=0.01)
+    assert milk_position[:3] == pytest.approx(place_position.to_list()[:3], abs=0.01)
     plan.validate()
 
 
-ANCHOR_POSITIONS = {
-    Tracy: [0.85, -0.25, 0.95],
-    DAiSy: [0.0, 0.0, 0.95],
-}
-
-
 @pytest.fixture
-def anchor_position(robot_setup):
-    _, robot_class = robot_setup
-    return ANCHOR_POSITIONS[robot_class]
+def anchor_position(robot_setup) -> Point3:
+    world, robot_class = robot_setup
+    if robot_class == Tracy:
+        return Point3(x=0.85, y=-0.25, z=0.95, reference_frame=world.root)
+    elif robot_class == DAiSy:
+        return Point3(x=0.0, y=0.0, z=0.95, reference_frame=world.root)
+    else:
+        raise ValueError(f"Unsupported robot class: {robot_class}")
 
 
 def test_move_tcp_follows_sine_waypoints(
@@ -352,7 +333,7 @@ def test_move_tcp_follows_sine_waypoints(
 ):
     world, view, context = immutable_stationary_block_world
     right_arm = ViewManager.get_arm_view(Arms.RIGHT, view)
-    anchor = Pose(Point3.from_iterable(anchor_position), reference_frame=world.root)
+    anchor = Pose(anchor_position, reference_frame=world.root)
     anchor_T = anchor.to_homogeneous_matrix()
     offset_T = HomogeneousTransformationMatrix.from_xyz_axis_angle(
         z=-0.03,
