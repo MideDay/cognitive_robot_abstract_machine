@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import signal
 import traceback
 from dataclasses import dataclass, field
 from typing import List
@@ -88,6 +89,7 @@ class Giskard:
     )
     model_reload_synchronizer: ModelReloadSynchronizer = field(init=False)
     world_fetcher: FetchWorldServer = field(init=False)
+    _interrupt_requested: bool = field(init=False, default=False)
 
     def setup(self):
         """
@@ -253,13 +255,39 @@ class Giskard:
                 f"but not flagged as controlled: {[c.name for c in non_controlled_joints]}."
             )
 
+    def _handle_interrupt_signal(self, sig, frame):
+        """
+        Signal handler for SIGINT and SIGTERM.
+        
+        Sets a flag to indicate that an interrupt was requested and immediately stops the robot
+        by setting all velocities, accelerations, and jerks to zero.
+        """
+        self._interrupt_requested = True
+        # Only attempt to stop the robot if the executor is available
+        if hasattr(self, 'executor') and self.executor is not None:
+            self.executor.set_velocity_acceleration_jerk_to_zero()
+
     def live(self):
         """
         Start Giskard and wait for goals until ROS shuts down.
         """
         try:
             self.setup()
-            self.motion_server.live()
+            # Install signal handlers for graceful shutdown
+            signal.signal(signal.SIGINT, self._handle_interrupt_signal)
+            signal.signal(signal.SIGTERM, self._handle_interrupt_signal)
+            
+            # Modified motion server loop to check for interrupt
+            rospy.node.get_logger().info("giskard is ready")
+            while rclpy.ok() and not self._interrupt_requested:
+                self.motion_server.run_idle_cycle()
+                self.motion_server.idle_pacer.sleep()
+            
+            # If interrupt was requested, ensure robot is stopped
+            if self._interrupt_requested:
+                self.executor.set_velocity_acceleration_jerk_to_zero()
+                rclpy.shutdown()
+            
             rospy.spinner_thread.join()
         except Exception:
             traceback.print_exc()
