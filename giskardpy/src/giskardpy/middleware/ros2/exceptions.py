@@ -12,6 +12,7 @@ from giskardpy.data_types.exceptions import (
     GiskardException,
     SetupException,
 )
+from giskardpy.middleware.ros2.shutdown import ShutdownSignal
 from semantic_digital_twin.world_description.world_entity import Connection
 
 
@@ -82,6 +83,27 @@ class ExecutionCanceledException(ExecutionException):
 
     def suggest_correction(self) -> str:
         return ""
+
+
+@dataclass
+class ShutdownRequestedException(ExecutionException, DontPrintStackTrace):
+    """
+    Raised when the process was asked to end while a goal was running.
+
+    The motion is given up rather than finished, so that the robot is halted while the
+    interfaces commanding it are still alive.
+    """
+
+    received_signal: ShutdownSignal
+    """
+    The signal that asked the process to end.
+    """
+
+    def error_message(self) -> str:
+        return f"Giskard was asked to shut down by {self.received_signal.name}."
+
+    def suggest_correction(self) -> str:
+        return "Start Giskard again and send the goal once it reports that it is ready."
 
 
 @dataclass

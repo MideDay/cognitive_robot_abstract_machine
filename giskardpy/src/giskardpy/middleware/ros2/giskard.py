@@ -6,7 +6,6 @@ import traceback
 from dataclasses import dataclass, field
 from typing import List
 
-import rclpy
 from json_msgs.action import JsonAction
 from sqlalchemy.orm import sessionmaker
 
@@ -27,6 +26,7 @@ from giskardpy.middleware.ros2.post_goal_plotters import (
 )
 from giskardpy.middleware.ros2.robot_interface_config import RobotInterfaceConfig
 from giskardpy.middleware.ros2.server_config import GiskardServerConfig
+from giskardpy.middleware.ros2.shutdown import ShutdownRequest, ShutdownSignalListener
 from giskardpy.middleware.ros2.world_updates import IncomingWorldUpdates
 from giskardpy.model.world_config import WorldConfig
 from giskardpy.motion_statechart.context import MotionStatechartContext
@@ -79,7 +79,19 @@ class Giskard:
     robot_interface_config: RobotInterfaceConfig
     qp_controller_config: QPControllerConfig = field(default_factory=QPControllerConfig)
     executor: Executor = field(init=False)
-    motion_server: MotionServer = field(init=False)
+    motion_server: MotionServer | None = field(init=False, default=None)
+    """
+    The goal lifecycle, ``None`` until :meth:`setup` built it.
+    """
+
+    shutdown_request: ShutdownRequest = field(
+        init=False, default_factory=ShutdownRequest
+    )
+    """
+    Records the signal that asks the process to end, shared with the loops that command
+    the robot.
+    """
+
     world_synchronizer: WorldSynchronizer = field(init=False)
     tf_publisher: TFPublisher = field(init=False)
     viz_marker_publisher: VizMarkerPublisher = field(init=False)
@@ -136,6 +148,7 @@ class Giskard:
             inputs=WorldStateInputs(world=world),
             cycle_counter=cycle_counter,
             world_updates=world_updates,
+            shutdown_request=self.shutdown_request,
         )
         return MotionServer(
             executor=self.executor,
@@ -148,6 +161,7 @@ class Giskard:
             cycle_counter=cycle_counter,
             idle_frequency=self.server_config.idle_frequency,
             post_goal_plotters=self.create_post_goal_plotters(),
+            shutdown_request=self.shutdown_request,
         )
 
     def create_post_goal_plotters(self) -> List[PostGoalPlotter]:
@@ -253,17 +267,41 @@ class Giskard:
                 f"but not flagged as controlled: {[c.name for c in non_controlled_joints]}."
             )
 
+    def stop_robot(self):
+        """
+        Bring the robot to a halt.
+
+        Does nothing before :meth:`setup` built the loop that commands the robot, which
+        by then has sent nothing either.
+        """
+        if self.motion_server is None:
+            return
+        self.motion_server.control_loop.stop()
+
+    def shut_down(self):
+        """
+        Halt the robot and give up everything Giskard holds in ros.
+
+        The robot is stopped first, because the zero velocities travel over the very
+        publishers that the teardown destroys.
+        """
+        self.stop_robot()
+        self.close_world_model_ros_interface()
+        rospy.shutdown()
+
     def live(self):
         """
-        Start Giskard and wait for goals until ROS shuts down.
+        Start Giskard and wait for goals until the process is asked to end.
+
+        An interrupt is caught rather than allowed to end the process where it stands,
+        so that the robot is halted instead of running on with the velocity it was last
+        commanded.
         """
         try:
-            self.setup()
-            self.motion_server.live()
-            rospy.spinner_thread.join()
+            with ShutdownSignalListener(request=self.shutdown_request):
+                self.setup()
+                self.motion_server.live()
         except Exception:
             traceback.print_exc()
         finally:
-            self.close_world_model_ros_interface()
-            if rclpy.ok():
-                rclpy.try_shutdown()
+            self.shut_down()

@@ -8,11 +8,13 @@ from giskardpy.middleware.ros2.action_server import ActionServerHandler
 from giskardpy.middleware.ros2.command_publishing import CommandPublisher
 from giskardpy.middleware.ros2.exceptions import (
     ExecutionCanceledException,
+    ShutdownRequestedException,
     WorldModelModifiedDuringMotionError,
 )
 from giskardpy.middleware.ros2.feedback_publisher import ActionFeedbackPublisher
 from giskardpy.middleware.ros2.cycle_counter import CycleCounter
 from giskardpy.middleware.ros2.input_synchronization import WorldStateInputs
+from giskardpy.middleware.ros2.shutdown import ShutdownRequest
 from giskardpy.middleware.ros2.world_updates import IncomingWorldUpdates
 from semantic_digital_twin.world import World
 
@@ -65,6 +67,12 @@ class ControlLoop:
     Sends the computed velocities to the robot at the end of every cycle.
     """
 
+    shutdown_request: ShutdownRequest = field(default_factory=ShutdownRequest)
+    """
+    Polled every cycle; a pending request gives up the motion so the robot is halted
+    while the interfaces commanding it are still alive.
+    """
+
     @property
     def world(self) -> World:
         return self.executor.context.world
@@ -74,6 +82,7 @@ class ControlLoop:
         Run cycles until the motion statechart reaches an end motion.
 
         :raises ExecutionCanceledException: If the goal was canceled.
+        :raises ShutdownRequestedException: If the process was asked to end.
         """
         while True:
             self.run_cycle()
@@ -86,12 +95,14 @@ class ControlLoop:
         Synchronize the inputs, compute the next command and publish it.
 
         :raises ExecutionCanceledException: If the goal was canceled.
+        :raises ShutdownRequestedException: If the process was asked to end.
         :raises WorldModelModifiedDuringMotionError: If another process modified the
             world model.
         """
         self.apply_world_updates()
         self.inputs.synchronize()
         self.raise_if_canceled()
+        self.raise_if_shutdown_requested()
         self.executor.tick()
         self.publish_commands()
         self.feedback_publisher.publish_if_changed()
@@ -121,6 +132,17 @@ class ControlLoop:
         raise ExecutionCanceledException(
             action_server_name=self.action_server.action_name,
             goal_id=self.action_server.goal_id,
+        )
+
+    def raise_if_shutdown_requested(self) -> None:
+        """
+        :raises ShutdownRequestedException: If the process was asked to end.
+        """
+        if not self.shutdown_request.is_pending:
+            return
+        self.action_server.loginfo("shutting down")
+        raise ShutdownRequestedException(
+            received_signal=self.shutdown_request.received_signal
         )
 
     def publish_commands(self) -> None:

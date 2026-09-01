@@ -17,12 +17,14 @@ from giskardpy.middleware.ros2.control_loop import ControlLoop
 from giskardpy.middleware.ros2.exceptions import (
     ExecutionCanceledException,
     RequiredWorldUpdateNotReceivedError,
+    ShutdownRequestedException,
 )
 from giskardpy.middleware.ros2.feedback_publisher import ActionFeedbackPublisher
 from giskardpy.middleware.ros2.cycle_counter import CycleCounter
 from giskardpy.middleware.ros2.input_synchronization import WorldStateInputs
 from giskardpy.middleware.ros2.motion_goal import MotionGoal
 from giskardpy.middleware.ros2.post_goal_plotters import PostGoalPlotter
+from giskardpy.middleware.ros2.shutdown import ShutdownRequest
 from giskardpy.middleware.ros2.world_updates import IncomingWorldUpdates
 from krrood.adapters.json_serializer import to_json
 from semantic_digital_twin.adapters.ros.messages import StreamPosition
@@ -98,6 +100,11 @@ class MotionServer:
     Debug plots that are written once a goal is finished.
     """
 
+    shutdown_request: ShutdownRequest = field(default_factory=ShutdownRequest)
+    """
+    Ends the loop that waits for goals once the process was asked to end.
+    """
+
     idle_pacer: RealTimePacer = field(init=False)
     """
     Paces the idle loop to ``idle_frequency``.
@@ -120,10 +127,10 @@ class MotionServer:
 
     def live(self) -> None:
         """
-        Run the idle loop until ROS shuts down.
+        Run the idle loop until the process is asked to end or ROS shuts down.
         """
         rospy.node.get_logger().info("giskard is ready")
-        while rclpy.ok():
+        while rclpy.ok() and not self.shutdown_request.is_pending:
             self.run_idle_cycle()
             self.idle_pacer.sleep()
 
@@ -234,6 +241,9 @@ class MotionServer:
         serialized so that the client can rebuild and raise the very same exception.
         """
         match error:
+            case ShutdownRequestedException():
+                self.action_server.set_canceled()
+                rospy.node.get_logger().warning(f"Goal canceled: {error}")
             case ExecutionCanceledException():
                 self.action_server.set_canceled()
                 rospy.node.get_logger().warning("Goal canceled by user.")

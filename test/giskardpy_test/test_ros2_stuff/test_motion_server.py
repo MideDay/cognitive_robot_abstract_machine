@@ -11,6 +11,7 @@ from giskardpy.middleware.ros2.control_loop import ControlLoop
 from giskardpy.middleware.ros2.exceptions import (
     ExecutionCanceledException,
     RequiredWorldUpdateNotReceivedError,
+    ShutdownRequestedException,
     WorldModelModifiedDuringMotionError,
 )
 from giskardpy.middleware.ros2.feedback_publisher import ActionFeedbackPublisher
@@ -22,6 +23,7 @@ from giskardpy.middleware.ros2.input_synchronization import (
 from giskardpy.middleware.ros2.motion_goal import MotionGoal
 from giskardpy.middleware.ros2.motion_server import MotionServer
 from giskardpy.middleware.ros2.post_goal_plotters import PostGoalPlotter
+from giskardpy.middleware.ros2.shutdown import ShutdownRequest, ShutdownSignal
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.payload_monitors import (
@@ -356,6 +358,39 @@ class CycleWatchingGoalCanceler(InputSynchronizer):
 
 
 @dataclass
+class ShutdownRequestingSynchronizer(InputSynchronizer):
+    """
+    Records a shutdown request from inside the control loop once enough cycles passed,
+    standing in for an interrupt that arrives while a motion is running.
+    """
+
+    cycle_counter: CycleCounter = None
+    """
+    The counter that is watched.
+    """
+
+    shutdown_request: Optional[ShutdownRequest] = None
+    """
+    The request the signal is recorded in.
+    """
+
+    cycles_until_shutdown: int = 5
+    """
+    How many cycles to observe before recording the signal.
+    """
+
+    received_signal: ShutdownSignal = ShutdownSignal.INTERRUPT
+    """
+    The signal that asks the process to end.
+    """
+
+    def apply(self) -> bool:
+        if self.cycle_counter.completed_cycles >= self.cycles_until_shutdown:
+            self.shutdown_request.receive(self.received_signal)
+        return False
+
+
+@dataclass
 class FeedbackCountingSynchronizer(InputSynchronizer):
     """
     Records how much feedback was already published when a control cycle read its
@@ -510,6 +545,7 @@ class MotionServerFixture:
     control_input: RecordingInputSynchronizer
     plotter: RecordingPlotter
     cycle_counter: CycleCounter
+    shutdown_request: ShutdownRequest
 
 
 @pytest.fixture()
@@ -524,6 +560,7 @@ def motion_server(init_rospy) -> MotionServerFixture:
     command_publisher = RecordingCommandPublisher(world=world)
     control_input = RecordingInputSynchronizer(world=world, executor=executor)
     cycle_counter = CycleCounter()
+    shutdown_request = ShutdownRequest()
     control_loop = ControlLoop(
         executor=executor,
         action_server=action_server,
@@ -532,6 +569,7 @@ def motion_server(init_rospy) -> MotionServerFixture:
         cycle_counter=cycle_counter,
         world_updates=world_updates,
         command_publishers=[command_publisher],
+        shutdown_request=shutdown_request,
     )
     idle_input = RecordingInputSynchronizer(world=world, executor=executor)
     plotter = RecordingPlotter(executor=executor)
@@ -546,6 +584,7 @@ def motion_server(init_rospy) -> MotionServerFixture:
         inputs=WorldStateInputs(world=world, synchronizers=[idle_input]),
         cycle_counter=cycle_counter,
         post_goal_plotters=[plotter],
+        shutdown_request=shutdown_request,
     )
     return MotionServerFixture(
         executor=executor,
@@ -559,6 +598,7 @@ def motion_server(init_rospy) -> MotionServerFixture:
         control_input=control_input,
         plotter=plotter,
         cycle_counter=cycle_counter,
+        shutdown_request=shutdown_request,
     )
 
 
@@ -629,6 +669,46 @@ class TestGoalResult:
         motion_server.motion_server.run_idle_cycle()
 
         assert motion_server.action_server.outcome == GoalOutcome.CANCELED
+
+    def test_a_goal_interrupted_by_a_shutdown_is_reported_as_canceled(
+        self, motion_server: MotionServerFixture
+    ):
+        motion_server.control_loop.inputs.synchronizers.append(
+            ShutdownRequestingSynchronizer(
+                world=motion_server.executor.context.world,
+                cycle_counter=motion_server.cycle_counter,
+                shutdown_request=motion_server.shutdown_request,
+            )
+        )
+        motion_server.action_server.goal_json = create_goal_json(seconds=1000.0)
+
+        motion_server.motion_server.run_idle_cycle()
+
+        assert motion_server.action_server.outcome == GoalOutcome.CANCELED
+
+    def test_the_client_is_told_which_signal_ended_the_goal(
+        self, motion_server: MotionServerFixture
+    ):
+        """
+        An interrupt and a cancel by another client both end a goal, so the reason has to
+        travel with the result for the client to tell them apart.
+        """
+        motion_server.control_loop.inputs.synchronizers.append(
+            ShutdownRequestingSynchronizer(
+                world=motion_server.executor.context.world,
+                cycle_counter=motion_server.cycle_counter,
+                shutdown_request=motion_server.shutdown_request,
+                received_signal=ShutdownSignal.TERMINATE,
+            )
+        )
+        motion_server.action_server.goal_json = create_goal_json(seconds=1000.0)
+
+        motion_server.motion_server.run_idle_cycle()
+
+        result = json.loads(motion_server.action_server.sent_results[0].result)
+        error = from_json(result["error"])
+        assert isinstance(error, ShutdownRequestedException)
+        assert error.received_signal is ShutdownSignal.TERMINATE
 
     def test_broken_input_aborts_the_goal(self, motion_server: MotionServerFixture):
         motion_server.control_loop.inputs.synchronizers = [
@@ -719,6 +799,26 @@ class TestCleanupAfterGoal:
             FailingInputSynchronizer(world=motion_server.executor.context.world)
         ]
         motion_server.action_server.goal_json = create_goal_json()
+
+        motion_server.motion_server.run_idle_cycle()
+
+        assert motion_server.command_publisher.stop_count == 1
+
+    def test_robot_is_stopped_after_a_goal_interrupted_by_a_shutdown(
+        self, motion_server: MotionServerFixture
+    ):
+        """
+        The velocity interfaces keep executing the last command they were sent, so an
+        interrupt must not end the motion without a zero going out.
+        """
+        motion_server.control_loop.inputs.synchronizers.append(
+            ShutdownRequestingSynchronizer(
+                world=motion_server.executor.context.world,
+                cycle_counter=motion_server.cycle_counter,
+                shutdown_request=motion_server.shutdown_request,
+            )
+        )
+        motion_server.action_server.goal_json = create_goal_json(seconds=1000.0)
 
         motion_server.motion_server.run_idle_cycle()
 
@@ -946,6 +1046,41 @@ class TestStopClearsCommands:
 
 
 # %% idle loop
+
+
+class TestIdleLoopEndsOnShutdown:
+    """
+    A pending shutdown request takes Giskard out of the loop that waits for goals, so
+    that the process can give up its ros entities.
+    """
+
+    def test_a_pending_request_ends_the_loop(self, motion_server: MotionServerFixture):
+        motion_server.shutdown_request.receive(ShutdownSignal.INTERRUPT)
+
+        motion_server.motion_server.live()
+
+        assert motion_server.cycle_counter.completed_cycles == 0
+
+    def test_a_request_during_a_goal_ends_the_loop(
+        self, motion_server: MotionServerFixture
+    ):
+        """
+        The interrupt arrives inside the control loop, and the idle loop it returns to
+        must not hand out the next goal.
+        """
+        motion_server.control_loop.inputs.synchronizers.append(
+            ShutdownRequestingSynchronizer(
+                world=motion_server.executor.context.world,
+                cycle_counter=motion_server.cycle_counter,
+                shutdown_request=motion_server.shutdown_request,
+            )
+        )
+        motion_server.action_server.goal_json = create_goal_json(seconds=1000.0)
+
+        motion_server.motion_server.live()
+
+        assert motion_server.action_server.outcome == GoalOutcome.CANCELED
+        assert len(motion_server.action_server.sent_results) == 1
 
 
 class TestIdleLoop:
