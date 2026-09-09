@@ -6,9 +6,11 @@ import pytest
 
 from giskardpy.executor import Executor, NoPacing
 from giskardpy.middleware.ros2.action_server import GoalOutcome
+from giskardpy.middleware.ros2.client_presence import ClientWatchdog
 from giskardpy.middleware.ros2.command_publishing import CommandPublisher
 from giskardpy.middleware.ros2.control_loop import ControlLoop
 from giskardpy.middleware.ros2.exceptions import (
+    ClientDisconnectedError,
     ExecutionCanceledException,
     RequiredWorldUpdateNotReceivedError,
     WorldModelModifiedDuringMotionError,
@@ -33,6 +35,8 @@ from krrood.adapters.json_serializer import from_json
 from semantic_digital_twin.adapters.ros.messages import MetaData, StreamPosition
 from semantic_digital_twin.callbacks.callback import StateChangeCallback
 from semantic_digital_twin.world import World
+
+from .test_client_presence import KnownClientPresence
 
 # %% mimics of the ros facing collaborators
 
@@ -367,6 +371,35 @@ class CycleWatchingGoalCanceler(InputSynchronizer):
 
 
 @dataclass
+class CycleWatchingClientDisconnector(InputSynchronizer):
+    """
+    Watches the completed cycles from inside the control loop and lets the client of the
+    goal disappear once enough of them passed, standing in for a client that dies in the
+    middle of a never-ending motion.
+    """
+
+    cycle_counter: CycleCounter = None
+    """
+    The counter that is watched.
+    """
+
+    client_presence: Optional[KnownClientPresence] = None
+    """
+    The check that stops reporting the client as present.
+    """
+
+    ticks_until_disconnect: int = 5
+    """
+    How many ticks to observe before the client leaves.
+    """
+
+    def apply(self) -> bool:
+        if self.cycle_counter.completed_cycles >= self.ticks_until_disconnect:
+            self.client_presence.present = False
+        return False
+
+
+@dataclass
 class FeedbackCountingSynchronizer(InputSynchronizer):
     """
     Records how much feedback was already published when a control cycle read its
@@ -490,16 +523,23 @@ def feedback_data(message: Any) -> dict:
 
 
 def create_goal_json(
-    seconds: float = 0.5, required_position: Optional[StreamPosition] = None
+    seconds: float = 0.5,
+    required_position: Optional[StreamPosition] = None,
+    client: Optional[MetaData] = None,
 ) -> str:
     """
     Build the json of a goal whose motion ends after the given simulated time.
+
+    A goal that names no client comes from one that no check recognizes, which is what
+    every test that is not about a client leaving wants.
     """
     motion_statechart = MotionStatechart()
     motion_statechart.add_node(counter := CountSimulationTimeSeconds(seconds=seconds))
     motion_statechart.add_node(EndMotion.when_true(counter))
+    if client is None:
+        client = MetaData(node_name="unwatched_client", process_id=0)
     goal = MotionGoal.for_motion_statechart(
-        motion_statechart, required_position=required_position
+        motion_statechart, client=client, required_position=required_position
     )
     return json.dumps(goal.to_json())
 
@@ -516,6 +556,8 @@ class MotionServerFixture:
     publication_progress: PublicationProgressMimic
     motion_server: MotionServer
     control_loop: ControlLoop
+    client: MetaData
+    client_presence: KnownClientPresence
     command_publisher: RecordingCommandPublisher
     idle_input: RecordingInputSynchronizer
     control_input: RecordingInputSynchronizer
@@ -535,9 +577,13 @@ def motion_server(init_rospy) -> MotionServerFixture:
     command_publisher = RecordingCommandPublisher(world=world)
     control_input = RecordingInputSynchronizer(world=world, executor=executor)
     cycle_counter = CycleCounter()
+    client = MetaData(node_name="watched_client", process_id=1)
+    client_presence = KnownClientPresence(known_client=client)
+    client_watchdog = ClientWatchdog(checks=[client_presence])
     control_loop = ControlLoop(
         executor=executor,
         action_server=action_server,
+        client_watchdog=client_watchdog,
         feedback_publisher=feedback_publisher,
         inputs=WorldStateInputs(world=world, synchronizers=[control_input]),
         cycle_counter=cycle_counter,
@@ -551,6 +597,7 @@ def motion_server(init_rospy) -> MotionServerFixture:
         executor=executor,
         action_server=action_server,
         control_loop=control_loop,
+        client_watchdog=client_watchdog,
         world_updates=world_updates,
         world_synchronizer=publication_progress,
         feedback_publisher=feedback_publisher,
@@ -565,6 +612,8 @@ def motion_server(init_rospy) -> MotionServerFixture:
         publication_progress=publication_progress,
         motion_server=server,
         control_loop=control_loop,
+        client=client,
+        client_presence=client_presence,
         command_publisher=command_publisher,
         idle_input=idle_input,
         control_input=control_input,
@@ -1224,3 +1273,116 @@ class TestWaitingForTheWorldOfTheClient:
         assert isinstance(error, RequiredWorldUpdateNotReceivedError)
         assert error.publisher_name == "client"
         assert error.awaited_sequence_number == 4
+
+
+# %% the client of the goal leaving
+
+
+class TestClientDisconnect:
+    """
+    A goal outlives its client for as long as nobody notices, which leaves the robot
+    executing a plan nobody waits for, so a goal whose client left is stopped.
+    """
+
+    def test_a_goal_whose_client_leaves_mid_motion_is_aborted(
+        self, motion_server: MotionServerFixture
+    ):
+        motion_server.action_server.goal_json = create_goal_json(
+            seconds=1000.0, client=motion_server.client
+        )
+        motion_server.control_loop.inputs.synchronizers = [
+            CycleWatchingClientDisconnector(
+                world=motion_server.executor.context.world,
+                cycle_counter=motion_server.cycle_counter,
+                client_presence=motion_server.client_presence,
+            )
+        ]
+
+        motion_server.motion_server.run_idle_cycle()
+
+        assert motion_server.action_server.outcome == GoalOutcome.ABORTED
+        result = json.loads(motion_server.action_server.sent_results[0].result)
+        error = from_json(result["error"])
+        assert isinstance(error, ClientDisconnectedError)
+        assert error.client == motion_server.client
+
+    def test_the_robot_is_stopped_when_its_client_leaves(
+        self, motion_server: MotionServerFixture
+    ):
+        motion_server.action_server.goal_json = create_goal_json(
+            seconds=1000.0, client=motion_server.client
+        )
+        motion_server.control_loop.inputs.synchronizers = [
+            CycleWatchingClientDisconnector(
+                world=motion_server.executor.context.world,
+                cycle_counter=motion_server.cycle_counter,
+                client_presence=motion_server.client_presence,
+            )
+        ]
+
+        motion_server.motion_server.run_idle_cycle()
+
+        assert motion_server.command_publisher.stop_count == 1
+
+    def test_a_goal_whose_client_leaves_while_its_change_is_awaited_is_aborted(
+        self, motion_server: MotionServerFixture
+    ):
+        """
+        The change a goal waits for is the one its client published, so a client that
+        left is never going to deliver it.
+        """
+        motion_server.motion_server.world_update_timeout = 100.0
+        motion_server.world_updates.drains_until_caught_up = None
+        motion_server.action_server.goal_json = create_goal_json(
+            required_position=StreamPosition(
+                origin=motion_server.client, sequence_number=4
+            ),
+            client=motion_server.client,
+        )
+        motion_server.client_presence.present = False
+
+        motion_server.motion_server.run_idle_cycle()
+
+        assert motion_server.action_server.outcome == GoalOutcome.ABORTED
+        result = json.loads(motion_server.action_server.sent_results[0].result)
+        assert isinstance(from_json(result["error"]), ClientDisconnectedError)
+
+    def test_a_goal_whose_client_stays_runs_to_its_end(
+        self, motion_server: MotionServerFixture
+    ):
+        motion_server.action_server.goal_json = create_goal_json(
+            client=motion_server.client
+        )
+
+        motion_server.motion_server.run_idle_cycle()
+
+        assert motion_server.action_server.outcome == GoalOutcome.SUCCEEDED
+
+    def test_a_goal_from_a_client_nothing_recognizes_runs_to_its_end(
+        self, motion_server: MotionServerFixture
+    ):
+        """
+        A client Giskard cannot see is not a client that left.
+        """
+        motion_server.action_server.goal_json = create_goal_json()
+        motion_server.client_presence.present = False
+
+        motion_server.motion_server.run_idle_cycle()
+
+        assert motion_server.action_server.outcome == GoalOutcome.SUCCEEDED
+
+    def test_a_finished_goal_stops_being_watched(
+        self, motion_server: MotionServerFixture
+    ):
+        """
+        The client of a finished goal may leave whenever it wants, and the next goal
+        picks its own client.
+        """
+        motion_server.action_server.goal_json = create_goal_json(
+            client=motion_server.client
+        )
+
+        motion_server.motion_server.run_idle_cycle()
+
+        assert motion_server.motion_server.client_watchdog.watching is None
+        assert motion_server.client_presence.watched_client is None
