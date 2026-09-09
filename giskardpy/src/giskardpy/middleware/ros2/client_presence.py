@@ -4,13 +4,15 @@ import json
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Callable, ClassVar, Dict, List, Optional, Set
+from datetime import timedelta
+from typing import Callable, Dict, List, Optional
 
 import std_msgs.msg
 from rclpy.node import Node
 from rclpy.publisher import Publisher
 from rclpy.subscription import Subscription
 from rclpy.timer import Timer
+from sortedcontainers import SortedSet
 
 from giskardpy.middleware.ros2.exceptions import NoWatchedClientError
 from krrood.adapters.json_serializer import from_json, to_json
@@ -41,14 +43,9 @@ class ClientHeartbeatPublisher:
     Node name of the Giskard the heartbeat is meant for.
     """
 
-    period: float = 0.1
+    period: timedelta = timedelta(milliseconds=100)
     """
-    Seconds between two heartbeats.
-    """
-
-    topic_suffix: ClassVar[str] = "client_heartbeat"
-    """
-    What the heartbeat topic of a Giskard is called, relative to its node name.
+    Time between two heartbeats.
     """
 
     publisher: Publisher = field(init=False)
@@ -73,14 +70,14 @@ class ClientHeartbeatPublisher:
             topic=self.topic_name(self.giskard_node_name),
             qos_profile=10,
         )
-        self.timer = self.node.create_timer(self.period, self.publish)
+        self.timer = self.node.create_timer(self.period.total_seconds(), self.publish)
 
-    @classmethod
-    def topic_name(cls, giskard_node_name: str) -> str:
+    @staticmethod
+    def topic_name(giskard_node_name: str) -> str:
         """
         The topic the clients of the given Giskard announce themselves on.
         """
-        return f"{giskard_node_name}/{cls.topic_suffix}"
+        return f"{giskard_node_name}/client_heartbeat"
 
     def publish(self) -> None:
         """
@@ -160,9 +157,9 @@ class HeartbeatPresence(ClientPresence):
     Node of Giskard, which the heartbeat topic is named after.
     """
 
-    timeout: float = 1.0
+    timeout: timedelta = timedelta(seconds=1)
     """
-    Seconds without a heartbeat after which a client counts as gone.
+    Time without a heartbeat after which a client counts as gone.
 
     Heartbeats are received on a ros executor thread while the control loop runs on its
     own, so this has to stay well above the heartbeat period: a value close to it would
@@ -206,7 +203,7 @@ class HeartbeatPresence(ClientPresence):
         last_heartbeat = self.last_heartbeat.get(client)
         if last_heartbeat is None:
             return False
-        return self.clock() - last_heartbeat <= self.timeout
+        return self.clock() - last_heartbeat <= self.timeout.total_seconds()
 
     def start_watching(self, client: MetaData) -> bool:
         if not self.has_recent_heartbeat(client):
@@ -239,7 +236,7 @@ class GraphPresence(ClientPresence):
     Name of the action whose clients are watched.
     """
 
-    watched_endpoints: Set[bytes] = field(init=False, default_factory=set)
+    watched_endpoints: SortedSet[bytes] = field(init=False, default_factory=SortedSet)
     """
     The subscriptions the watched client had when its goal started.
 
@@ -254,18 +251,18 @@ class GraphPresence(ClientPresence):
         """
         return f"{self.action_name}/_action/feedback"
 
-    def subscribed_endpoints_of(self, client: MetaData) -> Set[bytes]:
+    def subscribed_endpoints_of(self, client: MetaData) -> SortedSet[bytes]:
         """
         The subscriptions the given client currently keeps on the feedback of the
         action.
         """
-        return {
+        return SortedSet(
             bytes(endpoint.endpoint_gid)
             for endpoint in self.node.get_subscriptions_info_by_topic(
                 self.feedback_topic
             )
             if endpoint.node_name == client.node_name
-        }
+        )
 
     def start_watching(self, client: MetaData) -> bool:
         endpoints = self.subscribed_endpoints_of(client)
@@ -277,7 +274,7 @@ class GraphPresence(ClientPresence):
 
     def stop_watching(self) -> None:
         super().stop_watching()
-        self.watched_endpoints = set()
+        self.watched_endpoints = SortedSet()
 
     def is_client_present(self) -> bool:
         return bool(self.watched_endpoints & self.subscribed_endpoints_of(self.client))

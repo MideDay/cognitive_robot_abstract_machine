@@ -170,7 +170,7 @@ class TestHeartbeatPresence:
         presence.receive_heartbeat(heartbeat_of(client))
         presence.start_watching(client)
 
-        clock.advance(presence.timeout + 0.01)
+        clock.advance(presence.timeout.total_seconds() + 0.01)
 
         assert not presence.is_client_present()
 
@@ -184,7 +184,7 @@ class TestHeartbeatPresence:
         presence.start_watching(client)
 
         for _ in range(5):
-            clock.advance(presence.timeout)
+            clock.advance(presence.timeout.total_seconds())
             presence.receive_heartbeat(heartbeat_of(client))
 
         assert presence.is_client_present()
