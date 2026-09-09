@@ -169,6 +169,9 @@ class HeartbeatPresence(ClientPresence):
     clock: Callable[[], float] = time.monotonic
     """
     Reads the time the heartbeats are dated with.
+
+    Tests substitute a controllable clock here to advance simulated time
+    deterministically instead of sleeping in real time.
     """
 
     last_heartbeat: Dict[MetaData, float] = field(init=False, default_factory=dict)
@@ -242,6 +245,10 @@ class GraphPresence(ClientPresence):
 
     A restarted client subscribes anew, so comparing the endpoints rather than the node
     name keeps a namesake of the dead client from passing as the client that is gone.
+
+    ``rclpy`` reports each endpoint's id as a raw ``list[int]``, which cannot be a set
+    member; it is converted to ``bytes`` here, the immutable and hashable form of the
+    same raw identifier.
     """
 
     @property
