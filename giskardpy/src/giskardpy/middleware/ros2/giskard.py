@@ -129,8 +129,8 @@ class Giskard:
         )
         client_watchdog = ClientWatchdog(
             checks=[
-                HeartbeatPresence(node=rospy.node),
-                GraphPresence(node=rospy.node, action_name=action_server.action_name),
+                HeartbeatPresence(node=rospy.get_node()),
+                GraphPresence(node=rospy.get_node(), action_name=action_server.action_name),
             ]
         )
         feedback_publisher = ActionFeedbackPublisher(
