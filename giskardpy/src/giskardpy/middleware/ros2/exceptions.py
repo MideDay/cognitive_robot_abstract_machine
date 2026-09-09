@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import List, Type
 
 from giskardpy.data_types.exceptions import (
-    DontPrintStackTrace,
+    DoesntPrintStackTrace,
     GiskardException,
     SetupException,
 )
@@ -86,7 +86,7 @@ class ExecutionCanceledException(ExecutionException):
 
 
 @dataclass
-class ClientDisconnectedError(ExecutionException, DontPrintStackTrace):
+class ClientDisconnectedError(ExecutionException, DoesntPrintStackTrace):
     """
     Raised when the client that sent the running goal disconnected.
 
@@ -128,7 +128,7 @@ class NoWatchedClientError(GiskardException):
 
 
 @dataclass
-class WorldModelModifiedDuringMotionError(ExecutionException, DontPrintStackTrace):
+class WorldModelModifiedDuringMotionError(ExecutionException, DoesntPrintStackTrace):
     """
     Raised when another process modified the world model while a motion was running.
 
@@ -146,7 +146,7 @@ class WorldModelModifiedDuringMotionError(ExecutionException, DontPrintStackTrac
 
 
 @dataclass
-class RequiredWorldUpdateNotReceivedError(ExecutionException, DontPrintStackTrace):
+class RequiredWorldUpdateNotReceivedError(ExecutionException, DoesntPrintStackTrace):
     """
     Raised when a goal names a change of the client's world that never arrived.
 
@@ -188,7 +188,7 @@ class RequiredWorldUpdateNotReceivedError(ExecutionException, DontPrintStackTrac
 
 
 @dataclass
-class GiskardWorldUpdateNotReceivedError(ExecutionException, DontPrintStackTrace):
+class GiskardWorldUpdateNotReceivedError(ExecutionException, DoesntPrintStackTrace):
     """
     Raised when the changes Giskard made during a goal never reached the client.
 

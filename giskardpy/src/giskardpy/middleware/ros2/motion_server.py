@@ -9,7 +9,7 @@ from typing import Any, Dict, List
 import rclpy
 from json_msgs.action import JsonAction
 
-from giskardpy.data_types.exceptions import DontPrintStackTrace
+from giskardpy.data_types.exceptions import DoesntPrintStackTrace
 from giskardpy.executor import Executor, RealTimePacer
 from giskardpy.middleware.ros2 import rospy
 from giskardpy.middleware.ros2.action_server import ActionServerHandler
@@ -178,7 +178,7 @@ class MotionServer:
             self.control_loop.run()
         except Exception as exception:
             if not isinstance(
-                exception, (DontPrintStackTrace, ExecutionCanceledException)
+                exception, (DoesntPrintStackTrace, ExecutionCanceledException)
             ):
                 traceback.print_exc()
             error = exception
