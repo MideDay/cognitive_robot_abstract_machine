@@ -2,17 +2,15 @@ from __future__ import annotations
 
 import json
 import time
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, Optional
 
 import std_msgs.msg
 from rclpy.node import Node
 from rclpy.publisher import Publisher
 from rclpy.subscription import Subscription
 from rclpy.timer import Timer
-from sortedcontainers import SortedSet
 
 from giskardpy.middleware.ros2.exceptions import NoWatchedClientError
 from krrood.adapters.json_serializer import from_json, to_json
@@ -98,58 +96,13 @@ class ClientHeartbeatPublisher:
 
 
 @dataclass
-class ClientPresence(ABC):
-    """
-    Tells whether the client that sent the running goal is still connected.
-    """
-
-    watched_client: Optional[MetaData] = field(init=False, default=None)
-    """
-    The client this check reports on, or ``None`` while no goal is running.
-    """
-
-    @property
-    def client(self) -> MetaData:
-        """
-        The client that is being watched.
-
-        :raises NoWatchedClientError: If nothing is being watched.
-        """
-        if self.watched_client is None:
-            raise NoWatchedClientError(check_type=type(self))
-        return self.watched_client
-
-    def stop_watching(self) -> None:
-        """
-        Stop reporting on the client of the goal that just ended.
-        """
-        self.watched_client = None
-
-    @abstractmethod
-    def start_watching(self, client: MetaData) -> bool:
-        """
-        Start reporting on the given client.
-
-        :return: whether this check sees that client and can tell when it leaves
-        """
-
-    @abstractmethod
-    def is_client_present(self) -> bool:
-        """
-        Whether the watched client is still connected.
-        """
-
-
-@dataclass
-class HeartbeatPresence(ClientPresence):
+class HeartbeatPresence:
     """
     Reads the heartbeats of the clients and considers one gone once its heartbeats stop
     arriving.
 
-    This is the fast check: it notices a client that was killed within ``timeout``,
-    while the ros graph needs the participant lease of the middleware for the same
-    observation. It also notices a client that is still running but no longer gets
-    around to announcing itself.
+    This is the fast check: it notices a client that was killed within ``timeout``, and a
+    client that is still running but no longer gets around to announcing itself.
     """
 
     node: Node
@@ -174,6 +127,11 @@ class HeartbeatPresence(ClientPresence):
     deterministically instead of sleeping in real time.
     """
 
+    watched_client: Optional[MetaData] = field(init=False, default=None)
+    """
+    The client this check reports on, or ``None`` while no goal is running.
+    """
+
     last_heartbeat: Dict[MetaData, float] = field(init=False, default_factory=dict)
     """
     When each client announced itself last.
@@ -183,6 +141,23 @@ class HeartbeatPresence(ClientPresence):
     """
     Subscription the heartbeats arrive on.
     """
+
+    @property
+    def client(self) -> MetaData:
+        """
+        The client that is being watched.
+
+        :raises NoWatchedClientError: If nothing is being watched.
+        """
+        if self.watched_client is None:
+            raise NoWatchedClientError(check_type=type(self))
+        return self.watched_client
+
+    def stop_watching(self) -> None:
+        """
+        Stop reporting on the client of the goal that just ended.
+        """
+        self.watched_client = None
 
     def __post_init__(self):
         self.subscription = self.node.create_subscription(
@@ -218,75 +193,6 @@ class HeartbeatPresence(ClientPresence):
         return self.has_recent_heartbeat(self.client)
 
 
-@dataclass
-class GraphPresence(ClientPresence):
-    """
-    Watches the ros graph for the subscriptions an action client keeps on the feedback
-    of the action, and considers the client gone once they are gone.
-
-    This is the check for clients that send no heartbeat. It sees a client leave as fast
-    as the middleware announces it, which is immediate for a client that shut down and
-    takes the participant lease for one that was killed.
-    """
-
-    node: Node
-    """
-    Node of Giskard, which sees the graph.
-    """
-
-    action_name: str
-    """
-    Name of the action whose clients are watched.
-    """
-
-    watched_endpoints: SortedSet[bytes] = field(init=False, default_factory=SortedSet)
-    """
-    The subscriptions the watched client had when its goal started.
-
-    A restarted client subscribes anew, so comparing the endpoints rather than the node
-    name keeps a namesake of the dead client from passing as the client that is gone.
-
-    ``rclpy`` reports each endpoint's id as a raw ``list[int]``, which cannot be a set
-    member; it is converted to ``bytes`` here, the immutable and hashable form of the
-    same raw identifier.
-    """
-
-    @property
-    def feedback_topic(self) -> str:
-        """
-        The topic the action publishes its feedback on.
-        """
-        return f"{self.action_name}/_action/feedback"
-
-    def subscribed_endpoints_of(self, client: MetaData) -> SortedSet[bytes]:
-        """
-        The subscriptions the given client currently keeps on the feedback of the
-        action.
-        """
-        return SortedSet(
-            bytes(endpoint.endpoint_gid)
-            for endpoint in self.node.get_subscriptions_info_by_topic(
-                self.feedback_topic
-            )
-            if endpoint.node_name == client.node_name
-        )
-
-    def start_watching(self, client: MetaData) -> bool:
-        endpoints = self.subscribed_endpoints_of(client)
-        if not endpoints:
-            return False
-        self.watched_client = client
-        self.watched_endpoints = endpoints
-        return True
-
-    def stop_watching(self) -> None:
-        super().stop_watching()
-        self.watched_endpoints = SortedSet()
-
-    def is_client_present(self) -> bool:
-        return bool(self.watched_endpoints & self.subscribed_endpoints_of(self.client))
-
-
 # %% watching the client of a goal
 
 
@@ -299,15 +205,9 @@ class ClientWatchdog:
     executing a plan that nobody is waiting for anymore.
     """
 
-    checks: List[ClientPresence] = field(default_factory=list)
+    presence: HeartbeatPresence
     """
-    The checks that can report on a client, most informative first.
-    """
-
-    watching: Optional[ClientPresence] = field(init=False, default=None)
-    """
-    The check that reports on the client of the running goal, or ``None`` if no check
-    recognized it.
+    The check that reports on the client's continued presence.
     """
 
     @property
@@ -317,35 +217,31 @@ class ClientWatchdog:
 
         :raises NoWatchedClientError: If no goal is being watched.
         """
-        if self.watching is None:
+        if self.presence.watched_client is None:
             raise NoWatchedClientError(check_type=type(self))
-        return self.watching.client
+        return self.presence.client
 
     def watch(self, client: MetaData) -> None:
         """
-        Start watching the client of a goal with the first check that recognizes it.
+        Start watching the client of a goal, if the presence check recognizes it.
 
-        A client no check recognizes is not watched, so an unknown client can never make
-        Giskard stop a goal it is still waiting for.
+        A client the check does not recognize is not watched, so an unknown client can
+        never make Giskard stop a goal it is still waiting for.
         """
-        for check in self.checks:
-            if check.start_watching(client):
-                self.watching = check
-                return
+        self.presence.start_watching(client)
 
     def stop_watching(self) -> None:
         """
         Stop watching the client of the goal that just ended.
         """
-        if self.watching is None:
+        if self.presence.watched_client is None:
             return
-        self.watching.stop_watching()
-        self.watching = None
+        self.presence.stop_watching()
 
     def is_client_gone(self) -> bool:
         """
         Whether the client of the running goal disconnected.
         """
-        if self.watching is None:
+        if self.presence.watched_client is None:
             return False
-        return not self.watching.is_client_present()
+        return not self.presence.is_client_present()

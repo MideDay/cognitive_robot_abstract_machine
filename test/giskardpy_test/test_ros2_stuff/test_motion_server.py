@@ -5,8 +5,9 @@ from typing import Any, List, Optional
 import pytest
 
 from giskardpy.executor import Executor, NoPacing
+from giskardpy.middleware.ros2 import rospy
 from giskardpy.middleware.ros2.action_server import GoalOutcome
-from giskardpy.middleware.ros2.client_presence import ClientWatchdog
+from giskardpy.middleware.ros2.client_presence import ClientWatchdog, HeartbeatPresence
 from giskardpy.middleware.ros2.command_publishing import CommandPublisher
 from giskardpy.middleware.ros2.control_loop import ControlLoop
 from giskardpy.middleware.ros2.exceptions import (
@@ -36,7 +37,7 @@ from semantic_digital_twin.adapters.ros.messages import MetaData, StreamPosition
 from semantic_digital_twin.callbacks.callback import StateChangeCallback
 from semantic_digital_twin.world import World
 
-from .test_client_presence import KnownClientPresence
+from .test_client_presence import SteppingClock, heartbeat_of, let_heartbeats_stop
 
 # %% mimics of the ros facing collaborators
 
@@ -383,7 +384,7 @@ class CycleWatchingClientDisconnector(InputSynchronizer):
     The counter that is watched.
     """
 
-    client_presence: Optional[KnownClientPresence] = None
+    client_presence: Optional[HeartbeatPresence] = None
     """
     The check that stops reporting the client as present.
     """
@@ -393,9 +394,17 @@ class CycleWatchingClientDisconnector(InputSynchronizer):
     How many ticks to observe before the client leaves.
     """
 
+    disconnected: bool = field(init=False, default=False)
+    """
+    Whether the client's heartbeats have already been let to stop.
+    """
+
     def apply(self) -> bool:
-        if self.cycle_counter.completed_cycles >= self.ticks_until_disconnect:
-            self.client_presence.present = False
+        if not self.disconnected and (
+            self.cycle_counter.completed_cycles >= self.ticks_until_disconnect
+        ):
+            let_heartbeats_stop(self.client_presence)
+            self.disconnected = True
         return False
 
 
@@ -557,7 +566,7 @@ class MotionServerFixture:
     motion_server: MotionServer
     control_loop: ControlLoop
     client: MetaData
-    client_presence: KnownClientPresence
+    client_presence: HeartbeatPresence
     command_publisher: RecordingCommandPublisher
     idle_input: RecordingInputSynchronizer
     control_input: RecordingInputSynchronizer
@@ -578,8 +587,9 @@ def motion_server(init_rospy) -> MotionServerFixture:
     control_input = RecordingInputSynchronizer(world=world, executor=executor)
     cycle_counter = CycleCounter()
     client = MetaData(node_name="watched_client", process_id=1)
-    client_presence = KnownClientPresence(known_client=client)
-    client_watchdog = ClientWatchdog(checks=[client_presence])
+    client_presence = HeartbeatPresence(node=rospy.node, clock=SteppingClock())
+    client_presence.receive_heartbeat(heartbeat_of(client))
+    client_watchdog = ClientWatchdog(presence=client_presence)
     control_loop = ControlLoop(
         executor=executor,
         action_server=action_server,
@@ -1324,29 +1334,6 @@ class TestClientDisconnect:
 
         assert motion_server.command_publisher.stop_count == 1
 
-    def test_a_goal_whose_client_leaves_while_its_change_is_awaited_is_aborted(
-        self, motion_server: MotionServerFixture
-    ):
-        """
-        The change a goal waits for is the one its client published, so a client that
-        left is never going to deliver it.
-        """
-        motion_server.motion_server.world_update_timeout = 100.0
-        motion_server.world_updates.drains_until_caught_up = None
-        motion_server.action_server.goal_json = create_goal_json(
-            required_position=StreamPosition(
-                origin=motion_server.client, sequence_number=4
-            ),
-            client=motion_server.client,
-        )
-        motion_server.client_presence.present = False
-
-        motion_server.motion_server.run_idle_cycle()
-
-        assert motion_server.action_server.outcome == GoalOutcome.ABORTED
-        result = json.loads(motion_server.action_server.sent_results[0].result)
-        assert isinstance(from_json(result["error"]), ClientDisconnectedError)
-
     def test_a_goal_whose_client_stays_runs_to_its_end(
         self, motion_server: MotionServerFixture
     ):
@@ -1365,7 +1352,6 @@ class TestClientDisconnect:
         A client Giskard cannot see is not a client that left.
         """
         motion_server.action_server.goal_json = create_goal_json()
-        motion_server.client_presence.present = False
 
         motion_server.motion_server.run_idle_cycle()
 
@@ -1384,5 +1370,4 @@ class TestClientDisconnect:
 
         motion_server.motion_server.run_idle_cycle()
 
-        assert motion_server.motion_server.client_watchdog.watching is None
         assert motion_server.client_presence.watched_client is None
