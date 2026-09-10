@@ -116,8 +116,7 @@ class TestHeartbeatPresence:
     """
 
     def test_a_client_that_just_announced_itself_is_present(self, rclpy_node: Node):
-        clock = SteppingClock()
-        presence = HeartbeatPresence(node=rclpy_node, clock=clock)
+        presence = HeartbeatPresence(node=rclpy_node, clock=SteppingClock())
         client = create_client()
         presence.receive_heartbeat(heartbeat_of(client))
 
@@ -137,14 +136,13 @@ class TestHeartbeatPresence:
     def test_a_client_stays_present_while_it_keeps_announcing_itself(
         self, rclpy_node: Node
     ):
-        clock = SteppingClock()
-        presence = HeartbeatPresence(node=rclpy_node, clock=clock)
+        presence = HeartbeatPresence(node=rclpy_node, clock=SteppingClock())
         client = create_client()
         presence.receive_heartbeat(heartbeat_of(client))
         presence.start_watching(client)
 
         for _ in range(5):
-            clock.advance(presence.timeout.total_seconds())
+            presence.clock.advance(presence.timeout.total_seconds())
             presence.receive_heartbeat(heartbeat_of(client))
 
         assert presence.is_client_present()

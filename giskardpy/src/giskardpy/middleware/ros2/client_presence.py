@@ -41,7 +41,7 @@ class ClientHeartbeatPublisher:
     Node name of the Giskard the heartbeat is meant for.
     """
 
-    period: timedelta = timedelta(milliseconds=100)
+    period: timedelta = timedelta(seconds=1)
     """
     Time between two heartbeats.
     """
@@ -110,7 +110,7 @@ class HeartbeatPresence:
     Node of Giskard, which the heartbeat topic is named after.
     """
 
-    timeout: timedelta = timedelta(seconds=1)
+    timeout: timedelta = timedelta(seconds=3)
     """
     Time without a heartbeat after which a client counts as gone.
 
@@ -119,7 +119,7 @@ class HeartbeatPresence:
     turn a busy executor into a stopped robot.
     """
 
-    clock: Callable[[], float] = time.monotonic
+    clock: Callable[[], float] = field(default=time.monotonic, kw_only=True, repr=False)
     """
     Reads the time the heartbeats are dated with.
 
