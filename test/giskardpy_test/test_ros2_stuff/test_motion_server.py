@@ -587,7 +587,7 @@ def motion_server(init_rospy) -> MotionServerFixture:
     control_input = RecordingInputSynchronizer(world=world, executor=executor)
     cycle_counter = CycleCounter()
     client = MetaData(node_name="watched_client", process_id=1)
-    client_presence = HeartbeatPresence(node=rospy.node, clock=SteppingClock())
+    client_presence = HeartbeatPresence(node=rospy.get_node(), clock=SteppingClock())
     client_presence.receive_heartbeat(heartbeat_of(client))
     client_watchdog = ClientWatchdog(presence=client_presence)
     control_loop = ControlLoop(
