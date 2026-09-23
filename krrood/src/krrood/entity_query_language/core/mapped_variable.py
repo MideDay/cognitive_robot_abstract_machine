@@ -23,6 +23,14 @@ from typing_extensions import (
     Tuple,
     Dict,
     List,
+    get_args,
+)
+
+from random_events.variable import (
+    Continuous,
+    Integer,
+    compatible_types,
+    variable_from_name_and_type,
 )
 
 from krrood.class_diagrams.utils import get_type_hints_of_object
@@ -36,6 +44,8 @@ from krrood.entity_query_language.core.base_expressions import (
 )
 from krrood.entity_query_language.exceptions import (
     MultipleValuesAlongAccessPath,
+    NoValueAlongAccessPath,
+    NotNumberLikeFieldError,
     ReadOnlyMapping,
     SymbolicDunderAccessError,
 )
@@ -46,7 +56,10 @@ from krrood.entity_query_language.utils import (
     merge_args_and_kwargs,
     convert_args_and_kwargs_into_hashable_key,
 )
-from krrood.symbol_graph.helpers import get_field_type_endpoint
+from krrood.symbol_graph.helpers import (
+    get_field_type_endpoint,
+    get_method_return_type,
+)
 
 if TYPE_CHECKING:
     from krrood.entity_query_language.operators.arithmetic import (
@@ -399,12 +412,14 @@ class MappedVariable(UnaryExpression, CanBehaveLikeAVariable[T], ABC):
 
         :param instance: The instance to be updated.
         :param value: The value to set.
+        :raises MultipleValuesAlongAccessPath: If a step reaches more than one value,
+            leaving the rest of the chain without one value to follow.
+        :raises NoValueAlongAccessPath: If a step reaches no value at all, leaving the
+            rest of the chain with nothing to follow.
         """
         current = instance
         for domain_mapping in self._access_path_[:-1]:
-            if not isinstance(domain_mapping, SingleValueMapping):
-                raise MultipleValuesAlongAccessPath(self, domain_mapping)
-            current = next(domain_mapping._apply_mapping_(current))
+            current = self._value_reached_by_(domain_mapping, current)
 
         self._set_child_instance_value_(current, value)
 
@@ -445,13 +460,31 @@ class MappedVariable(UnaryExpression, CanBehaveLikeAVariable[T], ABC):
         :return: The value the chain leads to.
         :raises MultipleValuesAlongAccessPath: If a step reaches more than one value,
             leaving the rest of the chain without one value to follow.
+        :raises NoValueAlongAccessPath: If a step reaches no value at all, leaving the
+            rest of the chain with nothing to follow.
         """
         current = instance
         for domain_mapping in self._access_path_:
-            if not isinstance(domain_mapping, SingleValueMapping):
-                raise MultipleValuesAlongAccessPath(self, domain_mapping)
-            current = next(domain_mapping._apply_mapping_(current))
+            current = self._value_reached_by_(domain_mapping, current)
         return current
+
+    def _value_reached_by_(self, step: MappedVariable, instance: Any) -> Any:
+        """
+        :param step: One step of this chain's access path.
+        :param instance: The value that step is applied to.
+        :return: The one value the step reaches from it.
+        :raises MultipleValuesAlongAccessPath: If the step reaches one value per element
+            rather than a single one.
+        :raises NoValueAlongAccessPath: If the step reaches no value -- an attribute the
+            instance does not have, or a key nothing is stored under. Reported as itself,
+            since the exhaustion it is read from would otherwise surface far away as an
+            unrelated failure of whatever generator is following the chain.
+        """
+        if not isinstance(step, SingleValueMapping):
+            raise MultipleValuesAlongAccessPath(self, step)
+        for reached in step._apply_mapping_(instance):
+            return reached
+        raise NoValueAlongAccessPath(self, step, instance)
 
     def get_clean_name_from_mapped_variable(self) -> str:
         """
@@ -527,6 +560,32 @@ class Attribute(SingleValueMapping[T]):
     def _set_child_instance_value_(self, obj: Any, value: Any):
         setattr(obj, self._attribute_name_, value)
 
+    def number_like_field(self) -> Self:
+        """
+        Assert this attribute resolves to a number-like (integer or continuous) type.
+
+        :return: This attribute.
+        :raises AmbiguousQueryAttribute: If this attribute is chain-rooted at a query
+            that selects more than one variable, so it has no single subject to resolve
+            its type from.
+        :raises NotNumberLikeFieldError: If this attribute does not exist or is not
+            number-like.
+        """
+        from krrood.entity_query_language.query.query import variable_rooted
+
+        resolved_type = variable_rooted(self)._type_
+        is_number_like = (
+            resolved_type is not None
+            and issubclass(resolved_type, compatible_types)
+            and isinstance(
+                variable_from_name_and_type(self._attribute_name_, resolved_type),
+                (Integer, Continuous),
+            )
+        )
+        if not is_number_like:
+            raise NotNumberLikeFieldError(self, resolved_type)
+        return self
+
 
 @dataclass(eq=False, repr=False)
 class Index(MappedVariable[T], ABC):
@@ -541,6 +600,21 @@ class Index(MappedVariable[T], ABC):
     """
     The key to index with.
     """
+
+    def _update_type_(self) -> None:
+        """
+        Narrow ``_type_`` to the child's element type: indexing a ``List[X]``-like
+        attribute reaches a single ``X``, not the container type itself.
+
+        Without this, an indexed attribute's ``_type_`` stayed the child's raw container
+        type (e.g. ``List[PlanNode]``), which later broke any ``issubclass()`` check
+        against it -- subscripted generics aren't valid ``issubclass()`` arguments.
+        """
+        if self._type_ is not None:
+            return
+        child_type = self._child_._type_
+        args = get_args(child_type)
+        self._type_ = args[0] if args else child_type
 
     @property
     def _name_(self):
@@ -629,9 +703,19 @@ class Call(SingleValueMapping[T]):
         return f"{self._child_._var_._name_}()"
 
     def _update_type_(self) -> None:
-        if self._child_._type_ is None:
+        """
+        Resolve ``_type_`` to what the called thing returns.
+
+        A method is not a field, so the attribute naming it resolves to no type of its
+        own; the return annotation is then read off the method on its owner class.
+        """
+        if self._child_._type_ is not None:
+            self._type_ = get_type_hints_of_object(self._child_._type_)["return"]
             return
-        self._type_ = get_type_hints_of_object(self._child_._type_)["return"]
+        if isinstance(self._child_, Attribute):
+            self._type_ = get_method_return_type(
+                self._child_._owner_class_, self._child_._attribute_name_
+            )
 
 
 @dataclass(eq=False, repr=False)

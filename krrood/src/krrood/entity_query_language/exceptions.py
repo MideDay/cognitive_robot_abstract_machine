@@ -25,12 +25,18 @@ if TYPE_CHECKING:
         SymbolicExpression,
         Selectable,
     )
-    from krrood.entity_query_language.core.mapped_variable import MappedVariable
+    from krrood.entity_query_language.core.mapped_variable import (
+        Attribute,
+        MappedVariable,
+    )
     from krrood.entity_query_language.core.variable import Variable
     from krrood.entity_query_language.query.match import (
         Match,
         AbstractMatchExpression,
         AttributeMatch,
+    )
+    from krrood.entity_query_language.operators.probabilistic_queries import (
+        ProbabilisticQuery,
     )
 
 
@@ -281,6 +287,33 @@ class AmbiguousQueryAttribute(UsageError):
 
 
 @dataclass
+class NotNumberLikeFieldError(UsageError):
+    """
+    Raised when accessing a field expected to be number-like (see
+    :meth:`~krrood.entity_query_language.core.mapped_variable.Attribute.number_like_field`),
+    but it does not exist or resolves to a non-numeric type.
+    """
+
+    attribute: Attribute
+    """
+    The attribute that was accessed.
+    """
+
+    resolved_type: Optional[Type]
+    """
+    The attribute's resolved type, or None if it does not exist at all.
+    """
+
+    def error_message(self) -> str:
+        if self.resolved_type is None:
+            return f"{self.attribute} does not exist."
+        return f"{self.attribute} is {self.resolved_type}, not number-like."
+
+    def suggest_correction(self) -> str:
+        return f"give the queried type a number-valued '{self.attribute._attribute_name_}' field."
+
+
+@dataclass
 class MultipleValuesAlongAccessPath(UsageError):
     """
     Raised when a chain is followed from a value outside query evaluation and a step maps
@@ -308,6 +341,42 @@ class MultipleValuesAlongAccessPath(UsageError):
         return (
             "Follow a chain whose every step maps one value to one value, or aggregate "
             "the collection instead of flattening it."
+        )
+
+
+@dataclass
+class NoValueAlongAccessPath(UsageError):
+    """
+    Raised when a chain is followed from a value outside query evaluation and a step maps
+    that value to none, leaving the rest of the chain with nothing to follow.
+    """
+
+    chain: MappedVariable
+    """
+    The chain that was being followed.
+    """
+
+    step: MappedVariable
+    """
+    The step along it that reaches no value.
+    """
+
+    instance: Any
+    """
+    The value the chain was being followed from.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.chain._name_} passes through {self.step._name_}, which reaches no "
+            f"value on the given {type(self.instance).__name__}, so the rest of the "
+            f"access path has nothing to follow."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Follow the chain from a value that has something at every step of it, or "
+            "check for the missing one before following it."
         )
 
 
@@ -932,6 +1001,38 @@ class BackendCannotEvaluateCause(DataclassException):
 
     def suggest_correction(self) -> str:
         return "Evaluate with a ProbabilisticBackend backed by a CausalCircuit-aware model registry."
+
+
+@dataclass
+class BackendCannotEvaluateProbabilisticQuery(DataclassException):
+    """
+    Raised when a
+    :class:`~krrood.entity_query_language.operators.probabilistic_queries.ProbabilisticQuery`
+    is evaluated with any backend other than
+    :class:`~krrood.entity_query_language.backends.ProbabilisticBackend`.
+
+    Querying a probabilistic model directly is a probabilistic operation, not a data
+    selection, so most of these have no native/SQL evaluation strategy at all --
+    unlike every other query construct in this package. The one exception is
+    :class:`~krrood.entity_query_language.operators.probabilistic_queries.Probability`
+    (``probability_of(...)``), which *does* evaluate natively (counting matching rows
+    over an enumerable domain) and never raises this; ``distribution_of(...)`` still
+    does, unconditionally.
+    """
+
+    expression: ProbabilisticQuery
+    """
+    The probabilistic query that was evaluated.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.expression} cannot be evaluated natively: querying a probabilistic "
+            f"model directly is a probabilistic operation, not a data selection."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Evaluate with a ProbabilisticBackend backed by a model registry, e.g. .evaluate(backend=ProbabilisticBackend(...))."
 
 
 @dataclass

@@ -4,7 +4,7 @@ import itertools
 import operator
 from dataclasses import dataclass
 from functools import cached_property
-from typing import assert_never, Dict
+from typing import assert_never, Dict, TYPE_CHECKING
 
 import numpy as np
 
@@ -17,18 +17,21 @@ from krrood.entity_query_language.core.base_expressions import (
 from krrood.entity_query_language.operators.causal import CausesEffect
 from krrood.entity_query_language.core.mapped_variable import MappedVariable
 from krrood.entity_query_language.core.variable import Literal
-from krrood.entity_query_language.factories import ConditionType
 from krrood.entity_query_language.operators.comparator import Comparator
 from krrood.entity_query_language.operators.core_logical_operators import OR, AND, Not
 from krrood.entity_query_language.operators.logical_quantifiers import (
     QuantifiedConditional,
 )
+from krrood.entity_query_language.query.query import variable_rooted
 from krrood.parametrization.exceptions import (
     WhereExpressionHasNoRandomEventRepresentation,
     WhereExpressionIsFirstOrder,
 )
 from random_events.interval import closed_open, closed, open
 from random_events.product_algebra import Event, SimpleEvent
+
+if TYPE_CHECKING:
+    from krrood.entity_query_language.factories import ConditionType
 
 # %% translating a where expression into a random event
 
@@ -63,9 +66,14 @@ class WhereExpressionToRandomEventTranslator:
                 or not comparator._is_literal_comparator_()
             ):
                 continue
+            # A random-events variable is identified by its name, so the two spellings
+            # of one field have to arrive here as one: a chain taken from a query is
+            # read in the variable-rooted form the same chain taken from the variable
+            # already has.
+            subject = variable_rooted(comparator.left)
             result[comparator.left] = (
                 random_events.variable.variable_from_name_and_type(
-                    comparator.left._name_, comparator.left._type_
+                    subject._name_, subject._type_
                 )
             )
         return result

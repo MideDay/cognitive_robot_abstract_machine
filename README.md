@@ -72,6 +72,18 @@ If you also want the development dependencies, run:
 uv sync --extra dev --active 
 ```
 
+`semantic_digital_twin`'s Drake-based IRIS/GCS features (and their tests, `test/semantic_digital_twin_test/test_worlds/test_gcs_polygons.py`) need the optional `iris` extra on top of that - it is layered on separately since Drake is a large, `semantic_digital_twin`-specific dependency:
+
+```bash
+uv sync --package semantic_digital_twin --extra iris --active --inexact
+```
+
+Running the test suite does not require any dataset-loading dependencies (Drake, py7zr, usd-core/pxr) - tests that need one of these skip cleanly when it is not installed. To actually load GraspClutter6D or ArtVIP datasets (or run their tests against the real packages), add the `datasets` extra the same way:
+
+```bash
+uv sync --package semantic_digital_twin --extra datasets --active --inexact
+```
+
 
 ### Alternative: Poetry
 
@@ -112,10 +124,12 @@ repository - hooks that run automatically each session, and skills invoked
 on demand (`/<skill-name>`). Each is documented where it lives; the links
 below are a starting point, not a duplicate of that documentation.
 
-**New here? Start with [`.claude/hooks/README.md`](.claude/hooks/README.md)** -
-it walks through the one-time setup (a single script, no config needed) and
-everything it unlocks (personal notes, per-PR progress tracking, multi-PR
-plan dashboards) end to end, in order.
+**New here? Start with [`.claude/SETUP.md`](.claude/SETUP.md)** - the one-time
+setup in three steps, including what to change in your fork, your GitHub
+access and your Claude environment.
+[`.claude/hooks/README.md`](.claude/hooks/README.md) is the reference behind
+it: what the setup configures, and everything it unlocks (personal notes,
+per-PR progress tracking, multi-PR plan dashboards).
 
 - **[`.claude/hooks/`](.claude/hooks/README.md)** - a `SessionStart` hook
   that carries a contributor's own personal workflow notes, per-PR
