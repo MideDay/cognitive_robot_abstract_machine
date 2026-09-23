@@ -4,6 +4,7 @@ import json
 import time
 import traceback
 from dataclasses import dataclass, field
+from threading import Event, Thread
 from typing import Any, Dict, List
 
 import rclpy
@@ -19,6 +20,7 @@ from giskardpy.middleware.ros2.cycle_counter import CycleCounter
 from giskardpy.middleware.ros2.exceptions import (
     ClientDisconnectedError,
     ExecutionCanceledException,
+    MotionServerThreadStillRunningError,
     RequiredWorldUpdateNotReceivedError,
     UnserializableGoalError,
 )
@@ -119,6 +121,16 @@ class MotionServer:
     How far this world had published when the running goal was accepted.
     """
 
+    _background_thread: Thread | None = field(init=False, default=None, repr=False)
+    """
+    The thread running :meth:`live`, if it was started with :meth:`start_in_background`.
+    """
+
+    _stop_requested: Event = field(init=False, default_factory=Event, repr=False)
+    """
+    Set by :meth:`stop` to make :meth:`live` return after its current idle cycle.
+    """
+
     def __post_init__(self):
         self.idle_pacer = RealTimePacer()
         self.idle_pacer.target_frequency = self.idle_frequency
@@ -131,7 +143,7 @@ class MotionServer:
 
     def live(self) -> None:
         """
-        Run the idle loop until ROS shuts down.
+        Run the idle loop until ROS shuts down or :meth:`stop` is called.
 
         A KeyboardInterrupt is raised when the process is asked to shut down (see
         :class:`~giskardpy.middleware.ros2.graceful_shutdown.GracefulShutdownSignals`),
@@ -140,13 +152,38 @@ class MotionServer:
         """
         rospy.get_node().get_logger().info("giskard is ready")
         try:
-            while rclpy.ok():
+            while rclpy.ok() and not self._stop_requested.is_set():
                 self.run_idle_cycle()
                 self.idle_pacer.sleep()
         except KeyboardInterrupt:
             rospy.get_node().get_logger().info("Interrupted, stopping the robot.")
             self.control_loop.stop()
             raise
+
+    def start_in_background(self) -> None:
+        """
+        Run :meth:`live` on a new background thread.
+        """
+        self._stop_requested.clear()
+        self._background_thread = Thread(target=self.live, name="motion server")
+        self._background_thread.start()
+
+    def stop(self, timeout: float = 2.0) -> None:
+        """
+        Make a background :meth:`live` loop return and wait for it to finish.
+
+        Does nothing if :meth:`start_in_background` was never called.
+
+        :param timeout: Seconds to wait for the loop to notice and exit.
+        :raises MotionServerThreadStillRunningError: If it has not stopped by then.
+        """
+        self._stop_requested.set()
+        if self._background_thread is None:
+            return
+        self._background_thread.join(timeout)
+        if self._background_thread.is_alive():
+            raise MotionServerThreadStillRunningError(timeout=timeout)
+        self._background_thread = None
 
     def run_idle_cycle(self) -> None:
         """

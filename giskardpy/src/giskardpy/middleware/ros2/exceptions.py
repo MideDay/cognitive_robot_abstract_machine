@@ -444,3 +444,25 @@ class ConnectionCannotBeTrackedByTfFrameError(SetupException):
 
     def suggest_correction(self) -> str:
         return ""
+
+
+@dataclass
+class MotionServerThreadStillRunningError(GiskardException):
+    """
+    Raised when a motion server's background thread does not stop in time.
+    """
+
+    timeout: float
+    """
+    Seconds :meth:`~giskardpy.middleware.ros2.motion_server.MotionServer.stop` waited
+    before giving up on the thread.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The motion server's background thread did not stop within "
+            f"{self.timeout} seconds."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Check whether a goal is stuck or the idle loop is blocked."

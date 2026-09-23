@@ -210,6 +210,15 @@ class GiskardWrapper:
         """
         ...
 
+    def close(self) -> None:
+        """
+        Stop announcing this client's heartbeat to Giskard.
+
+        Does not touch :attr:`node_handle`: it was given to this wrapper by its caller,
+        who owns its lifecycle.
+        """
+        self.heartbeat_publisher.stop()
+
 
 @dataclass
 class GiskardWrapperNode(GiskardWrapper):
@@ -261,3 +270,14 @@ class GiskardWrapperNode(GiskardWrapper):
             target=self.__spin, daemon=False, name="background giskard wrapper spinner"
         )
         self.spinner.start()
+
+    def close(self) -> None:
+        """
+        Stop the heartbeat and destroy the node this wrapper created for itself.
+
+        Removes the node from Giskard's shared executor before destroying it, since a
+        destroyed node left registered there would break the next spin.
+        """
+        super().close()
+        rospy.executor.remove_node(self.node_handle)
+        self.node_handle.destroy_node()
