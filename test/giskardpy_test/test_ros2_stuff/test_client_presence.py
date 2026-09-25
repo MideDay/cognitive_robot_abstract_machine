@@ -106,6 +106,23 @@ class TestClientHeartbeat:
         assert presence.start_watching(client)
         assert presence.is_client_present()
 
+    def test_stop_does_nothing_the_second_time(self, rclpy_node: Node):
+        """
+        A client may stop announcing itself mid-test and its own teardown still calls
+        stop() again, so a second call must not raise.
+        """
+        client_node = rclpy.create_node("heartbeat_sender")
+        publisher = ClientHeartbeatPublisher(
+            node=client_node,
+            client=MetaData(node_name=client_node.get_name(), process_id=7),
+            giskard_node_name=rclpy_node.get_name(),
+        )
+
+        publisher.stop()
+        publisher.stop()
+
+        client_node.destroy_node()
+
 
 # %% reading the heartbeats
 

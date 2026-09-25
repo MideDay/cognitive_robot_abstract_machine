@@ -61,6 +61,11 @@ class ClientHeartbeatPublisher:
     The heartbeat that is sent, built once because the identity never changes.
     """
 
+    _stopped: bool = field(init=False, default=False, repr=False)
+    """
+    Whether :meth:`stop` already ran, so a second call does nothing.
+    """
+
     def __post_init__(self):
         self.message = std_msgs.msg.String(data=json.dumps(to_json(self.client)))
         self.publisher = self.node.create_publisher(
@@ -86,7 +91,12 @@ class ClientHeartbeatPublisher:
     def stop(self) -> None:
         """
         Stop announcing this client.
+
+        Does nothing if already stopped.
         """
+        if self._stopped:
+            return
+        self._stopped = True
         self.timer.cancel()
         self.node.destroy_timer(self.timer)
         self.node.destroy_publisher(self.publisher)
