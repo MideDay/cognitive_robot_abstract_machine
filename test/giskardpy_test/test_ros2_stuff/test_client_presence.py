@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from threading import Event
 from typing import Callable
 
 import pytest
 import rclpy
 import std_msgs.msg
 from rclpy.node import Node
+from rclpy.timer import Timer
 
+from giskardpy.middleware.ros2 import rospy
 from giskardpy.middleware.ros2.client_presence import (
     ClientHeartbeatPublisher,
     ClientWatchdog,
@@ -75,6 +78,51 @@ def let_heartbeats_stop(presence: HeartbeatPresence) -> None:
     stopped arriving.
     """
     presence.clock.advance(presence.timeout.total_seconds() + 0.01)
+
+
+@dataclass
+class BusyDefaultCallbackGroup:
+    """
+    Keeps the default callback group of a node occupied until released, standing in for
+    the stream of world updates a node applies while a motion runs.
+    """
+
+    node: Node
+    """
+    The node whose default callback group is kept busy.
+    """
+
+    started: Event = field(init=False, default_factory=Event)
+    """
+    Set once the blocking callback runs.
+    """
+
+    released: Event = field(init=False, default_factory=Event)
+    """
+    Set to let the blocking callback return.
+    """
+
+    timer: Timer = field(init=False)
+    """
+    The timer whose callback blocks.
+    """
+
+    def __post_init__(self):
+        self.timer = self.node.create_timer(0.01, self.block)
+
+    def block(self) -> None:
+        """
+        Occupy the default callback group until released.
+        """
+        self.started.set()
+        self.released.wait()
+
+    def release(self) -> None:
+        """
+        Let the blocking callback return and stop it from being called again.
+        """
+        self.released.set()
+        self.node.destroy_timer(self.timer)
 
 
 # %% the heartbeats a client sends
@@ -287,3 +335,58 @@ class TestClientWatchdog:
 
         with pytest.raises(NoWatchedClientError):
             watchdog.client
+
+
+# %% heartbeats while a node is busy
+
+
+class TestHeartbeatWhileNodeIsBusy:
+    """
+    A node's other callbacks can keep it busy for seconds, for example while it applies
+    a stream of world updates, which must not look like a client that left.
+    """
+
+    def test_giskard_receives_heartbeats_while_its_node_is_busy(self, init_rospy):
+        giskard_node = rospy.get_node()
+        presence = HeartbeatPresence(node=giskard_node)
+        busy = BusyDefaultCallbackGroup(node=giskard_node)
+        client_node = rclpy.create_node("heartbeat_sender")
+        client = MetaData(node_name=client_node.get_name(), process_id=7)
+        sender = client_node.create_publisher(
+            std_msgs.msg.String,
+            ClientHeartbeatPublisher.topic_name(giskard_node.get_name()),
+            10,
+        )
+        try:
+            assert wait_until(busy.started.is_set)
+
+            assert wait_until(
+                lambda: sender.publish(heartbeat_of(client))
+                or client in presence.last_heartbeat
+            )
+        finally:
+            busy.release()
+            client_node.destroy_node()
+
+    def test_a_client_keeps_announcing_itself_while_its_node_is_busy(self, init_rospy):
+        giskard_node = rospy.get_node()
+        presence = HeartbeatPresence(node=giskard_node)
+        client_node = rclpy.create_node("heartbeat_sender")
+        client = MetaData(node_name=client_node.get_name(), process_id=7)
+        assert wait_until(lambda: rospy.executor is not None)
+        rospy.executor.add_node(client_node)
+        busy = BusyDefaultCallbackGroup(node=client_node)
+        publisher = ClientHeartbeatPublisher(
+            node=client_node,
+            client=client,
+            giskard_node_name=giskard_node.get_name(),
+        )
+        try:
+            assert wait_until(busy.started.is_set)
+
+            assert wait_until(lambda: client in presence.last_heartbeat)
+        finally:
+            busy.release()
+            publisher.stop()
+            rospy.executor.remove_node(client_node)
+            client_node.destroy_node()

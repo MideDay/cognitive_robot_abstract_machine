@@ -8,6 +8,7 @@ from threading import Lock
 from typing import Callable, Dict, Optional
 
 import std_msgs.msg
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
 from rclpy.publisher import Publisher
 from rclpy.subscription import Subscription
@@ -57,6 +58,14 @@ class ClientHeartbeatPublisher:
     Timer that sends the heartbeats.
     """
 
+    callback_group: MutuallyExclusiveCallbackGroup = field(
+        init=False, default_factory=MutuallyExclusiveCallbackGroup
+    )
+    """
+    Group of its own for the timer, so that a heartbeat is not held back while the other
+    callbacks of the node are busy.
+    """
+
     message: std_msgs.msg.String = field(init=False)
     """
     The heartbeat that is sent, built once because the identity never changes.
@@ -81,7 +90,11 @@ class ClientHeartbeatPublisher:
             topic=self.topic_name(self.giskard_node_name),
             qos_profile=10,
         )
-        self.timer = self.node.create_timer(self.period.total_seconds(), self.publish)
+        self.timer = self.node.create_timer(
+            self.period.total_seconds(),
+            self.publish,
+            callback_group=self.callback_group,
+        )
 
     @staticmethod
     def topic_name(giskard_node_name: str) -> str:
@@ -166,6 +179,15 @@ class HeartbeatPresence:
     Subscription the heartbeats arrive on.
     """
 
+    callback_group: MutuallyExclusiveCallbackGroup = field(
+        init=False, default_factory=MutuallyExclusiveCallbackGroup
+    )
+    """
+    Group of its own for the subscription, so that heartbeats are not held back while
+    Giskard's node is busy with other callbacks, such as applying world updates, which
+    would make a present client look gone.
+    """
+
     @property
     def client(self) -> MetaData:
         """
@@ -189,6 +211,7 @@ class HeartbeatPresence:
             topic=ClientHeartbeatPublisher.topic_name(self.node.get_name()),
             callback=self.receive_heartbeat,
             qos_profile=10,
+            callback_group=self.callback_group,
         )
 
     def receive_heartbeat(self, message: std_msgs.msg.String) -> None:
