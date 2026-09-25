@@ -78,7 +78,6 @@ jobs:
           bazel test //test:test_all
 
       - name: Run tests
-        if: ${{ inputs.lib != 'giskardpy' }}
         run: |
           source /opt/ros/cram-env/bin/activate
           source /opt/ros/overlay_ws/install/setup.bash
@@ -94,21 +93,6 @@ jobs:
             export MUJOCO_GL=egl
           fi
           python -m pytest -n auto cognitive_robot_abstract_machine/test/${{ inputs.lib }}_test
-
-      # TEMPORARY diagnostic step, giskardpy only: the giskardpy job has been stalling
-      # for hours (see PR #610) instead of its normal ~12-17 minutes, with no visibility
-      # into what pytest-xdist is actually doing on the runner. `nproc` shows the real
-      # worker count `-n auto` picks up, and a bounded, faulthandler-instrumented run
-      # dumps every thread if it is genuinely stuck rather than just running long. Revert
-      # once a dump or a timing answer has been captured -- not a permanent mitigation.
-      - name: Run tests (giskardpy, temporary diagnostic)
-        if: ${{ inputs.lib == 'giskardpy' }}
-        run: |
-          source /opt/ros/cram-env/bin/activate
-          source /opt/ros/overlay_ws/install/setup.bash
-          echo "PYTHONPATH: $PYTHONPATH"
-          echo "nproc: $(nproc)"
-          timeout --signal=ABRT 2700 python -X faulthandler -m pytest -n auto cognitive_robot_abstract_machine/test/giskardpy_test
 
       - name: Save cache
         uses: actions/cache/save@v4
