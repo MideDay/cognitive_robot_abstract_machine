@@ -123,6 +123,23 @@ class TestClientHeartbeat:
 
         client_node.destroy_node()
 
+    def test_a_heartbeat_due_after_stop_is_dropped(self, rclpy_node: Node):
+        """
+        The timer may already have handed a heartbeat to an executor thread when the
+        client stops, and a callback that raises there stops that executor for good.
+        """
+        client_node = rclpy.create_node("heartbeat_sender")
+        publisher = ClientHeartbeatPublisher(
+            node=client_node,
+            client=MetaData(node_name=client_node.get_name(), process_id=7),
+            giskard_node_name=rclpy_node.get_name(),
+        )
+        publisher.stop()
+
+        publisher.publish()
+
+        client_node.destroy_node()
+
 
 # %% reading the heartbeats
 
@@ -220,6 +237,25 @@ class TestClientWatchdog:
         assert watchdog.is_client_gone()
         assert watchdog.client == client
 
+    def test_a_client_recognized_after_its_goal_started_is_reported_gone_once_it_leaves(
+        self, rclpy_node: Node
+    ):
+        """
+        A client's first heartbeat can arrive after Giskard accepted its goal, and that
+        client still has to be watched from then on.
+        """
+        presence = HeartbeatPresence(node=rclpy_node, clock=SteppingClock())
+        client = create_client()
+        watchdog = ClientWatchdog(presence=presence)
+        watchdog.watch(client)
+        presence.receive_heartbeat(heartbeat_of(client))
+        assert not watchdog.is_client_gone()
+
+        let_heartbeats_stop(presence)
+
+        assert watchdog.is_client_gone()
+        assert watchdog.client == client
+
     def test_a_finished_goal_releases_its_check(self, rclpy_node: Node):
         presence = HeartbeatPresence(node=rclpy_node, clock=SteppingClock())
         client = create_client()
@@ -231,6 +267,20 @@ class TestClientWatchdog:
 
         assert presence.watched_client is None
         assert not watchdog.is_client_gone()
+
+    def test_a_finished_goal_is_not_watched_when_its_client_announces_itself_late(
+        self, rclpy_node: Node
+    ):
+        presence = HeartbeatPresence(node=rclpy_node, clock=SteppingClock())
+        client = create_client()
+        watchdog = ClientWatchdog(presence=presence)
+        watchdog.watch(client)
+        watchdog.stop_watching()
+        presence.receive_heartbeat(heartbeat_of(client))
+
+        watchdog.is_client_gone()
+
+        assert presence.watched_client is None
 
     def test_the_client_of_no_goal_cannot_be_asked_for(self, rclpy_node: Node):
         watchdog = ClientWatchdog(presence=HeartbeatPresence(node=rclpy_node))

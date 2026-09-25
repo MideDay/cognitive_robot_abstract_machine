@@ -92,6 +92,8 @@ from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
 
+from .test_client_presence import wait_until
+
 
 @dataclass
 class PR2Tester(GiskardTester):
@@ -1882,6 +1884,9 @@ class TestActionServerEvents:
         """
         Nobody is waiting for a motion whose client died, so it is stopped instead of
         being driven to its end.
+
+        The motion ends by itself after a while, so that a client that is not noticed
+        leaving fails this test instead of keeping the goal running forever.
         """
         msc = MotionStatechart()
         msc.add_node(
@@ -1893,9 +1898,15 @@ class TestActionServerEvents:
                 ),
             )
         )
+        msc.add_node(give_up := CountSeconds(seconds=30))
+        msc.add_node(EndMotion.when_true(give_up))
         goal_accepted_future = giskard.api.execute_async(msc)
         wait_for_future_to_complete(goal_accepted_future)
-        await asyncio.sleep(2)
+        client_watchdog = giskard.giskard.motion_server.client_watchdog
+        assert wait_until(
+            lambda: client_watchdog.presence.watched_client == giskard.api.client,
+            timeout=30.0,
+        )
 
         giskard.api.heartbeat_publisher.stop()
 

@@ -4,6 +4,7 @@ import json
 import time
 from dataclasses import dataclass, field
 from datetime import timedelta
+from threading import Lock
 from typing import Callable, Dict, Optional
 
 import std_msgs.msg
@@ -66,6 +67,13 @@ class ClientHeartbeatPublisher:
     Whether :meth:`stop` already ran, so a second call does nothing.
     """
 
+    _lock: Lock = field(init=False, default_factory=Lock, repr=False)
+    """
+    Keeps :meth:`publish` and :meth:`stop` apart: the timer fires on an executor thread
+    while the client stops on its own, and a heartbeat sent on a destroyed publisher
+    raises on that executor thread.
+    """
+
     def __post_init__(self):
         self.message = std_msgs.msg.String(data=json.dumps(to_json(self.client)))
         self.publisher = self.node.create_publisher(
@@ -85,8 +93,13 @@ class ClientHeartbeatPublisher:
     def publish(self) -> None:
         """
         Announce that this client is still there.
+
+        Does nothing once stopped.
         """
-        self.publisher.publish(self.message)
+        with self._lock:
+            if self._stopped:
+                return
+            self.publisher.publish(self.message)
 
     def stop(self) -> None:
         """
@@ -94,12 +107,13 @@ class ClientHeartbeatPublisher:
 
         Does nothing if already stopped.
         """
-        if self._stopped:
-            return
-        self._stopped = True
-        self.timer.cancel()
-        self.node.destroy_timer(self.timer)
-        self.node.destroy_publisher(self.publisher)
+        with self._lock:
+            if self._stopped:
+                return
+            self._stopped = True
+            self.timer.cancel()
+            self.node.destroy_timer(self.timer)
+            self.node.destroy_publisher(self.publisher)
 
 
 # %% whether a client is still there
@@ -220,6 +234,11 @@ class ClientWatchdog:
     The check that reports on the client's continued presence.
     """
 
+    goal_client: Optional[MetaData] = field(init=False, default=None)
+    """
+    The client of the running goal, or ``None`` while no goal is running.
+    """
+
     @property
     def client(self) -> MetaData:
         """
@@ -233,17 +252,22 @@ class ClientWatchdog:
 
     def watch(self, client: MetaData) -> None:
         """
-        Start watching the client of a goal, if the presence check recognizes it.
+        Watch the client of a goal from the moment the presence check recognizes it.
 
-        A client the check does not recognize is not watched, so an unknown client can
-        never make Giskard stop a goal it is still waiting for.
+        A client's first heartbeat can arrive after its goal was accepted, so a client
+        that is not recognized yet is looked for again every time
+        :meth:`is_client_gone` is asked. A client the check never recognizes is never
+        watched, so an unknown client can never make Giskard stop a goal it is still
+        waiting for.
         """
+        self.goal_client = client
         self.presence.start_watching(client)
 
     def stop_watching(self) -> None:
         """
         Stop watching the client of the goal that just ended.
         """
+        self.goal_client = None
         if self.presence.watched_client is None:
             return
         self.presence.stop_watching()
@@ -252,6 +276,8 @@ class ClientWatchdog:
         """
         Whether the client of the running goal disconnected.
         """
+        if self.presence.watched_client is None and self.goal_client is not None:
+            self.presence.start_watching(self.goal_client)
         if self.presence.watched_client is None:
             return False
         return not self.presence.is_client_present()

@@ -92,6 +92,12 @@ jobs:
           if [[ "${{ inputs.lib }}" == "semantic_digital_twin" ]]; then
             export MUJOCO_GL=egl
           fi
+          # A giskardpy test that waits on ROS forever stalls the job with no output. Each
+          # xdist worker dumps every thread's stack once a single test runs past 15 minutes,
+          # so a stall shows where it waits. Nothing is killed.
+          if [[ "${{ inputs.lib }}" == "giskardpy" ]]; then
+            export PYTEST_ADDOPTS="-o faulthandler_timeout=900"
+          fi
           python -m pytest -n auto cognitive_robot_abstract_machine/test/${{ inputs.lib }}_test
 
       - name: Save cache

@@ -436,6 +436,38 @@ class CycleWatchingClientDisconnector(InputSynchronizer):
 
 
 @dataclass
+class CycleWatchingLateClientDisconnector(CycleWatchingClientDisconnector):
+    """
+    Lets the client of the goal announce itself only once the motion is running, and
+    disappear later, standing in for a client whose first heartbeat arrives after its
+    goal was accepted.
+    """
+
+    client: Optional[MetaData] = None
+    """
+    The client that announces itself late.
+    """
+
+    ticks_until_first_heartbeat: int = 2
+    """
+    How many ticks to observe before the client announces itself.
+    """
+
+    announced: bool = field(init=False, default=False)
+    """
+    Whether the client has already announced itself.
+    """
+
+    def apply(self) -> bool:
+        if not self.announced and (
+            self.cycle_counter.completed_cycles >= self.ticks_until_first_heartbeat
+        ):
+            self.client_presence.receive_heartbeat(heartbeat_of(self.client))
+            self.announced = True
+        return super().apply()
+
+
+@dataclass
 class FeedbackCountingSynchronizer(InputSynchronizer):
     """
     Records how much feedback was already published when a control cycle read its
@@ -1373,6 +1405,33 @@ class TestClientDisconnect:
         error = from_json(result["error"])
         assert isinstance(error, ClientDisconnectedError)
         assert error.client == motion_server.client
+
+    def test_a_goal_whose_client_announces_itself_mid_motion_is_aborted_when_it_leaves(
+        self, motion_server: MotionServerFixture
+    ):
+        """
+        A client's first heartbeat can arrive after its goal was accepted, and that goal
+        still has to be stopped once the client is gone.
+        """
+        late_client = MetaData(node_name="late_client", process_id=2)
+        motion_server.action_server.goal_json = create_goal_json(
+            seconds=100.0, client=late_client
+        )
+        motion_server.control_loop.inputs.synchronizers = [
+            CycleWatchingLateClientDisconnector(
+                world=motion_server.executor.context.world,
+                cycle_counter=motion_server.cycle_counter,
+                client_presence=motion_server.client_presence,
+                client=late_client,
+            )
+        ]
+
+        motion_server.motion_server.run_idle_cycle()
+
+        result = json.loads(motion_server.action_server.sent_results[0].result)
+        error = from_json(result["error"])
+        assert isinstance(error, ClientDisconnectedError)
+        assert error.client == late_client
 
     def test_the_robot_is_stopped_when_its_client_leaves(
         self, motion_server: MotionServerFixture
