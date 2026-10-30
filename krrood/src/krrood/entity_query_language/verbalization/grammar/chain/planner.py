@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from typing_extensions import List
 
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.mapped_variable import (
@@ -11,7 +10,7 @@ from krrood.entity_query_language.core.mapped_variable import (
 )
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.core.expression_structure import (
-    chain_ends_in_boolean_attribute,
+    chain_ends_in_boolean_terminal,
     walk_chain,
 )
 from krrood.entity_query_language.verbalization.navigation_path import (
@@ -31,11 +30,10 @@ from krrood.entity_query_language.verbalization.grammar.framework.planner import
 class ChainPlan:
     """
     A ``MappedVariable`` chain analysed once into the values its rendering needs: the
-    walked chain, its root, the display path-parts, and whether it ends in a boolean
-    attribute.
+    walked chain, its root, the display path-parts, and whether it reaches a boolean.
     """
 
-    chain: List[MappedVariable]
+    chain: list[MappedVariable]
     """
     The access path, root-adjacent first.
     """
@@ -45,14 +43,14 @@ class ChainPlan:
     The chain root (first non-``MappedVariable`` node).
     """
 
-    parts: List[PathStep]
+    parts: list[PathStep]
     """
     The display path-parts.
     """
 
     is_boolean_terminal: bool
     """
-    ``True`` when the chain ends in a ``bool``-typed attribute (predicative form).
+    ``True`` when the chain reaches a ``bool`` (predicative form).
     """
 
     @property
@@ -89,8 +87,8 @@ class ChainPlan:
 class ChainPlanner(Planner[MappedVariable, ChainPlan]):
     """
     Analyse a ``MappedVariable`` chain into a ``ChainPlan``: its root, the display path-
-    parts, and whether it ends in a boolean attribute (predicative form) — the chain
-    decisions of *what to say*, before any surface form is chosen.
+    parts, and whether it reaches a boolean (predicative form) — the chain decisions of
+    *what to say*, before any surface form is chosen.
 
     Reference: :cite:t:`reiter2000building` — content/structure determination (microplanning).
 
@@ -109,5 +107,5 @@ class ChainPlanner(Planner[MappedVariable, ChainPlan]):
             chain=chain,
             root=root,
             parts=build_path_parts(chain, relational_verb),
-            is_boolean_terminal=chain_ends_in_boolean_attribute(chain),
+            is_boolean_terminal=chain_ends_in_boolean_terminal(chain),
         )

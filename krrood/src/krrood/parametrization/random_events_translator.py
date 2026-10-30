@@ -4,16 +4,19 @@ import itertools
 import operator
 from dataclasses import dataclass
 from functools import cached_property
-from typing import assert_never, Dict
+from typing_extensions import assert_never, TYPE_CHECKING
 
 import numpy as np
 
 import random_events
 import random_events.variable
-from krrood.entity_query_language.core.base_expressions import SymbolicExpression
+from krrood.entity_query_language.core.base_expressions import (
+    BinaryExpression,
+    SymbolicExpression,
+)
+from krrood.entity_query_language.operators.causal import CausesEffect
 from krrood.entity_query_language.core.mapped_variable import MappedVariable
 from krrood.entity_query_language.core.variable import Literal
-from krrood.entity_query_language.factories import ConditionType
 from krrood.entity_query_language.operators.comparator import Comparator
 from krrood.entity_query_language.operators.core_logical_operators import OR, AND, Not
 from krrood.entity_query_language.operators.logical_quantifiers import (
@@ -26,6 +29,8 @@ from krrood.parametrization.exceptions import (
 from random_events.interval import closed_open, closed, open
 from random_events.product_algebra import Event, SimpleEvent
 
+if TYPE_CHECKING:
+    from krrood.entity_query_language.factories import ConditionType
 
 # %% translating a where expression into a random event
 
@@ -48,18 +53,26 @@ class WhereExpressionToRandomEventTranslator:
     """
 
     @cached_property
-    def variables(self) -> Dict[MappedVariable, random_events.variable.Variable]:
+    def variables(self) -> dict[MappedVariable, random_events.variable.Variable]:
         result = {}
         if self.conditions_root is None:
             return result
         for comparator in itertools.chain(
             [self.conditions_root], self.conditions_root._descendants_
         ):
-            if not is_literal_comparator(comparator):
+            if (
+                not isinstance(comparator, BinaryExpression)
+                or not comparator._is_literal_comparator_()
+            ):
                 continue
+            # A random-events variable is identified by its name, so the two spellings
+            # of one field have to arrive here as one: a chain taken from a query is
+            # read in the variable-rooted form the same chain taken from the variable
+            # already has.
+            subject = comparator.left._variable_rooted_
             result[comparator.left] = (
                 random_events.variable.variable_from_name_and_type(
-                    comparator.left._name_, comparator.left._type_
+                    subject._name_, subject._type_
                 )
             )
         return result
@@ -109,6 +122,9 @@ class WhereExpressionToRandomEventTranslator:
         if isinstance(expression, Not):
             return self._translate_expression(expression._child_).complement()
 
+        if isinstance(expression, CausesEffect):
+            return self._translate_expression(expression._child_)
+
         if isinstance(expression, Literal):
             return (
                 self.unconstrained_event()
@@ -116,7 +132,10 @@ class WhereExpressionToRandomEventTranslator:
                 else self.impossible_event()
             )
 
-        if not is_literal_comparator(expression):
+        if (
+            not isinstance(expression, BinaryExpression)
+            or not expression._is_literal_comparator_()
+        ):
             raise WhereExpressionHasNoRandomEventRepresentation(expression)
 
         return self._translate_comparator(expression)
@@ -238,22 +257,3 @@ class WhereExpressionToRandomEventTranslator:
             comparator.right._value_,
             np.inf,
         )
-
-
-# %% shape checks on where expressions
-
-
-def is_literal_comparator(expression: Comparator) -> bool:
-    """
-    Checks if the given expression is a literal comparator.
-
-    :param expression: The expression to check.
-    :return: True if the expression is a literal comparator, False otherwise.
-    """
-    if not isinstance(expression, Comparator):
-        return False
-    if not isinstance(expression.left, MappedVariable):
-        return False
-    if not isinstance(expression.right, Literal):
-        return False
-    return True

@@ -27,15 +27,15 @@ Canonical class list (the single source of truth;
   ``WeakLoveBird``
 * Containers (deep-nesting rule trees) — ``Handle``, ``Container``, ``FixedConnection``,
   ``PrismaticConnection``, ``Drawer``, ``Cabinet``
+* Causal queries (``cause`` / ``causes_effect()``) — ``Pick``
 """
 
 from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass
-from typing import List
-
 from typing_extensions import Mapping
+
 
 from krrood.entity_query_language.factories import Symbol
 from krrood.entity_query_language.predicate import Predicate
@@ -114,7 +114,7 @@ class Worker:
     name: str
     """The worker's name."""
 
-    tasks: List[Task]
+    tasks: list[Task]
     """
     The worker's tasks (indexable, e.g. ``tasks[0]``).
     """
@@ -436,4 +436,25 @@ class Cabinet:
     drawers: list
     """
     The cabinet's drawers (aggregated antecedent → plural *"there are … drawers"*).
+    """
+
+
+# %% Causal queries (do() / causes_effect() examples)
+
+
+@dataclass
+class Pick:
+    """
+    A robot's attempt to grasp an object, whose success may hinge on where its arm was
+    positioned.
+    """
+
+    arm: float
+    """
+    The arm's position at the time of the attempt.
+    """
+
+    grasped: bool
+    """
+    Whether the attempt succeeded.
     """

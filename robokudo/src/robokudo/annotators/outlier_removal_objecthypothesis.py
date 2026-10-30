@@ -26,14 +26,13 @@ import open3d as o3d
 from py_trees.common import Status
 from rcl_interfaces.msg import SetParametersResult
 from rclpy.parameter import Parameter
-from typing_extensions import Dict, List, Type
 
 from robokudo.annotators.core import BaseAnnotator
 from robokudo.cas import CAS, CASViews
-from robokudo.io.ros import get_node
 from robokudo.types.annotation import Classification
 from robokudo.types.scene import ObjectHypothesis
 from robokudo.utils.error_handling import catch_and_raise_to_blackboard
+from semantic_digital_twin.adapters.ros.node_registry import ROSNodeRegistry
 
 """
 This module implements a statistical outlierremoval based on the standard deviation and
@@ -44,7 +43,7 @@ remaining copy of the old state for some point cloud.
 Authors: Sorin Arion, Naser Azizi 
 """
 
-_PYTYPE_TO_ROS_FIELD: Dict[Type, str] = {
+_PYTYPE_TO_ROS_FIELD: dict[type, str] = {
     int: "integer_value",
     float: "double_value",
     str: "string_value",
@@ -87,7 +86,7 @@ class OutlierRemovalOnObjectHypothesisAnnotator(BaseAnnotator):
                 self.stat_std: float = 0.5
                 """Standard deviation threshold for outlier removal"""
 
-                self.skip_removal_on_classes: List[str] = []
+                self.skip_removal_on_classes: list[str] = []
                 """List of class names to skip processing
                 
                 If you want to skip the complete outlier removal process on certain classes, you can add a list of
@@ -109,7 +108,7 @@ class OutlierRemovalOnObjectHypothesisAnnotator(BaseAnnotator):
         super().__init__(name, descriptor)
         self.rk_logger.debug("%s.__init__()" % self.__class__.__name__)
 
-        self.node = get_node()
+        self.node = ROSNodeRegistry().get()
 
         for param_name, default_value in vars(self.descriptor.parameters).items():
             self.node.declare_parameter(f"{self.name}/{param_name}", default_value)
@@ -118,7 +117,7 @@ class OutlierRemovalOnObjectHypothesisAnnotator(BaseAnnotator):
 
         self.rk_logger.info("OutlierRemovalNode initialized with current parameters")
 
-    def parameters_callback(self, params: List[Parameter]) -> SetParametersResult:
+    def parameters_callback(self, params: list[Parameter]) -> SetParametersResult:
         for param in params:
             if hasattr(self.descriptor.parameters, param.name):
                 setattr(self.descriptor.parameters, param.name, param.value)
@@ -161,7 +160,7 @@ class OutlierRemovalOnObjectHypothesisAnnotator(BaseAnnotator):
                 continue
 
             if len(self.descriptor.parameters.skip_removal_on_classes) > 0:
-                classes: List[Classification] = CAS.filter_by_type(
+                classes: list[Classification] = CAS.filter_by_type(
                     Classification, annotation.annotations
                 )
 

@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import os
 import threading
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from datetime import timedelta
 from functools import cached_property
-from typing import ClassVar, Optional, Type, List, Dict, Callable, Any
+from typing_extensions import ClassVar
 from uuid import UUID
 
 import numpy as np
@@ -21,6 +23,7 @@ from sqlalchemy.orm import Session
 from krrood.adapters.json_serializer import from_json, to_json
 from krrood.ormatic.data_access_objects.helper import to_dao
 from semantic_digital_twin.adapters.ros.messages import (
+    MessageField,
     MetaData,
     WorldStateUpdate,
     Message,
@@ -37,6 +40,9 @@ from semantic_digital_twin.callbacks.callback import (
     ModelChangeCallback,
 )
 from semantic_digital_twin.exceptions import (
+    SynchronizerNotConnectedError,
+    WorldEntityWithIDNotInKwargs,
+    WorldUpdateReferencesUnknownEntityError,
     MissingPublishChangesKWARG,
     ApplyMissedMessagesWhileWorldIsBeingModifiedError,
     StateUpdateContainsUnknownDegreesOfFreedomError,
@@ -86,6 +92,8 @@ class Synchronizer(WorldEntityWithClassBasedID, PublicationProgress):
     Every published message carries its position in this synchronizer's stream, and
     every applied message is remembered per publisher, so that two processes can tell
     each other what to catch up with without comparing world models they cannot compare.
+    A message that does not follow the one received from its publisher before reveals
+    that messages in between were lost, which is logged.
     """
 
     node: RosNode = field(kw_only=True)
@@ -93,61 +101,64 @@ class Synchronizer(WorldEntityWithClassBasedID, PublicationProgress):
     The rclpy node used to create the publishers and subscribers.
     """
 
-    topic_name: Optional[str] = None
+    topic_name: str | None = None
     """
     The topic name of the publisher and subscriber.
     """
 
-    publisher: Optional[Publisher] = field(init=False, default=None)
+    connection_timeout: timedelta = timedelta(seconds=5)
+    """
+    How long to wait for the topic of this synchronizer to become usable.
+    """
+
+    discovery_settle_time: timedelta = timedelta(seconds=0.2)
+    """
+    How long no subscriber may appear before the topic counts as connected.
+    """
+
+    discovery_poll_interval: timedelta = timedelta(seconds=0.02)
+    """
+    How long to wait between two looks at the subscribers of the topic while connecting.
+    """
+
+    message_queue_depth: int = 1000
+    """
+    How many messages the publisher and the subscriber keep for a receiver that has not
+    taken them yet; once more are waiting, the oldest are lost.
+    """
+
+    publisher: Publisher | None = field(init=False, default=None)
     """
     The publisher used to publish the world state.
     """
 
-    subscriber: Optional[Subscription] = field(default=None, init=False)
+    subscriber: Subscription | None = field(default=None, init=False)
     """
     The subscriber to the world state.
     """
 
-    message_type: ClassVar[Optional[Type[Message]]] = None
+    message_type: ClassVar[type[Message] | None] = None
     """
     The type of the message that is sent and received.
     """
 
-    missed_messages: List[str] = field(default_factory=list, init=False, repr=False)
-    """
-    Serialized messages received while the synchronizer is paused.
-
-    These messages can be applied later by calling ``apply_missed_messages()``.
-    """
-
-    wait_for_synchronization_timeout: float = field(default=30.0)
-    """
-    Timeout in seconds for waiting for synchronization.
-    """
-
-    _deserialize_method: ClassVar[Callable[[str], Any]] = None
-    """
-    Abstract method to deserialize message data into message objects.
-
-    Must be implemented by subclasses.
-    """
-
-    _current_publication_event_id: Optional[UUID] = None
-    """
-    The UUID of the most recently published message awaiting acknowledgment.
-    """
-
-    _expected_acknowledgment_count: int = 0
     _published_sequence_number: int = field(default=0, init=False, repr=False)
     """
     Position of the message this synchronizer published last.
     """
 
-    _applied_sequence_numbers: Dict[MetaData, int] = field(
+    _applied_sequence_numbers: dict[MetaData, int] = field(
         default_factory=dict, init=False, repr=False
     )
     """
     The highest position applied so far, per publisher.
+    """
+
+    _received_sequence_numbers: dict[MetaData, int] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    """
+    The position of the message received last, per publisher.
     """
 
     _sequence_number_lock: threading.Lock = field(
@@ -165,10 +176,46 @@ class Synchronizer(WorldEntityWithClassBasedID, PublicationProgress):
             std_msgs.msg.String,
             topic=self.topic_name,
             callback=self.subscription_callback,
-            qos_profile=10,
+            qos_profile=self.message_queue_depth,
         )
         self.publisher = self.node.create_publisher(
-            std_msgs.msg.String, topic=self.topic_name, qos_profile=10
+            std_msgs.msg.String,
+            topic=self.topic_name,
+            qos_profile=self.message_queue_depth,
+        )
+        self.wait_until_connected()
+
+    def wait_until_connected(self) -> None:
+        """
+        Block until what this synchronizer publishes reaches the processes that already
+        listen on its topic.
+
+        A publisher drops what it sends to subscribers it has not discovered yet, so a
+        world that is modified right after its synchronizer was created would keep those
+        changes to itself. Ros names no moment at which every process is known, so this
+        waits for the subscribers it can see to be matched and for no further one to
+        turn up.
+
+        :raises SynchronizerNotConnectedError: If not even the subscriber of this
+            synchronizer itself was matched in time.
+        """
+        deadline = time.monotonic() + self.connection_timeout.total_seconds()
+        subscriber_count = self.publisher.get_subscription_count()
+        settled_since = time.monotonic()
+        while time.monotonic() < deadline:
+            current_count = self.publisher.get_subscription_count()
+            if current_count != subscriber_count:
+                subscriber_count = current_count
+                settled_since = time.monotonic()
+            elif (
+                current_count > 0
+                and time.monotonic() - settled_since
+                >= self.discovery_settle_time.total_seconds()
+            ):
+                return
+            time.sleep(self.discovery_poll_interval.total_seconds())
+        raise SynchronizerNotConnectedError(
+            topic_name=self.topic_name, timeout=self.connection_timeout
         )
 
     @cached_property
@@ -185,21 +232,57 @@ class Synchronizer(WorldEntityWithClassBasedID, PublicationProgress):
 
     def subscription_callback(self, message: std_msgs.msg.String):
         """
-        Receive a serialized synchronization message and process or defer it.
+        Wrap the origin subscription callback by self-skipping and disabling the next
+        world callback. Holds the world lock while deserializing to ensure no changes
+        happen while building the tracker and running from_json.
 
-        :param message: The incoming ROS string containing a serialized synchronization
-            message.
+        :param message: The incoming ROS string message containing a serialized
+            synchronization message.
         """
+        content = json.loads(message.data)
         with self._world._world_lock:
-            message_data = json.loads(message.data)
-            message_meta_data = from_json(message_data["meta_data"])
-            if message_meta_data == self.meta_data:
+            tracker = WorldEntityWithIDKwargsTracker.from_world(self._world)
+            try:
+                deserialized_message = from_json(content, **tracker.create_kwargs())
+            except WorldEntityWithIDNotInKwargs as unknown_entity:
+                # More concrete exception for synchronizer
+                raise WorldUpdateReferencesUnknownEntityError(
+                    publisher=from_json(content[MessageField.META_DATA]),
+                    entity_id=unknown_entity.key,
+                    entity_name=unknown_entity.world_entity_name,
+                ) from unknown_entity
+
+            if deserialized_message.meta_data == self.meta_data:
                 return
-            if self._is_paused:
-                self.missed_messages.append(message.data)
-                return
-            deserialized_message = self._deserialize_message(message_data)
+
+            self._notice_lost_messages(deserialized_message)
             self._subscription_callback(deserialized_message)
+
+    def _notice_lost_messages(
+        self, message: Message, warning_throttle_period: float = 1.0
+    ) -> None:
+        """
+        Warn that messages of the publisher of `message` were lost if `message` does not
+        follow the one received from it before.
+
+        Only what changed is published, so the world may differ from the publisher's in
+        what the lost messages carried.
+
+        :param message: A message just received from another synchronizer.
+        :param warning_throttle_period: The fewest seconds between two warnings.
+        """
+        publisher = message.meta_data
+        with self._sequence_number_lock:
+            last_received = self._received_sequence_numbers.get(publisher)
+            self._received_sequence_numbers[publisher] = message.sequence_number
+        if last_received is None or message.sequence_number == last_received + 1:
+            return
+        self.node.get_logger().warning(
+            f"Updates #{last_received + 1} to #{message.sequence_number - 1} of "
+            f"'{publisher.node_name}' were lost, so this world may differ from the one "
+            f"of the publisher.",
+            throttle_duration_sec=warning_throttle_period,
+        )
 
     @property
     def published_sequence_number(self) -> int:
@@ -285,7 +368,7 @@ class ModelReloadSynchronizer(Synchronizer):
     Note that this may take a couple of seconds.
     """
 
-    message_type: ClassVar[Type[Message]] = LoadModel
+    message_type: ClassVar[type[Message]] = LoadModel
 
     session: Session = None
     """
@@ -304,7 +387,7 @@ class ModelReloadSynchronizer(Synchronizer):
     running motion.
     """
 
-    pending_reload: Optional[LoadModel] = field(default=None, init=False, repr=False)
+    pending_reload: LoadModel | None = field(default=None, init=False, repr=False)
     """
     The reload that was received but not applied yet.
 
@@ -364,32 +447,8 @@ class ModelReloadSynchronizer(Synchronizer):
             WorldMappingDAO.database_id == msg.primary_key
         )
         new_world = self.session.scalars(query).one().from_dao()
-        self._replace_world(new_world)
-        self._world._notify_model_change(publish_changes=False)
+        self._world._replace_with(new_world)
         self.record_applied(msg)
-
-    def _deserialize_message(self, message_data: Dict[str, object]) -> LoadModel:
-        """
-        Deserialize a load model message.
-
-        :param message_data: The parsed JSON representation of the load model message.
-        :return: The deserialized LoadModel message.
-        """
-        return from_json(message_data)
-
-    def _replace_world(self, new_world: World):
-        """
-        Replaces the current world with a new one, updating all relevant attributes.
-        This method modifies the existing world state, kinematic structure, degrees of
-        freedom, and semantic annotation based on the `new_world` provided.
-
-        If you encounter any issues with references to dead objects, it is most likely
-        due to this method not doing everything needed.
-
-        :param new_world: The new world instance to replace the current world.
-        """
-        self._world.clear()
-        self._world.merge_world(new_world)
 
 
 @dataclass(eq=False)
@@ -403,7 +462,7 @@ class WorldSynchronizer(Synchronizer, ModelChangeCallback, StateChangeCallback):
     messages arrive before the model update that introduced the referenced DOF UUIDs.
     """
 
-    message_type: ClassVar[Optional[Type[Message]]] = WorldUpdate
+    message_type: ClassVar[type[Message] | None] = WorldUpdate
 
     topic_name: str = "/semantic_digital_twin/world_sync"
 
@@ -417,7 +476,7 @@ class WorldSynchronizer(Synchronizer, ModelChangeCallback, StateChangeCallback):
     example a controller that must not have the world changed under a running motion.
     """
 
-    missed_messages: List[WorldUpdate] = field(
+    missed_messages: list[WorldUpdate] = field(
         default_factory=list, init=False, repr=False
     )
     """
@@ -446,11 +505,7 @@ class WorldSynchronizer(Synchronizer, ModelChangeCallback, StateChangeCallback):
         :raises WorldHasMultipleSynchronizersError: If several synchronizers publish the
             changes of the world, leaving it undecided which stream to refer to.
         """
-        synchronizers = [
-            callback
-            for callback in world.get_world_model_manager().model_change_callbacks
-            if isinstance(callback, cls)
-        ]
+        synchronizers = cls.all_callbacks_of_this_type_from_world(world)
         if not synchronizers:
             raise WorldHasNoSynchronizerError(world=world)
         if len(synchronizers) > 1:
@@ -466,18 +521,17 @@ class WorldSynchronizer(Synchronizer, ModelChangeCallback, StateChangeCallback):
         Synchronizer.__post_init__(self)
         ModelChangeCallback.__post_init__(self)
 
-    def _deserialize_message(self, message_data: Dict[str, object]) -> WorldUpdate:
+    def on_model_change(self, publish_changes: bool | None = None, **kwargs):
         """
-        Deserialize a world update against the current world entities.
+        Send the modification block the world just recorded to the other synchronizers.
 
-        :param message_data: The parsed JSON representation of the world update.
-        :return: The deserialized world update.
+        Implements
+        :meth:`~semantic_digital_twin.callbacks.callback.ModelChangeCallback.on_model_change`.
+
+        :param publish_changes: Whether this modification may leave the world.
+        :raises MissingPublishChangesKWARG: If the notification did not say whether to
+            publish.
         """
-        tracker = WorldEntityWithIDKwargsTracker.from_world(self._world)
-        return from_json(message_data, **tracker.create_kwargs())
-
-    def on_model_change(self, **kwargs):
-        publish_changes = kwargs.get("publish_changes")
         if publish_changes is None:
             raise MissingPublishChangesKWARG(kwargs)
         if not publish_changes:
@@ -492,14 +546,35 @@ class WorldSynchronizer(Synchronizer, ModelChangeCallback, StateChangeCallback):
         update = WorldUpdate(meta_data=self.meta_data, modification_block=model_block)
         self._publish_or_defer(update)
 
-    def on_state_change(self, **kwargs):
-        publish_changes = kwargs.get("publish_changes")
+    def on_state_change(
+        self,
+        publish_changes: bool | None = None,
+        force_republish: bool = False,
+        **kwargs,
+    ):
+        """
+        Send the positions of the degrees of freedom to the other synchronizers.
+
+        Implements
+        :meth:`~semantic_digital_twin.callbacks.callback.StateChangeCallback.on_state_change`.
+
+        :param publish_changes: Whether this state change may leave the world.
+        :param force_republish: Whether to send every degree of freedom instead of only
+            the ones that moved since the last message, so a receiver that has just
+            applied a model modification is given the whole state.
+        :raises MissingPublishChangesKWARG: If the notification did not say whether to
+            publish.
+        """
         if publish_changes is None:
             raise MissingPublishChangesKWARG(kwargs)
         if not publish_changes:
             return
 
-        changes = self.compute_state_changes()
+        changes = (
+            self._world.state.to_uuid_position_dict()
+            if force_republish
+            else self.compute_state_changes()
+        )
         if not changes:
             return
 
@@ -530,7 +605,7 @@ class WorldSynchronizer(Synchronizer, ModelChangeCallback, StateChangeCallback):
         else:
             self.publish(update)
 
-    def compute_state_changes(self) -> Dict[UUID, float]:
+    def compute_state_changes(self) -> dict[UUID, float]:
         """
         Return only DOF positions that changed since the last snapshot.
         """
@@ -667,8 +742,10 @@ class WorldSynchronizer(Synchronizer, ModelChangeCallback, StateChangeCallback):
         """
         Apply the first ``count`` buffered messages.
 
-        Each message is applied before the next message is deserialized so references to
-        entities introduced by preceding messages can be resolved.
+        Each message is applied independently so that model-change notifications fire
+        between messages, which is required for state messages that follow model
+        messages (``compiled_all_fks`` must exist before ``notify_state_change`` is
+        called).
 
         :raises ApplyMissedMessagesWhileWorldIsBeingModifiedError: If called while a
             ``modify_world`` context is active on this synchronizer's world.

@@ -7,7 +7,18 @@ name = "experiments"
 description = "Experiment scripts and actions for CRAM."
 requires-python = ">=3.10"
 license = "LGPL-3.0-only"
-dynamic = ["version", "dependencies"]
+dynamic = ["version"]
+dependencies = [
+    "line_profiler",
+    "coraplex",
+    "cramph",
+    "giskardpy",
+    "krrood",
+    "probabilistic_model",
+    "pymysql",
+    "random_events",
+    "semantic_digital_twin",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -15,4 +26,13 @@ include-package-data = true
 
 [tool.setuptools.dynamic]
 version = {attr = "experiments._version.__version__"}
-dependencies = { file = "requirements.txt" }
+
+[dependency-groups]
+workspace = [
+    "coraplex",
+    "cramph",
+    "giskardpy",
+    "krrood",
+    "random_events",
+    "semantic_digital_twin",
+]

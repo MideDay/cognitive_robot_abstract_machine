@@ -21,12 +21,15 @@ from functools import cached_property
 
 import numpy as np
 import trimesh
-from typing_extensions import TYPE_CHECKING, List, Optional, Sequence, Tuple
+from typing_extensions import TYPE_CHECKING, Sequence
 
 from experiments.experiment_definitions import VolumeBound
 from semantic_digital_twin.pipeline.mesh_decomposition.vhacd import VHACDMeshDecomposer
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
-from semantic_digital_twin.world_description.geometry import BoundingBox, Shape
+from semantic_digital_twin.world_description.geometry import (
+    VolumetricBoundingBox,
+    Shape,
+)
 
 if TYPE_CHECKING:
     from pydrake.geometry.optimization import HPolyhedron
@@ -64,14 +67,14 @@ class ObstacleContainmentChecker:
     axis-aligned box around a hollow or L-shaped obstacle would.
     """
 
-    world_meshes: List[trimesh.Trimesh]
+    world_meshes: list[trimesh.Trimesh]
     """
     One or more watertight meshes covering the obstacle, expressed in the target frame
     (the original mesh if it was already watertight, or its convex-decomposed pieces
     otherwise).
     """
 
-    world_bounding_box: BoundingBox
+    world_bounding_box: VolumetricBoundingBox
     """
     The obstacle's bounding box, expressed in the target frame; used only if
     decomposition itself yields no pieces.
@@ -82,7 +85,7 @@ class ObstacleContainmentChecker:
         cls,
         shape: Shape,
         target_frame: KinematicStructureEntity,
-        mesh_decomposer: Optional[MeshDecomposer] = None,
+        mesh_decomposer: MeshDecomposer | None = None,
     ) -> ObstacleContainmentChecker:
         """
         Build a containment checker for *shape*, expressed relative to *target_frame*.
@@ -139,12 +142,12 @@ class MonteCarloFreeSpaceSampler:
     overlap.
     """
 
-    search_space_bounding_box: BoundingBox
+    search_space_bounding_box: VolumetricBoundingBox
     """
     The volume to sample points within.
     """
 
-    obstacle_containment_checkers: List[ObstacleContainmentChecker] = field(
+    obstacle_containment_checkers: list[ObstacleContainmentChecker] = field(
         default_factory=list
     )
     """
@@ -172,7 +175,7 @@ class MonteCarloFreeSpaceSampler:
     @classmethod
     def for_obstacle_shapes(
         cls,
-        search_space_bounding_box: BoundingBox,
+        search_space_bounding_box: VolumetricBoundingBox,
         obstacle_shapes: Sequence[Shape],
         target_frame: KinematicStructureEntity,
         sample_count: int = 2000,
@@ -267,7 +270,7 @@ class MonteCarloFreeSpaceSampler:
     @staticmethod
     def wilson_score_interval(
         success_count: int, total: int, confidence_level: float
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         """
         Wilson score confidence interval for the true proportion of successes among
         *total* Bernoulli trials, following :cite:t:`wilson1927probable`.

@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, is_dataclass, replace
 
-from typing_extensions import TYPE_CHECKING, Callable, List, Optional
+from typing_extensions import TYPE_CHECKING, Callable
 
 from krrood.entity_query_language.core.mapped_variable import (
     Attribute,
@@ -29,7 +29,7 @@ class RelationStep:
     noun), the verb split into participle + preposition (so the preposition pied-pipes before
     *"which"*), and the owner class (for the verb's source link)."""
 
-    value_type: Optional[type]
+    value_type: type | None
     """The hop's value type — the head noun of the relative clause (*"the Robot"*)."""
 
     owner_class: type
@@ -41,7 +41,7 @@ class RelationStep:
     preposition: str
     """The trailing preposition (*"to"*) — pied-piped to *"to which …"*."""
 
-    referent_id: Optional[uuid.UUID] = None
+    referent_id: uuid.UUID | None = None
     """The navigated value node's id. The relative clause is a *referring* expression for that
     entity, so a repeat mention of the same navigation reduces to a bare *"the <Type>"* (coreference)
     rather than repeating the whole *"the Robot to which it is assigned"*; ``None`` disables it."""
@@ -66,12 +66,12 @@ class PathStep:
     """
 
     name: str
-    """The display text for this hop (e.g. ``"amount"``, ``"handle[0]"``, ``"()"``)."""
+    """The display text for this hop (e.g. ``"amount"``, ``"handle[0]"``, ``"first"``)."""
 
-    source_reference: Optional[SourceReference] = None
-    """The attribute's source reference, or ``None`` for composite / index / call hops."""
+    source_reference: SourceReference | None = None
+    """The attribute's source reference, or ``None`` for composite / index hops."""
 
-    relation: Optional[RelationStep] = None
+    relation: RelationStep | None = None
     """When set, this hop is a *relation* named as a verb (``assigned_to``) and renders as a relative
     clause *"the <Type> which <owner> is <verb-phrase>"* instead of the genitive *"the <attr> of
     <owner>"*; ``None`` for a plain noun hop."""
@@ -81,7 +81,7 @@ class PathStep:
     A scalar leaf possessed by a plural subject distributes (*"their salaries"*); an entity owner of
     further structure does not (*"the begin and end of their period"*)."""
 
-    ordinal: Optional[str] = None
+    ordinal: str | None = None
     """The ordinal phrase (*"first"*, *"last"*) when this attribute hop selects a single indexed
     element of a collection: the collection noun singularizes and takes the ordinal (*"the first
     task"* rather than *"the first of the tasks"*); ``None`` for a whole-collection hop."""
@@ -109,9 +109,9 @@ class PathStep:
 
 
 def build_path_parts(
-    chain: List[MappedVariable],
-    relation_verb: Optional[Callable[[str], Optional["RelationVerb"]]] = None,
-) -> List[PathStep]:
+    chain: list[MappedVariable],
+    relation_verb: Callable[[str], RelationVerb | None] | None = None,
+) -> list[PathStep]:
     """
     Convert a walked chain into :class:`PathStep` hops.
 
@@ -125,7 +125,8 @@ def build_path_parts(
       of …"* or a raw subscript (``"tasks[0]"``). An index that does not follow a plain attribute
       (e.g. on a call result) stays a standalone ordinal hop. Non-integer keys keep the ``"[key]"``
       bracket form.
-    * ``Call`` nodes appear as ``"()"`` with no source reference.
+    * ``Call`` nodes name no hop of their own: the attribute hop before them already names the
+      method, so *"the collision of a Body"* rather than *"the () of the collision of a Body"*.
     * Nodes that are not a :class:`SingleValueMapping` are skipped.
 
     :param chain: Innermost-first chain list (nearest the root first).
@@ -138,7 +139,7 @@ def build_path_parts(
     >>> [step.name for step in build_path_parts(chain)]
     ['amount_details', 'amount']
     """
-    parts: List[PathStep] = []
+    parts: list[PathStep] = []
     for node in chain:
         if isinstance(node, Attribute):
             owner = node._owner_class_
@@ -168,7 +169,8 @@ def build_path_parts(
         elif isinstance(node, Index):
             _append_index(parts, node)
         elif isinstance(node, Call):
-            parts.append(PathStep("()", None))
+            # A call names no step of its own: the attribute it invokes already named it.
+            pass
         elif not isinstance(node, SingleValueMapping):
             # A flattening names no step of its own: it chooses among the values the
             # step before it reached, which the path already names.
@@ -176,7 +178,7 @@ def build_path_parts(
     return parts
 
 
-def _is_scalar_value(value_type: Optional[type]) -> bool:
+def _is_scalar_value(value_type: type | None) -> bool:
     """:return: ``True`` when *value_type* is an atomic scalar — a primitive value, not an entity
     (an entity is a dataclass and reads as an owner, not a distributable value).
 
@@ -186,7 +188,7 @@ def _is_scalar_value(value_type: Optional[type]) -> bool:
     return value_type is not None and not is_dataclass(value_type)
 
 
-def _append_index(parts: List[PathStep], node: Index) -> None:
+def _append_index(parts: list[PathStep], node: Index) -> None:
     """Fold an integer index into the plain attribute hop it subscripts (*"the first task"*), else
     append it as a standalone hop.
 

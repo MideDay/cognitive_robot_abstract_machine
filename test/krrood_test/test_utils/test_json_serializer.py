@@ -1,18 +1,28 @@
+import datetime
+import json
+import pathlib
+import re
+import tracemalloc
 import uuid
 from dataclasses import dataclass, field
+from datetime import timedelta
 from enum import Enum
-from typing import Dict, Any, Self
+from typing_extensions import Any, Self
 
 import numpy as np
+from scipy.sparse import coo_array, csr_array
 import pytest
+from sortedcontainers import SortedSet
 
 from krrood.adapters.exceptions import (
     MissingTypeError,
     InvalidTypeFormatError,
     UnknownModuleError,
     ClassNotFoundError,
-    JSON_TYPE_NAME,
+    ObjectArraySerializationError,
+    StructuredArraySerializationError,
 )
+from krrood.adapters.json_field import JSONField
 from krrood.adapters.json_serializer import (
     SubclassJSONSerializer,
     to_json,
@@ -20,6 +30,7 @@ from krrood.adapters.json_serializer import (
     JSONAttributeDiff,
     shallow_diff_json,
     DataclassJSONSerializer,
+    JSONSerializableTypeRegistry,
 )
 from krrood.utils import get_full_class_name
 
@@ -139,11 +150,11 @@ class ClassThatNeedsKWARGS(SubclassJSONSerializer):
     a: int
     b: float = 0
 
-    def to_json(self) -> Dict[str, Any]:
+    def to_json(self) -> dict[str, Any]:
         return {**super().to_json(), "a": (self.a)}
 
     @classmethod
-    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
+    def _from_json(cls, data: dict[str, Any], **kwargs) -> Self:
         return cls(a=(data["a"]), b=(kwargs["b"]))
 
 
@@ -152,17 +163,37 @@ class ClassThatNeedsKWARGSInList(SubclassJSONSerializer):
     a: int
     b: list[ClassThatNeedsKWARGS] = field(default_factory=list)
 
-    def to_json(self) -> Dict[str, Any]:
+    def to_json(self) -> dict[str, Any]:
         return {**super().to_json(), "a": (self.a), "b": to_json(self.b)}
 
     @classmethod
-    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
+    def _from_json(cls, data: dict[str, Any], **kwargs) -> Self:
         return cls(a=(data["a"]), b=from_json(data["b"], **kwargs))
 
 
 @dataclass
 class ClassWithDict(DataclassJSONSerializer):
-    a: Dict[str, int]
+    a: dict[str, int]
+
+
+@dataclass
+class ClassWithList(DataclassJSONSerializer):
+    a: list
+
+
+@dataclass
+class ClassWithSet(DataclassJSONSerializer):
+    a: set
+
+
+@dataclass
+class ClassWithTuple(DataclassJSONSerializer):
+    a: tuple
+
+
+@dataclass
+class ClassWithSortedSet(DataclassJSONSerializer):
+    a: SortedSet
 
 
 class CustomEnum(str, Enum):
@@ -177,8 +208,8 @@ def test_roundtrip_dog_and_cat():
     dog_json = dog.to_json()
     cat_json = cat.to_json()
 
-    assert dog_json[JSON_TYPE_NAME] == get_full_class_name(Dog)
-    assert cat_json[JSON_TYPE_NAME] == get_full_class_name(Cat)
+    assert dog_json[JSONField.TYPE] == get_full_class_name(Dog)
+    assert cat_json[JSONField.TYPE] == get_full_class_name(Cat)
 
     dog2 = SubclassJSONSerializer.from_json(dog_json)
     cat2 = SubclassJSONSerializer.from_json(cat_json)
@@ -193,7 +224,7 @@ def test_deep_subclass_discovery():
     b = Bulldog(name="Butch", age=4, breed="Bulldog", stubborn=True)
     b_json = b.to_json()
 
-    assert b_json[JSON_TYPE_NAME] == get_full_class_name(Bulldog)
+    assert b_json[JSONField.TYPE] == get_full_class_name(Bulldog)
 
     b2 = SubclassJSONSerializer.from_json(b_json)
     assert isinstance(b2, Bulldog)
@@ -202,7 +233,7 @@ def test_deep_subclass_discovery():
 
 def test_unknown_module_raises_unknown_module_error():
     with pytest.raises(UnknownModuleError):
-        SubclassJSONSerializer.from_json({JSON_TYPE_NAME: "non.existent.Class"})
+        SubclassJSONSerializer.from_json({JSONField.TYPE: "non.existent.Class"})
 
 
 def test_missing_type_raises_missing_type_error():
@@ -212,7 +243,7 @@ def test_missing_type_raises_missing_type_error():
 
 def test_invalid_type_format_raises_invalid_type_format_error():
     with pytest.raises(InvalidTypeFormatError):
-        SubclassJSONSerializer.from_json({JSON_TYPE_NAME: "NotAQualifiedName"})
+        SubclassJSONSerializer.from_json({JSONField.TYPE: "NotAQualifiedName"})
 
 
 essential_existing_module = "krrood.utils"
@@ -221,7 +252,7 @@ essential_existing_module = "krrood.utils"
 def test_class_not_found_raises_class_not_found_error():
     with pytest.raises(ClassNotFoundError):
         SubclassJSONSerializer.from_json(
-            {JSON_TYPE_NAME: f"{essential_existing_module}.DoesNotExist"}
+            {JSONField.TYPE: f"{essential_existing_module}.DoesNotExist"}
         )
 
 
@@ -256,6 +287,18 @@ def test_list_of_enums():
     data = to_json(obj)
     result = from_json(data)
     assert result == obj
+
+
+def test_string_enum_member_comes_back_as_the_member():
+    """
+    Regression test: a member of an enum that is also a ``str`` used to be written as
+    its bare string, since it passed as a leaf value, and so came back as a plain
+    ``str`` that merely compared equal to the member.
+    """
+    data = json.loads(json.dumps(to_json(CustomEnum.A)))
+    result = from_json(data)
+    assert type(result) is CustomEnum
+    assert result is CustomEnum.A
 
 
 def test_exception():
@@ -365,6 +408,75 @@ def test_nparray():
     assert np.allclose(result, obj)
 
 
+def test_an_array_keeps_its_shape_and_element_type_exactly():
+    obj = np.arange(12, dtype=np.float32).reshape(3, 4) / 7
+
+    result = from_json(to_json(obj))
+
+    assert result.dtype == obj.dtype
+    np.testing.assert_array_equal(result, obj)
+
+
+def test_an_array_without_dimensions_keeps_its_shape():
+    obj = np.array(2.5)
+
+    result = from_json(to_json(obj))
+
+    assert result.shape == obj.shape
+    assert result == obj
+
+
+def test_serializing_an_array_holds_less_than_twice_its_bytes():
+    """
+    Large arrays, such as the vertices of a mesh, are serialized whenever they are
+    synchronized, so their json must not take many times their own memory.
+    """
+    obj = np.linspace(0.0, 1.0, 100_000)
+
+    tracemalloc.start()
+    data = to_json(obj)
+    held, _ = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    assert held < 2 * obj.nbytes
+
+
+def test_an_array_of_python_objects_is_not_serialized():
+    with pytest.raises(ObjectArraySerializationError):
+        to_json(np.array([object(), object()]))
+
+
+def test_an_array_of_records_is_not_serialized():
+    with pytest.raises(StructuredArraySerializationError):
+        to_json(np.zeros(2, dtype=[("x", np.float64), ("count", np.int32)]))
+
+
+def test_coordinate_sparse_array_keeps_its_stored_entries():
+    # the first entry stores a zero, which is a value and not a missing entry
+    obj = coo_array(
+        (np.array([0, 3]), (np.array([0, 1]), np.array([1, 0]))), shape=(2, 3)
+    )
+    result = from_json(to_json(obj))
+    assert isinstance(result, coo_array)
+    assert result.shape == obj.shape
+    np.testing.assert_array_equal(result.data, obj.data)
+    np.testing.assert_array_equal(result.row, obj.row)
+    np.testing.assert_array_equal(result.col, obj.col)
+
+
+def test_compressed_sparse_row_array_keeps_its_stored_entries():
+    # the first entry stores a zero, which is a value and not a missing entry
+    obj = csr_array(
+        (np.array([0, 3]), (np.array([0, 1]), np.array([1, 0]))), shape=(2, 3)
+    )
+    result = from_json(to_json(obj))
+    assert isinstance(result, csr_array)
+    assert result.shape == obj.shape
+    np.testing.assert_array_equal(result.data, obj.data)
+    np.testing.assert_array_equal(result.indices, obj.indices)
+    np.testing.assert_array_equal(result.indptr, obj.indptr)
+
+
 @dataclass
 class Foo:
     bar: str = "baz"
@@ -383,3 +495,176 @@ def test_dataclass_dict():
     data = to_json(cls)
     result = from_json(data)
     assert result == cls
+
+
+def test_dataclass_list():
+    cls = ClassWithList([3, 1, 2])
+    data = to_json(cls)
+    assert data["a"] == {
+        JSONField.COLLECTION_TYPE: get_full_class_name(list),
+        JSONField.ITEMS: [3, 1, 2],
+    }
+    result = from_json(data)
+    assert result == cls
+    assert isinstance(result.a, list)
+
+
+def test_dataclass_set():
+    cls = ClassWithSet({1, 2, 3})
+    data = to_json(cls)
+    assert data["a"][JSONField.COLLECTION_TYPE] == get_full_class_name(set)
+    assert sorted(data["a"][JSONField.ITEMS]) == [1, 2, 3]
+    result = from_json(data)
+    assert result == cls
+    assert isinstance(result.a, set)
+
+
+def test_dataclass_tuple():
+    cls = ClassWithTuple((3, 1, 2))
+    data = to_json(cls)
+    assert data["a"] == {
+        JSONField.COLLECTION_TYPE: get_full_class_name(tuple),
+        JSONField.ITEMS: [3, 1, 2],
+    }
+    result = from_json(data)
+    assert result == cls
+    assert isinstance(result.a, tuple)
+
+
+def test_dataclass_sorted_set():
+    cls = ClassWithSortedSet(SortedSet([3, 1, 2]))
+    data = to_json(cls)
+    assert data["a"] == {
+        JSONField.COLLECTION_TYPE: get_full_class_name(SortedSet),
+        JSONField.ITEMS: [1, 2, 3],
+    }
+    result = from_json(data)
+    assert result == cls
+    assert isinstance(result.a, SortedSet)
+
+
+# %% durations
+
+
+def test_timedelta_roundtrip():
+    duration = timedelta(seconds=5)
+    result = from_json(to_json(duration))
+    assert result == duration
+
+
+def test_timedelta_keeps_sub_second_resolution():
+    duration = timedelta(days=2, seconds=3, microseconds=4)
+    result = from_json(to_json(duration))
+    assert result == duration
+
+
+@dataclass
+class HasDuration:
+    """
+    A dataclass carrying a duration, as the statechart nodes that are sent as JSON do.
+    """
+
+    timeout: timedelta = field(default_factory=lambda: timedelta(seconds=5))
+
+
+def test_timedelta_field_of_a_dataclass_roundtrips():
+    obj = HasDuration()
+    result = from_json(to_json(obj))
+    assert result == obj
+
+
+# %% standard library values
+
+
+STANDARD_LIBRARY_VALUES = [
+    datetime.timezone(datetime.timedelta(hours=2)),
+    datetime.timezone(datetime.timedelta(hours=-3), "BRT"),
+    pathlib.PurePosixPath("/a/b"),
+    pathlib.PureWindowsPath("C:/a/b"),
+    range(1, 10, 2),
+    slice(1, None, -1),
+    re.compile("a+b", re.IGNORECASE),
+]
+
+
+@pytest.mark.parametrize(
+    "value",
+    STANDARD_LIBRARY_VALUES,
+    ids=[repr(value) for value in STANDARD_LIBRARY_VALUES],
+)
+def test_standard_library_value_roundtrips(value):
+    result = from_json(json.loads(json.dumps(to_json(value))))
+
+    assert result == value
+    assert type(result) is type(value)
+
+
+def test_timezone_keeps_its_name():
+    zone = datetime.timezone(datetime.timedelta(hours=-3), "BRT")
+
+    result = from_json(to_json(zone))
+
+    assert result.tzname(None) == zone.tzname(None)
+
+
+# %% serializers registered for a type
+
+
+@pytest.mark.parametrize(
+    "clazz",
+    [datetime.timezone, pathlib.PurePath, pathlib.PurePosixPath, range, re.Pattern],
+)
+def test_type_with_its_own_serializer_is_recognised(clazz):
+    assert JSONSerializableTypeRegistry().has_type_specific_serializer(clazz)
+
+
+@dataclass
+class DataclassWithoutOwnSerializer:
+    """
+    A dataclass that only the generic dataclass serializer can handle.
+    """
+
+    value: int
+    """
+    Some value.
+    """
+
+
+@pytest.mark.parametrize("clazz", [DataclassWithoutOwnSerializer, object])
+def test_type_without_its_own_serializer_is_not_recognised(clazz):
+    assert not JSONSerializableTypeRegistry().has_type_specific_serializer(clazz)
+
+
+# %% list diffs with repeated items
+
+
+class TestListDiffWithRepeatedItems:
+    """
+    A list diff counts how often an item occurs, so applying it reproduces lists that
+    hold an item more than once.
+    """
+
+    def test_diff_records_an_item_added_again(self):
+        diffs = shallow_diff_json({"owners": ["Alice"]}, {"owners": ["Alice", "Alice"]})
+
+        assert diffs == [
+            JSONAttributeDiff(attribute_name="owners", added_values=["Alice"])
+        ]
+
+    def test_update_appends_an_item_added_again(self):
+        dog = Dog(name="Rex", age=5, owners=["Alice", "Bob"])
+        original_json = dog.to_json()
+        new_json = {**original_json, "owners": ["Alice", "Bob", "Alice"]}
+
+        dog.update_from_json_diff(shallow_diff_json(original_json, new_json))
+
+        assert dog.owners == new_json["owners"]
+
+    def test_update_removes_the_last_occurrence_of_a_removed_item(self):
+        dog = Dog(name="Rex", age=5, owners=["Alice", "Bob", "Alice"])
+        original_json = dog.to_json()
+        new_json = {**original_json, "owners": ["Alice", "Bob"]}
+
+        dog.update_from_json_diff(shallow_diff_json(original_json, new_json))
+
+        assert dog.owners == new_json["owners"]

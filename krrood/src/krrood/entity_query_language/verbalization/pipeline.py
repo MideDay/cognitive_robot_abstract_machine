@@ -5,7 +5,7 @@ import tempfile
 import webbrowser
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing_extensions import TYPE_CHECKING, Optional
+from typing_extensions import TYPE_CHECKING
 
 from jinja2 import Template
 
@@ -26,7 +26,6 @@ from krrood.entity_query_language.verbalization.rendering.renderer import (
     ParagraphRenderer,
 )
 from krrood.entity_query_language.verbalization.verbalizer import EQLVerbalizer
-from krrood.entity_query_language.query.match import Match
 from krrood.entity_query_language.query.query import Query
 
 if TYPE_CHECKING:
@@ -39,7 +38,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def directive_for_backend(backend: Optional[QueryBackend]) -> Optional[Directive]:
+def directive_for_backend(backend: QueryBackend | None) -> Directive | None:
     """
     Resolve the opening directive implied by an evaluating backend.
 
@@ -119,8 +118,8 @@ class VerbalizationPipeline:
     def verbalize(
         self,
         expression: SymbolicExpression,
-        services: Optional[MicroplanningServices] = None,
-        backend: Optional[QueryBackend] = None,
+        services: MicroplanningServices | None = None,
+        backend: QueryBackend | None = None,
     ) -> str:
         """
         Verbalize *expression* to a string using this pipeline's renderer.
@@ -139,10 +138,12 @@ class VerbalizationPipeline:
         >>> VerbalizationPipeline.plain().verbalize(a(entity(variable(Robot, []))))
         'Find a Robot'
         """
-        if isinstance(expression, Match):
-            expression.expression.build()
-        elif isinstance(expression, Query):
-            expression.build()
+        # Match/Distribution/Probability all resolve, via _get_expression_, to the
+        # underlying SymbolicExpression that actually needs building -- only a Query
+        # has anything to build.
+        target = expression._get_expression_()
+        if isinstance(target, Query):
+            target.build()
         fragment = self._verbalizer.build(
             expression, services, performative=directive_for_backend(backend)
         )
@@ -226,7 +227,7 @@ class VerbalizationPipeline:
     def ansi(
         cls,
         hierarchical: bool = False,
-        link_resolver: Optional[SourceLinkResolver] = None,
+        link_resolver: SourceLinkResolver | None = None,
     ) -> VerbalizationPipeline:
         """
         Create an ANSI true-colour (24-bit) pipeline for terminal display.
@@ -258,7 +259,7 @@ class VerbalizationPipeline:
     def html(
         cls,
         hierarchical: bool = False,
-        link_resolver: Optional[SourceLinkResolver] = None,
+        link_resolver: SourceLinkResolver | None = None,
     ) -> VerbalizationPipeline:
         """
         Create an HTML ``<span>`` colour pipeline for Jupyter / inline-HTML rendering.
@@ -280,7 +281,7 @@ class VerbalizationPipeline:
 
 
 def verbalize_expression(
-    expression: SymbolicExpression, backend: Optional[QueryBackend] = None
+    expression: SymbolicExpression, backend: QueryBackend | None = None
 ) -> str:
     """
     Verbalize any EQL expression into a plain-text English phrase.

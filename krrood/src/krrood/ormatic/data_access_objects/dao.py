@@ -17,17 +17,11 @@ from sqlalchemy.orm import (
     RelationshipProperty,
     selectinload,
 )
-from typing_extensions import (
-    Type,
-    get_origin,
-    Any,
-    TypeVar,
-    Optional,
-    List,
-    Tuple,
-)
+from typing_extensions import get_origin, Any, TypeVar
 
+from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.mapped_variable import Attribute, IndexByValue
+from krrood.entity_query_language.query.match import AbstractMatchExpression
 from krrood.entity_query_language._monitoring import monitored
 from krrood.ormatic.data_access_objects.alternative_mappings import AlternativeMapping
 from krrood.ormatic.data_access_objects.base import (
@@ -38,7 +32,7 @@ from krrood.ormatic.data_access_objects.from_dao import (
     FromDataAccessObjectState,
 )
 from krrood.ormatic.data_access_objects.helper import (
-    get_dao_class,
+    get_data_access_object_class,
     to_dao,
     clear_dao_lookup_caches,
 )
@@ -46,6 +40,7 @@ from krrood.ormatic.data_access_objects.to_dao import ToDataAccessObjectState
 from krrood.ormatic.exceptions import (
     NoGenericError,
     NoDAOFoundDuringParsingError,
+    QueryCannotBePersisted,
 )
 from krrood.ormatic.utils import is_data_column, _get_type_hints_cached
 
@@ -88,16 +83,16 @@ class SingleRelationship:
     key: str
     """The attribute name of the relationship on the DAO."""
 
-    domain_type: Type
+    domain_type: type
     """The expected domain type of the related object."""
 
-    foreign_key_attribute: Optional[str] = None
+    foreign_key_attribute: str | None = None
     """
     The attribute name of the local foreign key column for many-to-one
     relationships, or ``None`` if the foreign key is on the remote side.
     """
 
-    target_dao_class: Optional[Type] = None
+    target_dao_class: type | None = None
     """The DAO class this relationship points to."""
 
 
@@ -110,16 +105,16 @@ class CollectionRelationship:
     key: str
     """The attribute name of the relationship on the DAO."""
 
-    association_class: Optional[Type]
+    association_class: type | None
     """
     The association DAO class used as an intermediary, or ``None`` for direct
     collection relationships.
     """
 
-    domain_type: Type
+    domain_type: type
     """The expected domain type of the items in the collection."""
 
-    association_target_relationship: Optional[SingleRelationship] = None
+    association_target_relationship: SingleRelationship | None = None
     """
     The ``target`` relationship of the association class, if any. Used to
     resolve association targets via the identity map instead of lazy loads.
@@ -136,27 +131,27 @@ class DataAccessObjectSchema:
     introspection, relationship classification and MRO walks per converted instance.
     """
 
-    data_column_names: Tuple[str, ...]
+    data_column_names: tuple[str, ...]
     """
     Names of all data columns (no primary keys, foreign keys or polymorphic markers).
     """
 
-    single_relationships: Tuple[SingleRelationship, ...]
+    single_relationships: tuple[SingleRelationship, ...]
     """
     Single-valued relationships of this DAO class.
     """
 
-    collection_relationships: Tuple[CollectionRelationship, ...]
+    collection_relationships: tuple[CollectionRelationship, ...]
     """
     Collection-valued relationships of this DAO class.
     """
 
-    relationship_keys: Tuple[str, ...]
+    relationship_keys: tuple[str, ...]
     """
     The keys of all relationships of the DAO class.
     """
 
-    alternative_base: Optional[Type]
+    alternative_base: type | None
     """
     The first base class of the DAO that maps to an AlternativeMapping, if any.
     """
@@ -168,7 +163,7 @@ class DataAccessObjectSchema:
 
 
 def _build_single_relationship(
-    relationship: RelationshipProperty, domain_type: Type
+    relationship: RelationshipProperty, domain_type: type
 ) -> SingleRelationship:
     """
     Build a :class:`SingleRelationship` descriptor from a SQLAlchemy relationship property.
@@ -202,7 +197,7 @@ def _build_single_relationship(
 
 
 @lru_cache(maxsize=None)
-def get_dao_schema(dao_class: Type) -> DataAccessObjectSchema:
+def get_dao_schema(dao_class: type) -> DataAccessObjectSchema:
     """
     Build (and cache) the conversion plan for a DAO class.
 
@@ -267,38 +262,38 @@ class AlternativePartitionPlan:
     alternatively mapped base class.
     """
 
-    parent_data_column_names: Tuple[str, ...]
+    parent_data_column_names: tuple[str, ...]
     """
     Data column names that belong to the alternatively mapped base.
     """
 
-    own_data_column_names: Tuple[str, ...]
+    own_data_column_names: tuple[str, ...]
     """
     Data column names that belong to this DAO's own tables.
     """
 
-    intermediate_attribute_keys: Tuple[str, ...]
+    intermediate_attribute_keys: tuple[str, ...]
     """
     Column attribute keys of intermediate ancestors not covered by the parent.
     """
 
-    parent_single_relationships: Tuple[SingleRelationship, ...]
+    parent_single_relationships: tuple[SingleRelationship, ...]
     """
     Single-valued relationships that belong to the alternatively mapped base.
     """
 
-    parent_collection_relationships: Tuple[CollectionRelationship, ...]
+    parent_collection_relationships: tuple[CollectionRelationship, ...]
     """
     Collection relationships that belong to the alternatively mapped base.
     """
 
-    own_single_relationships: Tuple[SingleRelationship, ...]
+    own_single_relationships: tuple[SingleRelationship, ...]
     """
     Single-valued relationships that belong to this DAO's own tables,
     i.e. those not covered by the alternatively mapped base.
     """
 
-    own_collection_relationships: Tuple[CollectionRelationship, ...]
+    own_collection_relationships: tuple[CollectionRelationship, ...]
     """
     Collection relationships that belong to this DAO's own tables,
     i.e. those not covered by the alternatively mapped base.
@@ -307,7 +302,7 @@ class AlternativePartitionPlan:
 
 @lru_cache(maxsize=None)
 def _get_alternative_partition_plan(
-    dao_class: Type, alternative_base: Type
+    dao_class: type, alternative_base: type
 ) -> AlternativePartitionPlan:
     """
     Build (and cache) the column/relationship partition between a DAO class and its
@@ -355,7 +350,7 @@ def _get_alternative_partition_plan(
 
 
 @lru_cache(maxsize=None)
-def _uses_alternative_mapping(clazz: Type) -> bool:
+def _uses_alternative_mapping(clazz: type) -> bool:
     """
     :param clazz: The class to check.
     :return: Whether the class is a DAO whose original class is an AlternativeMapping.
@@ -369,7 +364,7 @@ def _uses_alternative_mapping(clazz: Type) -> bool:
 
 
 @lru_cache(maxsize=None)
-def _has_post_init(clazz: Type) -> bool:
+def _has_post_init(clazz: type) -> bool:
     """
     :param clazz: The class to check.
     :return: Whether the class defines a ``__post_init__``.
@@ -386,7 +381,7 @@ class _SessionInfoKey(StrEnum):
 
 
 def _bulk_load_target_table_if_enabled(
-    session: sqlalchemy.orm.Session, target_dao_class: Type
+    session: sqlalchemy.orm.Session, target_dao_class: type
 ) -> None:
     """
     Load all rows of the target's root mapper into the identity map, once per
@@ -416,7 +411,7 @@ def _bulk_load_target_table_if_enabled(
 
 def _read_single_relationship(
     instance: Any, relationship: SingleRelationship
-) -> Optional[DataAccessObject]:
+) -> DataAccessObject | None:
     """
     Read the value of a single-valued relationship on a DAO or association object.
 
@@ -453,7 +448,7 @@ def _read_single_relationship(
 
 
 @lru_cache(maxsize=None)
-def _get_set_field_names(clazz: Type) -> Tuple[str, ...]:
+def _get_set_field_names(clazz: type) -> tuple[str, ...]:
     """
     :param clazz: The domain class to inspect.
     :return: The names of all fields annotated as sets.
@@ -466,7 +461,7 @@ def _get_set_field_names(clazz: Type) -> Tuple[str, ...]:
 
 
 @lru_cache(maxsize=None)
-def _get_tuple_field_names(clazz: Type) -> Tuple[str, ...]:
+def _get_tuple_field_names(clazz: type) -> tuple[str, ...]:
     """
     :param clazz: The domain class to inspect.
     :return: The names of all fields annotated as tuples.
@@ -537,7 +532,7 @@ class DataAccessObject(HasGeneric[T]):
     def to_dao(
         cls,
         source_object: T,
-        state: Optional[ToDataAccessObjectState] = None,
+        state: ToDataAccessObjectState | None = None,
         register: bool = True,
     ) -> _DAO:
         """
@@ -547,7 +542,9 @@ class DataAccessObject(HasGeneric[T]):
         :param state: The conversion state.
         :param register: Whether to register the result in the memo.
         :return: The converted DAO instance.
+        :raises QueryCannotBePersisted: If the object is an entity query language query.
         """
+        cls._refuse_queries(source_object)
         state = state or ToDataAccessObjectState()
 
         # Phase 1: Resolution - Check memo and apply alternative mappings
@@ -575,6 +572,15 @@ class DataAccessObject(HasGeneric[T]):
 
         return result
 
+    @staticmethod
+    def _refuse_queries(source_object: Any) -> None:
+        """
+        :param source_object: An object that is to be stored.
+        :raises QueryCannotBePersisted: If the object is an entity query language query.
+        """
+        if isinstance(source_object, (AbstractMatchExpression, SymbolicExpression)):
+            raise QueryCannotBePersisted(source_object)
+
     @classmethod
     def _process_to_dao_queue(cls, state: ToDataAccessObjectState) -> None:
         """
@@ -600,7 +606,7 @@ class DataAccessObject(HasGeneric[T]):
                 )
 
     @classmethod
-    def _find_alternative_mapping_base(cls) -> Optional[Type[DataAccessObject]]:
+    def _find_alternative_mapping_base(cls) -> type[DataAccessObject] | None:
         """
         Find the first base class using an alternative mapping.
 
@@ -639,7 +645,7 @@ class DataAccessObject(HasGeneric[T]):
     def fill_dao_if_subclass_of_alternative_mapping(
         self,
         source_object: T,
-        alternative_base: Type[DataAccessObject],
+        alternative_base: type[DataAccessObject],
         state: ToDataAccessObjectState,
     ) -> None:
         """
@@ -700,8 +706,8 @@ class DataAccessObject(HasGeneric[T]):
     def _fill_relationships_from_plan(
         self,
         source_object: Any,
-        single_relationships: Tuple[SingleRelationship, ...],
-        collection_relationships: Tuple[CollectionRelationship, ...],
+        single_relationships: tuple[SingleRelationship, ...],
+        collection_relationships: tuple[CollectionRelationship, ...],
         state: ToDataAccessObjectState,
     ) -> None:
         """
@@ -712,63 +718,106 @@ class DataAccessObject(HasGeneric[T]):
         :param collection_relationships: The collection relationship entries.
         :param state: The conversion state.
         """
-        for relationship in single_relationships:
-            value = getattr(source_object, relationship.key)
-            if value is None:
-                setattr(self, relationship.key, None)
-            else:
-                setattr(
-                    self,
-                    relationship.key,
-                    self._get_or_queue_dao(value, state, relationship.domain_type),
-                )
+        for single_relationship in single_relationships:
+            self._fill_single_relationship(source_object, single_relationship, state)
 
-        for relationship in collection_relationships:
-            source_collection = getattr(source_object, relationship.key)
-
-            if relationship.association_class is not None:
-                dao_collection = []
-                for item in source_collection:
-                    association_dao = relationship.association_class()
-                    association_dao.target = self._get_or_queue_dao(
-                        item, state, relationship.domain_type
-                    )
-                    dao_collection.append(association_dao)
-            else:
-                dao_collection = [
-                    self._get_or_queue_dao(item, state, relationship.domain_type)
-                    for item in source_collection
-                ]
-
-            # The instrumented DAO attribute expects an iterable duck-typed as its own
-            # collection class; an immutable domain container (tuple) is held as a
-            # list at the ORM layer (see WrappedTable.create_many_to_many_relationship),
-            # so it must be assigned as one here too.
-            assignable_container_type = (
-                list if type(source_collection) is tuple else type(source_collection)
+        for collection_relationship in collection_relationships:
+            self._fill_collection_relationship(
+                source_object, collection_relationship, state
             )
-            setattr(self, relationship.key, assignable_container_type(dao_collection))
+
+    def _fill_single_relationship(
+        self,
+        source_object: Any,
+        relationship: SingleRelationship,
+        state: ToDataAccessObjectState,
+    ) -> None:
+        """
+        Populate a single-valued relationship attribute from a source object.
+
+        :param source_object: The source of the relationship value.
+        :param relationship: The single-valued relationship entry.
+        :param state: The conversion state.
+        """
+        value = getattr(source_object, relationship.key)
+        if value is None:
+            setattr(self, relationship.key, None)
+        else:
+            setattr(
+                self,
+                relationship.key,
+                self._get_or_queue_dao(value, state, relationship.domain_type),
+            )
+
+    def _fill_collection_relationship(
+        self,
+        source_object: Any,
+        relationship: CollectionRelationship,
+        state: ToDataAccessObjectState,
+    ) -> None:
+        """
+        Populate a collection-valued relationship attribute from a source object.
+
+        :param source_object: The source of the relationship values.
+        :param relationship: The collection-valued relationship entry.
+        :param state: The conversion state.
+        """
+        source_collection = getattr(source_object, relationship.key)
+
+        if relationship.association_class is not None:
+            dao_collection = []
+            for item in source_collection:
+                association_dao = relationship.association_class()
+                association_dao.target = self._get_or_queue_dao(
+                    item, state, relationship.domain_type
+                )
+                dao_collection.append(association_dao)
+        else:
+            dao_collection = [
+                self._get_or_queue_dao(item, state, relationship.domain_type)
+                for item in source_collection
+            ]
+
+        # The instrumented DAO attribute expects an iterable duck-typed as its own
+        # collection class; an immutable domain container (tuple) is held as a
+        # list at the ORM layer (see WrappedTable.create_many_to_many_relationship),
+        # so it must be assigned as one here too.
+        assignable_container_type = (
+            list if type(source_collection) is tuple else type(source_collection)
+        )
+        setattr(self, relationship.key, assignable_container_type(dao_collection))
 
     def _get_or_queue_dao(
         self,
         source_object: Any,
         state: ToDataAccessObjectState,
-        expected_type: Optional[Type] = None,
+        expected_type: type | None = None,
     ) -> DataAccessObject:
         """
         Resolve a source object to a DAO, queuing it if necessary.
 
+        Constructing through a parametrized alias (``GenericClass[float](...)``) leaves
+        the alias on the instance, while a bare construction leaves nothing. That alias
+        is the object's own type argument, so it is preferred over ``expected_type``,
+        which only describes the field the object is reached through: a shared object
+        then resolves to the same DAO class no matter which field reaches it first,
+        which matters because the first resolution is the one this state keeps.
+
         :param source_object: The object to resolve.
         :param state: The conversion state.
-        :param expected_type: The expected domain type.
+        :param expected_type: The expected domain type of the field being filled.
         :return: The corresponding DAO instance.
+        :raises QueryCannotBePersisted: If the object is an entity query language query.
         """
+        self._refuse_queries(source_object)
+        expected_type = getattr(source_object, "__orig_class__", None) or expected_type
+
         # Check if already built
         existing = state.get(source_object)
         if existing is not None:
             return existing
 
-        dao_clazz = get_dao_class(type(source_object), expected_type)
+        dao_clazz = get_data_access_object_class(type(source_object), expected_type)
         if dao_clazz is None:
             raise NoDAOFoundDuringParsingError(source_object, type(self), None)
 
@@ -796,7 +845,7 @@ class DataAccessObject(HasGeneric[T]):
 
     def from_dao(
         self,
-        state: Optional[FromDataAccessObjectState] = None,
+        state: FromDataAccessObjectState | None = None,
     ) -> T:
         """
         Convert the DAO back into a domain object instance.
@@ -847,7 +896,7 @@ class DataAccessObject(HasGeneric[T]):
     def _discover_dependencies(
         self,
         state: FromDataAccessObjectState,
-        discovery_order: List[FromDataAccessObjectWorkItem],
+        discovery_order: list[FromDataAccessObjectWorkItem],
     ) -> None:
         """
         Phase 1: Discovery (DFS) to identify all reachable DAOs.
@@ -872,7 +921,7 @@ class DataAccessObject(HasGeneric[T]):
     def _fill_domain_objects(
         self,
         state: FromDataAccessObjectState,
-        discovery_order: List[FromDataAccessObjectWorkItem],
+        discovery_order: list[FromDataAccessObjectWorkItem],
     ):
         """
         Phase 2: Filling (Bottom-Up) to initialize domain objects.
@@ -893,7 +942,7 @@ class DataAccessObject(HasGeneric[T]):
         self,
         data_access_object: DataAccessObject,
         domain_object: Any,
-        alternatively_mapped_base: Type[AlternativeMapping],
+        alternatively_mapped_base: type[AlternativeMapping],
     ):
         """
         Handle the case where the parent class is an alternative mapping in the `from_dqo` algorithm.
@@ -923,7 +972,7 @@ class DataAccessObject(HasGeneric[T]):
     def _finalize_containers(
         self,
         state: FromDataAccessObjectState,
-        discovery_order: List[FromDataAccessObjectWorkItem],
+        discovery_order: list[FromDataAccessObjectWorkItem],
     ) -> None:
         """
         Convert temporary lists to their final container types.
@@ -954,7 +1003,7 @@ class DataAccessObject(HasGeneric[T]):
     def _call_post_inits(
         self,
         state: FromDataAccessObjectState,
-        discovery_order: List[FromDataAccessObjectWorkItem],
+        discovery_order: list[FromDataAccessObjectWorkItem],
     ) -> None:
         """
         Phase 4: Call post_init or __post_init__ on all objects.
@@ -1107,7 +1156,7 @@ class DataAccessObject(HasGeneric[T]):
         key: str,
         value: Any,
         state: FromDataAccessObjectState,
-        association_class: Optional[Type] = None,
+        association_class: type | None = None,
     ) -> None:
         """
         Populate a collection relationship on the domain object.
@@ -1199,7 +1248,7 @@ class DataAccessObject(HasGeneric[T]):
                 object.__setattr__(domain_object, key, getattr(base_result, key))
 
     def _create_filled_parent_dao(
-        self, base_clazz: Type[DataAccessObject]
+        self, base_clazz: type[DataAccessObject]
     ) -> DataAccessObject:
         """
         Create a parent DAO instance populated from the current DAO.

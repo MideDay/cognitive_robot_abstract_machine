@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass, field
 
 import numpy as np
-from typing_extensions import TYPE_CHECKING, List, Optional, Sequence, Tuple
+from typing_extensions import TYPE_CHECKING, Sequence
 
 from krrood.class_diagrams.mocking import MockedClass
 from semantic_digital_twin.exceptions import PointOccupiedError
@@ -16,7 +16,10 @@ from semantic_digital_twin.spatial_types import (
     Point3,
 )
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.geometry import Shape
+from semantic_digital_twin.world_description.geometry import (
+    Shape,
+    VolumetricBoundingBox,
+)
 from semantic_digital_twin.world_description.graph_of_convex_sets.base import (
     GraphOfConvexSets,
 )
@@ -178,7 +181,7 @@ class IrisSeedingSettings:
     Options forwarded to every :func:`pydrake.geometry.optimization.Iris` call.
     """
 
-    def coverage_grid_seeds(self, lower: Point3, upper: Point3) -> List[Point3]:
+    def coverage_grid_seeds(self, lower: Point3, upper: Point3) -> list[Point3]:
         """
         Build a regular grid of candidate seed points strictly inside the axis-aligned
         box spanned by ``lower`` and ``upper``.
@@ -186,7 +189,7 @@ class IrisSeedingSettings:
         :param lower: Lower corner of the region to seed.
         :param upper: Upper corner of the region to seed, in ``lower``'s reference
             frame.
-        :return: ``grid_resolution`` candidate seed points per axis.
+        :return:``grid_resolution`` candidate seed points per axis.
         """
         reference_frame = lower.reference_frame
         lower_array = lower.to_np()[:3]
@@ -204,7 +207,9 @@ class IrisSeedingSettings:
         ]
 
 
-def _validate_and_convert_domain(search_space: BoundingBoxCollection) -> HPolyhedron:
+def _validate_and_convert_domain(
+    search_space: BoundingBoxCollection[VolumetricBoundingBox, Point3],
+) -> HPolyhedron:
     """
     Convert a search space into the single, finite ``HPolyhedron`` domain IRIS grows
     regions within.
@@ -278,12 +283,14 @@ def _shape_to_convex_set(
 
 
 @dataclass
-class GraphOfConvexPolygons(GraphOfConvexSets):
+class GraphOfConvexPolygons(
+    GraphOfConvexSets[Point3, BoundingBoxCollection[VolumetricBoundingBox, Point3]]
+):
     """
     A graph of convex sets whose regions are grown by Drake's IRIS algorithm and solved
     with Drake's ``GcsTrajectoryOptimization`` (:cite:t:`marcucci2022shortest`).
 
-    Unlike :class:`~semantic_digital_twin.world_description.graph_of_convex_sets.boxes.GraphOfBoundingBoxes`,
+    Unlike :class:`~semantic_digital_twin.world_description.graph_of_convex_sets.boxes.VolumetricGraphOfBoundingBoxes`,
     which exhaustively partitions free space into many small axis-aligned boxes, IRIS
     covers free space with a handful of large, non-axis-aligned convex regions -- a
     sufficient cover for solving path queries, not a complete map of free space (some
@@ -297,7 +304,7 @@ class GraphOfConvexPolygons(GraphOfConvexSets):
     and removed rather than rebuilding the whole graph.
     """
 
-    obstacles: List[ConvexSet] = field(default_factory=list)
+    obstacles: list[ConvexSet] = field(default_factory=list)
     """
     The obstacle convex sets every region was grown to avoid, expressed relative to
     ``world.root``.
@@ -306,7 +313,7 @@ class GraphOfConvexPolygons(GraphOfConvexSets):
     with a non-convex mesh fall back to an axis-aligned bounding box (``HPolyhedron``).
     """
 
-    regions: List[HPolyhedron] = field(default_factory=list)
+    regions: list[HPolyhedron] = field(default_factory=list)
     """
     The IRIS regions covering the search space.
     """
@@ -319,13 +326,13 @@ class GraphOfConvexPolygons(GraphOfConvexSets):
     while a query is in flight, its source/target point subgraphs.
     """
 
-    _region_subgraph: Optional[Subgraph] = None
+    _region_subgraph: Subgraph | None = None
     """
     The subgraph spanning ``regions``, built once in :meth:`from_world` and reused by
     every :meth:`path_from_to` query.
     """
 
-    _query_subgraphs: Optional[Tuple[Subgraph, Subgraph]] = None
+    _query_subgraphs: tuple[Subgraph, Subgraph] | None = None
     """
     The current query's ``(source, target)`` point subgraphs, or None between queries.
     """
@@ -341,9 +348,9 @@ class GraphOfConvexPolygons(GraphOfConvexSets):
     def from_world(
         cls,
         world: World,
-        search_space: BoundingBoxCollection,
+        search_space: BoundingBoxCollection[VolumetricBoundingBox, Point3],
         bloat_obstacles: float = 0.0,
-        seeding_settings: Optional[IrisSeedingSettings] = None,
+        seeding_settings: IrisSeedingSettings | None = None,
         extra_seed_points: Sequence[Point3] = (),
     ) -> GraphOfConvexPolygons:
         """
@@ -369,21 +376,19 @@ class GraphOfConvexPolygons(GraphOfConvexSets):
         semantic_annotation = SemanticEnvironmentAnnotation(
             root=world.root, _world=world
         )
-        obstacle_entities = cls._obstacle_entities(
-            result.search_space, semantic_annotation
-        )
+        obstacle_entities = semantic_annotation.obstacle_entities(result.search_space)
         result.obstacles = [
             _shape_to_convex_set(shape, world.root, bloat_obstacles, bloat_obstacles)
             for entity in obstacle_entities
             for shape in entity.collision.shapes
         ]
 
-        bounds = result.search_space.bounding_boxes[0].to_point3_bounds()
+        search_box = result.search_space.bounding_boxes[0]
         seeds = list(extra_seed_points) + settings.coverage_grid_seeds(
-            bounds.lower, bounds.upper
+            search_box.lower, search_box.upper
         )
 
-        regions: List[HPolyhedron] = []
+        regions: list[HPolyhedron] = []
         for seed_point in seeds:
             if len(regions) >= settings.max_regions:
                 break
@@ -401,7 +406,7 @@ class GraphOfConvexPolygons(GraphOfConvexSets):
         result._trajectory_optimization.AddPathLengthCost()
         return result
 
-    def path_from_to(self, start: Point3, goal: Point3) -> Optional[List[Point3]]:
+    def path_from_to(self, start: Point3, goal: Point3) -> list[Point3] | None:
         """
         Calculate a connected path from a start pose to a goal pose.
 

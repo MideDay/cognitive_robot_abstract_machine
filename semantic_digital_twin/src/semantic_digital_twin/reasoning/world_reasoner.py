@@ -1,9 +1,8 @@
 from dataclasses import dataclass, field
 from os.path import dirname
 
-from typing_extensions import Optional, List, Dict, Any, Type, ClassVar
+from typing_extensions import Any, ClassVar
 
-from semantic_digital_twin.semantic_annotations.mixins import HasMechanicalJoint
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 from semantic_digital_twin.reasoning.reasoner import CaseReasoner
@@ -19,7 +18,7 @@ class WorldReasoner:
     """
     The world instance to reason on.
     """
-    _last_world_model_version: Optional[int] = field(init=False, default=None)
+    _last_world_model_version: int | None = field(init=False, default=None)
     """
     The last world model version of the world used when :py:meth:`reason` was last
     called.
@@ -38,7 +37,7 @@ class WorldReasoner:
     def __post_init__(self):
         self.reasoner = CaseReasoner(self.world, model_directory=self.model_directory)
 
-    def infer_semantic_annotations(self) -> List[SemanticAnnotation]:
+    def infer_semantic_annotations(self) -> list[SemanticAnnotation]:
         """
         Infer the semantic annotations of the world by calling the :py:meth:`reason`
         method and extracting all inferred semantic annotations.
@@ -49,7 +48,7 @@ class WorldReasoner:
             result = self.reason()
         return result.get("semantic_annotations", [])
 
-    def reason(self) -> Dict[str, Any]:
+    def reason(self) -> dict[str, Any]:
         """
         Perform rule-based reasoning on the current world and infer all possible
         concepts.
@@ -81,26 +80,17 @@ class WorldReasoner:
                 setattr(self.world, attr_name, attr_value)
             else:
                 for semantic_annotation in attr_value:
-                    self.world.add_semantic_annotation_recursively(semantic_annotation)
-                    if isinstance(semantic_annotation, HasMechanicalJoint):
-                        semantic_annotation.create_default_mechanical_joint()
+                    self._hold_in_world(semantic_annotation)
 
-    def fit_semantic_annotations(
-        self,
-        required_semantic_annotations: List[Type[SemanticAnnotation]],
-        update_existing_semantic_annotations: bool = False,
-    ) -> None:
+    def _hold_in_world(self, semantic_annotation: SemanticAnnotation) -> None:
         """
-        Fit the world RDR to the required semantic annotation types.
+        Give the world the inferred annotation.
 
-        :param required_semantic_annotations: A list of semantic annotation types that
-            the RDR should be fitted to.
-        :param update_existing_semantic_annotations: If True, existing semantic
-            annotations will be updated with new rules, else they will be skipped.
+        An inferred annotation the world already holds an equal of is dropped in favour
+        of the one the world holds, so that reasoning over a world that was annotated
+        before does not store a second copy of what it recognises.
+
+        :param semantic_annotation: The annotation a rule inferred.
         """
-        self.reasoner.fit_attribute(
-            "semantic_annotations",
-            required_semantic_annotations,
-            False,
-            update_existing_rules=update_existing_semantic_annotations,
-        )
+        if self.world.get_semantic_annotation_equal_to(semantic_annotation) is None:
+            self.world.add_semantic_annotation_recursively(semantic_annotation)

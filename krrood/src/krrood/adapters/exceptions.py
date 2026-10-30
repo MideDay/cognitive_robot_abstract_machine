@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
-from typing_extensions import Type
+from typing_extensions import Any, TYPE_CHECKING
 
+from krrood.adapters.json_field import JSONField
 from krrood.exceptions import DataclassException
 
-JSON_TYPE_NAME = "__json_type__"  # the key used in JSON dicts to identify the class
+if TYPE_CHECKING:
+    import numpy as np
 
 
 @dataclass
@@ -18,11 +21,11 @@ class JSONSerializationError(DataclassException):
 @dataclass
 class MissingTypeError(JSONSerializationError):
     """
-    Raised when the 'type' field is missing in the JSON data.
+    Raised when :attr:`JSONField.TYPE` is missing in the JSON data.
     """
 
     def error_message(self) -> str:
-        return f"Missing {JSON_TYPE_NAME} field in JSON data"
+        return f"Missing {JSONField.TYPE} field in JSON data"
 
     def suggest_correction(self) -> str:
         return ""
@@ -31,7 +34,7 @@ class MissingTypeError(JSONSerializationError):
 @dataclass
 class InvalidTypeFormatError(JSONSerializationError):
     """
-    Raised when the 'type' field value is not a fully qualified class name.
+    Raised when the value of :attr:`JSONField.TYPE` is not a fully qualified class name.
     """
 
     invalid_type_value: str
@@ -46,7 +49,7 @@ class InvalidTypeFormatError(JSONSerializationError):
 @dataclass
 class UnknownModuleError(JSONSerializationError):
     """
-    Raised when the module specified in the 'type' field cannot be imported.
+    Raised when the module named by :attr:`JSONField.TYPE` cannot be imported.
     """
 
     module_name: str
@@ -61,7 +64,7 @@ class UnknownModuleError(JSONSerializationError):
 @dataclass
 class ClassNotFoundError(JSONSerializationError):
     """
-    Raised when the class specified in the 'type' field cannot be found in the module.
+    Raised when the class named by :attr:`JSONField.TYPE` cannot be found in the module.
     """
 
     class_name: str
@@ -80,7 +83,7 @@ class ClassNotSerializableError(JSONSerializationError):
     Raised when the class specified cannot be JSON-serialized.
     """
 
-    clazz: Type
+    clazz: type
 
     def error_message(self) -> str:
         return f"Class '{self.clazz.__name__}' cannot be serialized"
@@ -95,10 +98,73 @@ class ClassNotDeserializableError(JSONSerializationError):
     Raised when the class specified cannot be JSON-deserialized.
     """
 
-    clazz: Type
+    clazz: type
 
     def error_message(self) -> str:
         return f"Class '{self.clazz.__name__}' cannot be deserialized"
 
     def suggest_correction(self) -> str:
         return ""
+
+
+@dataclass
+class UntrackedObjectError(JSONSerializationError):
+    """
+    Raised when a JSON document refers to an object by a key that no object was
+    deserialized with.
+    """
+
+    key: Any
+    """
+    The key the document refers to the object with.
+    """
+
+    def error_message(self) -> str:
+        return f"No object was deserialized with the key '{self.key}'."
+
+    def suggest_correction(self) -> str:
+        return (
+            "Deserialize the referenced object before the objects that refer to it, "
+            "within the same JSON document."
+        )
+
+
+@dataclass
+class ArrayElementTypeSerializationError(JSONSerializationError, ABC):
+    """
+    Raised when a numpy array is serialized whose element type the serializer cannot
+    write down faithfully.
+    """
+
+    element_type: np.dtype
+    """
+    The element type of the array.
+    """
+
+    def error_message(self) -> str:
+        return f"Serializing a numpy array of element type {self.element_type} is not supported."
+
+
+@dataclass
+class ObjectArraySerializationError(ArrayElementTypeSerializationError):
+    """
+    Raised when a numpy array of Python objects is serialized, whose bytes are
+    references rather than values.
+    """
+
+    def suggest_correction(self) -> str:
+        return "Consider converting the array to a list first and serializing that."
+
+
+@dataclass
+class StructuredArraySerializationError(ArrayElementTypeSerializationError):
+    """
+    Raised when a numpy array of records is serialized, whose field names its element
+    type's byte layout does not carry.
+    """
+
+    def suggest_correction(self) -> str:
+        return (
+            "Consider serializing each field of the array as an array of its own, or, if appropriate, see if"
+            "you could contribute to krrood by adding support for this kind of array"
+        )

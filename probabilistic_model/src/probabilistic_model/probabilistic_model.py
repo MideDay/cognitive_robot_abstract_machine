@@ -3,18 +3,7 @@ from __future__ import annotations
 import itertools
 import math
 import plotly.graph_objects as go
-from dataclasses import dataclass
-from typing import (
-    TYPE_CHECKING,
-    Union,
-    Tuple,
-    Iterable,
-    Optional,
-    Self,
-    Dict,
-    Any,
-    List,
-)
+from typing_extensions import TYPE_CHECKING, Union, Iterable, Self, Any
 
 import numpy as np
 import numpy.typing as npt
@@ -37,12 +26,26 @@ from random_events.interval import closed, SimpleInterval, Interval
 from abc import abstractmethod, ABC
 
 from probabilistic_model.exceptions import IntractableError, UndefinedOperationError
+from probabilistic_model.query_results import (
+    Conditioning,
+    LogConditioning,
+    LogMode,
+    LogTruncation,
+    Mode,
+    Truncation,
+)
 from probabilistic_model.utils import neighbouring_points
+from random_events.plotting import EventPlotter, SimpleEventPlotter
 from random_events.product_algebra import VariableMap, Event, SimpleEvent
 from random_events.variable import Integer, Continuous, Variable, Symbolic
 
 # Type definitions
 FullEvidenceType = np.array  # [Union[float, int, SetElement]]
+
+PartialPointType = dict[Variable, Any]
+"""
+A partial point: one value for each of some variables of a model.
+"""
 
 # # Type hinting for Python 3.7 to 3.9
 if TYPE_CHECKING:
@@ -55,7 +58,6 @@ else:
     MomentType = VariableMap
 
 
-@dataclass
 class ProbabilisticModel(ABC):
     """
     Abstract base class for probabilistic models.
@@ -66,6 +68,16 @@ class ProbabilisticModel(ABC):
 
     This class can be used as an interface to any kind of probabilistic model, tractable
     or not.
+
+    .. note::
+        ``variables`` is a type-annotated contract, which leaves each subclass free to
+        store it as a plain field or compute it as a property. A subclass that provides
+        neither raises ``AttributeError`` on first access.
+    """
+
+    variables: tuple[Variable, ...]
+    """
+    The variables of the model.
     """
 
     @property
@@ -74,13 +86,6 @@ class ProbabilisticModel(ABC):
         The symbol used to represent this distribution.
         """
         return self.__class__.__name__
-
-    @property
-    @abstractmethod
-    def variables(self) -> Tuple[Variable, ...]:
-        """
-        :return: The variables of the model.
-        """
 
     def get_variable_by_name(self, name: str) -> Variable:
         [variable] = [v for v in self.variables if v.name == name]
@@ -168,7 +173,7 @@ class ProbabilisticModel(ABC):
         :return: The probability of the event.
         """
 
-    def mode(self) -> Tuple[Event, float]:
+    def mode(self) -> Mode:
         """
         Calculate the mode of the model.
 
@@ -181,11 +186,10 @@ class ProbabilisticModel(ABC):
 
                 :return: The mode and its likelihood.
         """
-        mode, log_likelihood = self.log_mode()
-        return mode, np.exp(log_likelihood)
+        return self.log_mode().exponentiated()
 
     @abstractmethod
-    def log_mode(self) -> Tuple[Event, float]:
+    def log_mode(self) -> LogMode:
         """
         Calculate the mode of the model.
 
@@ -194,7 +198,7 @@ class ProbabilisticModel(ABC):
         :return: The mode and its log-likelihood.
         """
 
-    def marginal(self, variables: Iterable[Variable]) -> Optional[Self]:
+    def marginal(self, variables: Iterable[Variable]) -> Self | None:
         """
         Calculate the marginal distribution of a set of variables.
 
@@ -205,7 +209,7 @@ class ProbabilisticModel(ABC):
 
     def truncated(
         self, event: Event, singleton_allowed: bool = False
-    ) -> Tuple[Optional[ProbabilisticModel], float]:
+    ) -> Truncation[ProbabilisticModel]:
         """
         Calculate the truncated distribution P(*| event) and the probability of the
         event.
@@ -225,13 +229,12 @@ class ProbabilisticModel(ABC):
         :return: The truncated distribution and the probability of the event.
         """
         event.fill_missing_variables(set(self.variables))
-        conditional, log_probability = self.log_truncated(event, singleton_allowed)
-        return conditional, np.exp(log_probability)
+        return self.log_truncated(event, singleton_allowed).exponentiated()
 
     @abstractmethod
     def log_truncated(
         self, event: Event, singleton_allowed: bool = False
-    ) -> Tuple[Optional[Union[ProbabilisticModel, Self]], float]:
+    ) -> LogTruncation[ProbabilisticModel]:
         """
         Calculate the truncated distribution P(*| event) and the probability of the
         event.
@@ -243,27 +246,24 @@ class ProbabilisticModel(ABC):
         :return: The truncated distribution and the log-probability of the event.
         """
 
-    def conditional(self, point: Dict[Variable, Any]) -> Tuple[Optional[Self], float]:
+    def conditional(self, point: PartialPointType) -> Conditioning[Self]:
         """
         Calculate the conditioned distribution P(*| point) and the probability of the
         event.
 
         :param point: A partial point to calculate the conditioned distribution on.
-        :return: The conditioned distribution and the log-probability of the point.
+        :return: The conditioned distribution and the likelihood of the point.
         """
-        conditional, log_probability = self.log_conditional(point)
-        return conditional, np.exp(log_probability)
+        return self.log_conditional(point).exponentiated()
 
     @abstractmethod
-    def log_conditional(
-        self, point: Dict[Variable, Any]
-    ) -> Tuple[Optional[Self], float]:
+    def log_conditional(self, point: PartialPointType) -> LogConditioning[Self]:
         """
         Calculate the conditioned distribution P(*| point) and the probability of the
         event. Check the documentation of `conditional` for more information.
 
         :param point: A partial point to calculate the conditioned distribution on.
-        :return: The conditioned distribution and the log-probability of the point.
+        :return: The conditioned distribution and the log-likelihood of the point.
         """
 
     @abstractmethod
@@ -293,7 +293,7 @@ class ProbabilisticModel(ABC):
         """
         raise NotImplementedError
 
-    def expectation(self, variables: Optional[Iterable[Variable]] = None) -> MomentType:
+    def expectation(self, variables: Iterable[Variable] | None = None) -> MomentType:
         """
         Calculate the expectation of the numeric variables in `variables`.
 
@@ -311,7 +311,7 @@ class ProbabilisticModel(ABC):
         center = VariableMap({variable: 0 for variable in variables})
         return self.moment(order, center)
 
-    def variance(self, variables: Optional[Iterable[Variable]] = None) -> MomentType:
+    def variance(self, variables: Iterable[Variable] | None = None) -> MomentType:
         """
         Calculate the variance of the numeric variables in `variables`.
 
@@ -337,7 +337,7 @@ class ProbabilisticModel(ABC):
             {variable: variable.domain for variable in self.variables}
         )
 
-    def apply_translation(self, translation: Dict[Variable, float]):
+    def apply_translation(self, translation: dict[Variable, float]):
         """
         Translate the model in-place.
 
@@ -349,7 +349,7 @@ class ProbabilisticModel(ABC):
         """
         raise NotImplementedError
 
-    def apply_scaling(self, scaling: Dict[Variable, float]):
+    def apply_scaling(self, scaling: dict[Variable, float]):
         """
         Scale the model in-place.
 
@@ -361,10 +361,7 @@ class ProbabilisticModel(ABC):
         """
         raise NotImplementedError
 
-    def __copy__(self):
-        raise NotImplementedError
-
-    def plotly_layout(self) -> Dict[str, Any]:
+    def plotly_layout(self) -> dict[str, Any]:
         """
         Create a layout for the plotly plot.
 
@@ -381,7 +378,7 @@ class ProbabilisticModel(ABC):
                 "Plotting is only supported for models with up to three variables."
             )
 
-    def plotly_layout_1d(self) -> Dict[str, Any]:
+    def plotly_layout_1d(self) -> dict[str, Any]:
         """
         :return: The layout argument for plotly figures as dict
         """
@@ -390,7 +387,7 @@ class ProbabilisticModel(ABC):
             "xaxis": {"title": self.variables[0].name},
         }
 
-    def plotly_layout_2d(self) -> Dict[str, Any]:
+    def plotly_layout_2d(self) -> dict[str, Any]:
         """
         :return: The layout argument for plotly figures as dict
         """
@@ -400,7 +397,7 @@ class ProbabilisticModel(ABC):
             "yaxis": {"title": self.variables[1].name},
         }
 
-    def plotly_layout_3d(self) -> Dict[str, Any]:
+    def plotly_layout_3d(self) -> dict[str, Any]:
         """
         :return: The layout argument for plotly figures as dict
         """
@@ -413,7 +410,7 @@ class ProbabilisticModel(ABC):
             },
         }
 
-    def plot(self, number_of_samples: int = 1000, surface=False, mode=False) -> List:
+    def plot(self, number_of_samples: int = 1000, surface=False, mode=False) -> list:
         """
         Generate traces that can be plotted with plotly.
 
@@ -439,7 +436,7 @@ class ProbabilisticModel(ABC):
                 "Plotting is only supported for models with up to three variables."
             )
 
-    def plot_1d_symbolic(self) -> List:
+    def plot_1d_symbolic(self) -> list:
         variable: Symbolic = self.variables[0]
 
         # calculate probabilities of every element in the domain
@@ -467,7 +464,7 @@ class ProbabilisticModel(ABC):
             )
         ]
 
-    def plot_1d_numeric(self, number_of_samples: int, mode=False) -> List:
+    def plot_1d_numeric(self, number_of_samples: int, mode=False) -> list:
         """
         Plot a one-dimensional model using samples.
 
@@ -531,7 +528,8 @@ class ProbabilisticModel(ABC):
         # plot the mode if possible
         if mode:
             try:
-                mode, maximum_likelihood = self.mode()
+                most_likely = self.mode()
+                mode, maximum_likelihood = most_likely.event, most_likely.likelihood
             except IntractableError:
                 mode, maximum_likelihood = None, max(pdf)
         else:
@@ -565,7 +563,7 @@ class ProbabilisticModel(ABC):
         )
         return mean_trace
 
-    def univariate_mode_traces(self, mode: Optional[Event], height: float):
+    def univariate_mode_traces(self, mode: Event | None, height: float):
         if mode is None:
             return []
 
@@ -595,7 +593,7 @@ class ProbabilisticModel(ABC):
 
     def univariate_complement_of_support_trace(
         self, min_of_samples: float, max_of_samples: float
-    ) -> List:
+    ) -> list:
         """
         Create a trace for the complement of the support of the model in 1d.
 
@@ -610,14 +608,14 @@ class ProbabilisticModel(ABC):
             max_of_samples + max_of_samples * PADDING_FACTOR_FOR_X_AXIS_IN_PLOT,
         )
         limited_complement_of_support = complement_of_support & limiting_interval
-        traces = SimpleEvent.from_data(
-            {self.variables[0]: limited_complement_of_support}
+        traces = SimpleEventPlotter(
+            SimpleEvent.from_data({self.variables[0]: limited_complement_of_support})
         ).plot()
         for trace in traces:
             trace.update(name=PDF_TRACE_NAME, marker=dict(color=PDF_TRACE_COLOR))
         return traces
 
-    def plot_2d(self, number_of_samples: int, mode=False) -> List:
+    def plot_2d(self, number_of_samples: int, mode=False) -> list:
         """
         Plot a two-dimensional model.
 
@@ -650,7 +648,7 @@ class ProbabilisticModel(ABC):
 
         return [likelihood_trace, expectation_trace] + mode_traces
 
-    def plot_2d_surface(self, number_of_samples: int) -> List:
+    def plot_2d_surface(self, number_of_samples: int) -> list:
         """
         Plot a two-dimensional model as a surface plot.
 
@@ -796,7 +794,7 @@ class ProbabilisticModel(ABC):
         trace = go.Surface(z=likelihood, x=x, y=y)
         return trace
 
-    def plot_3d(self, number_of_samples: int, mode=False) -> List:
+    def plot_3d(self, number_of_samples: int, mode=False) -> list:
         """
         Plot a three-dimensional model using samples.
 
@@ -836,8 +834,7 @@ class ProbabilisticModel(ABC):
         :return: traces for the mode of a multivariate model.
         """
         try:
-            mode, _ = self.mode()
-            mode_traces = mode.plot(color=MODE_TRACE_COLOR)
+            mode_traces = EventPlotter(self.mode().event).plot(color=MODE_TRACE_COLOR)
             for trace in mode_traces:
                 trace.update(name=MODE_TRACE_NAME, mode="lines+markers")
         except IntractableError:

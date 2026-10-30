@@ -1,24 +1,26 @@
-import os
+from semantic_digital_twin.datastructures.definitions import GripperState
+from semantic_digital_twin.robots.daisy import DAiSy
+from semantic_digital_twin.robots.griplink_gripper import (
+    GriplinkFlexConfiguration,
+    GriplinkPresetConfiguration,
+)
 
-from semantic_digital_twin.adapters.urdf import URDFParser
-from semantic_digital_twin.robots.daisy import DAiSy, DAiSyLeftArm, DAiSyRightArm
 
-
-def test_daisy_left_and_right_arms_are_distinct():
-    urdf_dir = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "..",
-        "..",
-        "..",
-        "semantic_digital_twin",
-        "resources",
-        "urdf",
-    )
-    daisy_path = os.path.join(urdf_dir, "daisy.urdf")
-    daisy_world = URDFParser.from_file(file_path=daisy_path).parse()
-    DAiSy.from_world(daisy_world)
+def test_daisy_grippers_build_griplink_configurations(daisy_world):
+    """
+    Both DAiSy end effectors build griplink-specific configurations from their declared
+    states, so generic actions produce robot-appropriate configurations without naming
+    the robot.
+    """
     daisy = daisy_world.get_semantic_annotations_by_type(DAiSy)[0]
 
-    assert isinstance(daisy.left_arm, DAiSyLeftArm)
-    assert isinstance(daisy.right_arm, DAiSyRightArm)
-    assert daisy.left_arm is not daisy.right_arm
+    for end_effector in daisy.all_end_effectors:
+        open_configuration = end_effector.default_configuration(GripperState.OPEN)
+        close_configuration = end_effector.default_configuration(GripperState.CLOSE)
+        flex_close_configuration = end_effector.default_configuration(
+            GripperState.FLEXCLOSE
+        )
+
+        assert isinstance(open_configuration, GriplinkPresetConfiguration)
+        assert isinstance(close_configuration, GriplinkPresetConfiguration)
+        assert isinstance(flex_close_configuration, GriplinkFlexConfiguration)

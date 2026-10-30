@@ -13,13 +13,12 @@ import time
 import tempfile
 from contextlib import contextmanager
 from dataclasses import is_dataclass, dataclass
-from typing import Type, List, Set, Tuple
 
 import plotly.graph_objects as go
 import tqdm
 
 import coraplex.orm.ormatic_interface  # type: ignore
-import coraplex.plans.plan_node
+from cramph.composites import StatementNode
 import semantic_digital_twin  # type: ignore
 from experiments.experiment_definitions import (
     ExperimentResult,
@@ -29,14 +28,17 @@ from experiments.experiment_definitions import (
 )
 from krrood.class_diagrams.class_diagram import ClassDiagram
 from krrood.ormatic.data_access_objects.alternative_mappings import AlternativeMapping
-from krrood.ormatic.helper import get_classes_of_ormatic_interface
+from krrood.ormatic.helper import (
+    get_classes_of_ormatic_interface,
+    OrmaticInterfaceInformation,
+)
 from krrood.ormatic.ormatic import ORMatic
 from krrood.ormatic.type_dict import TypeDict
 from krrood.utils import recursive_subclasses
-from coraplex.robot_plans.actions.base import ActionDescription
+from coraplex.robot_plans.actions.base import Action
 
 
-def build_cram_class_sets() -> Tuple[Set[Type], List[Type], dict]:
+def build_cram_class_sets() -> tuple[set[type], list[type], dict]:
     """
     Collect all mappable classes, alternative mappings, and type mappings from the
     coraplex ORM interface.
@@ -48,10 +50,10 @@ def build_cram_class_sets() -> Tuple[Set[Type], List[Type], dict]:
     :return: Tuple of (classes, alternative_mappings, type_mappings) ready to pass to
         :func:`run_scalability_experiment`.
     """
-    classes, alternative_mappings, type_mappings = get_classes_of_ormatic_interface(
-        coraplex.orm.ormatic_interface
-    )
-    classes = set(classes)
+    interface_info = get_classes_of_ormatic_interface(coraplex.orm.ormatic_interface)
+    classes = set(interface_info.classes)
+    alternative_mappings = interface_info.alternative_mappings
+    type_mappings = interface_info.type_mappings
 
     alternative_mappings += [
         alternative_mapping
@@ -180,8 +182,8 @@ def _silence_ormatic_logger():
 
 
 def ormatic_scalability_experiment(
-    filtered_classes: Set[Type],
-    alternative_mappings: List[Type],
+    filtered_classes: set[type],
+    alternative_mappings: list[type],
     type_mappings: dict,
 ) -> ORMaticScalabilityExperimentResult:
     """
@@ -203,8 +205,8 @@ def ormatic_scalability_experiment(
 
 
 def _ormatic_scalability_experiment(
-    filtered_classes: Set[Type],
-    alternative_mappings: List[Type],
+    filtered_classes: set[type],
+    alternative_mappings: list[type],
     type_mappings: dict,
 ) -> ORMaticScalabilityExperimentResult:
     """
@@ -228,8 +230,10 @@ def _ormatic_scalability_experiment(
 
     ormatic = ORMatic(
         class_diagram,
-        type_mappings=TypeDict(type_mappings),
-        alternative_mappings=alternative_mappings,
+        interface_information=OrmaticInterfaceInformation(
+            type_mappings=TypeDict(type_mappings),
+            alternative_mappings=alternative_mappings,
+        ),
     )
     ormatic.make_all_tables()
 
@@ -256,12 +260,12 @@ def _ormatic_scalability_experiment(
 
 
 def run_scalability_experiment(
-    classes: List[Type],
-    alternative_mappings: List[Type],
+    classes: list[type],
+    alternative_mappings: list[type],
     type_mappings: dict,
     class_drop_probability: float = 0.3,
     iterations: int = 10,
-    required_classes: List[Type] | None = None,
+    required_classes: list[type] | None = None,
 ) -> ORMaticScalabilityAggregateResult:
     """
     Repeatedly sample a random subset of classes and run the ORMatic generation
@@ -337,7 +341,7 @@ def plot_scalability(table: ExperimentsTable) -> go.Figure:
         probabilities.
     :return: A Plotly figure ready for display or export.
     """
-    rows: List[ORMaticScalabilityAggregateResult] = table.experiments
+    rows: list[ORMaticScalabilityAggregateResult] = table.experiments
 
     x = [r.number_of_classes.mean for r in rows]
     y = [r.total_duration.mean for r in rows]
@@ -378,7 +382,7 @@ def plot_scalability(table: ExperimentsTable) -> go.Figure:
 
 def main():
     classes, alternative_mappings, type_mappings = build_cram_class_sets()
-    required_classes = [coraplex.plans.plan_node.UnderspecifiedNode, ActionDescription]
+    required_classes = [StatementNode, Action]
     results = []
     for class_drop_probability in tqdm.tqdm(
         [

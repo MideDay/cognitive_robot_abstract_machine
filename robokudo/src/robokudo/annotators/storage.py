@@ -20,37 +20,48 @@ The module is used for:
 
 from __future__ import annotations
 
+# %% Imports
 import copy
 import json
 from timeit import default_timer
 
 from py_trees.common import Status
 from semantic_digital_twin.adapters.ros.messages import WorldModelSnapshot
+from typing_extensions import Any
 
 import robokudo.world
 from robokudo.annotators.core import BaseAnnotator
-from robokudo.io.storage import Storage
+from robokudo.io.storage import Storage, StorageDocumentField
 
 
 class StorageWriter(BaseAnnotator):
-    """Annotator for storing sensor data in MongoDB.
+    """
+    Annotator for storing sensor data in MongoDB.
 
     This annotator provides methods to store sensor data in a MongoDB database,
     allowing for data recording and offline processing without using ROS bag files.
     """
 
     class Descriptor(BaseAnnotator.Descriptor):
-        """Configuration descriptor for storage writer."""
+        """
+        Configuration descriptor for storage writer.
+        """
 
         class Parameters:
-            """Parameter container for storage configuration."""
+            """
+            Parameter container for storage configuration.
+            """
 
             def __init__(self) -> None:
                 self.db_name: str = "rk_scenes"
-                """Database name"""
+                """
+                Database name
+                """
 
                 self.drop_database_on_storage: bool = True
-                """Whether to clear database before recording"""
+                """
+                Whether to clear database before recording
+                """
 
         # Overwrite the parameters explicitly to enable auto-completion
         parameters = Parameters()
@@ -60,7 +71,8 @@ class StorageWriter(BaseAnnotator):
         name: str = "StorageWriter",
         descriptor: StorageWriter.Descriptor | None = None,
     ) -> None:
-        """Initialize the storage writer. Minimal one-time init!
+        """
+        Initialize the storage writer. Minimal one-time init!
 
         :param name: Annotator name
         :param descriptor: Configuration descriptor
@@ -68,13 +80,34 @@ class StorageWriter(BaseAnnotator):
         super().__init__(name, descriptor)
         self.rk_logger.debug("%s.__init__()" % self.__class__.__name__)
         self.storage = Storage(self.descriptor.parameters.db_name)
+        self.storage_preparation_completed: bool = False
+        """
+        Whether storage setup has already run for this writer.
+        """
 
-        # Wipe the database completely before recording data
+    def setup(self, **kwargs: Any) -> bool:
+        """
+        Prepare storage before recording begins.
+        It is guarded to execute only once, since setup might be called multiple times
+        in the chosen tree executor.
+
+        :param kwargs: Arguments forwarded to BaseAnnotator.setup()
+        :return: Whether storage preparation succeeded.
+        """
+        if not super().setup(**kwargs):
+            return False
+        if self.storage_preparation_completed:
+            return True
+
         if self.descriptor.parameters.drop_database_on_storage:
             self.storage.drop_database()
 
+        self.storage_preparation_completed = True
+        return True
+
     def update(self) -> Status:
-        """Store current CAS data in MongoDB.
+        """
+        Store current CAS data in MongoDB.
 
         Creates a deep copy of the CAS, flattens it into a dictionary,
         and stores both views and CAS data in the database.
@@ -99,7 +132,7 @@ class StorageWriter(BaseAnnotator):
 
         payload = snapshot.to_json()
         json_str = json.dumps(payload)
-        flat_cas["world"] = json_str
+        flat_cas[StorageDocumentField.WORLD] = json_str
 
         # step 1: persist each view
         self.storage.store_views_in_mongo(flat_cas)

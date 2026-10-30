@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from typing_extensions import Optional, TYPE_CHECKING
+from typing_extensions import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from krrood.entity_query_language.verbalization.vocabulary.english import Directive
@@ -38,8 +38,8 @@ class EQLVerbalizer:
     def build(
         self,
         expression: SymbolicExpression,
-        services: Optional[MicroplanningServices] = None,
-        performative: Optional[Directive] = None,
+        services: MicroplanningServices | None = None,
+        performative: Directive | None = None,
     ) -> VerbalizationFragment:
         """
         Translate *expression* into its natural-language fragment tree.
@@ -59,10 +59,10 @@ class EQLVerbalizer:
         """
         # A match is not a foldable EQL node but a builder; it routes to its own assembler and
         # everything inside it (selection, values, conditions) is scanned/folded through its
-        # resolved query expression.
-        scan_target = (
-            expression.expression if isinstance(expression, Match) else expression
-        )
+        # resolved query expression. Match/Distribution/Probability all implement
+        # HasExpression, so the referring-expression scan can ask any of them for the
+        # SymbolicExpression they actually wrap without an isinstance chain here.
+        scan_target = expression._get_expression_()
         if services is None:
             services = MicroplanningServices.from_expression(scan_target)
         if performative is not None:

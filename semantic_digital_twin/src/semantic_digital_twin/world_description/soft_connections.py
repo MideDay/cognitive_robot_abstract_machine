@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, Self
+from typing_extensions import Any, Self
 from uuid import UUID
 
 import krrood.symbolic_math.symbolic_math as sm
+from krrood.adapters.json_serializer import from_json, to_json
+from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
+    WorldEntityWithIDKwargsTracker,
+)
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.world_description.world_entity import (
     Connection,
@@ -39,6 +43,64 @@ class PiecewiseConstantCurvatureConnection(Connection):
     The physical arc length of this specific segment.
     """
 
+    def to_json(self, **kwargs) -> dict[str, Any]:
+        result = super().to_json(**kwargs)
+        result["kappa_dof_id"] = to_json(self.kappa_dof_id, **kwargs)
+        result["phi_dof_id"] = to_json(self.phi_dof_id, **kwargs)
+        result["segment_length"] = self.segment_length
+        return result
+
+    @classmethod
+    def _from_json(cls, data: dict[str, Any], **kwargs) -> Self:
+        tracker = WorldEntityWithIDKwargsTracker.from_kwargs(kwargs)
+        return cls(
+            name=from_json(data["name"]),
+            parent=tracker.get(from_json(data["parent_id"])),
+            child=tracker.get(from_json(data["child_id"])),
+            parent_T_connection_expression=from_json(
+                data["parent_T_connection_expression"], **kwargs
+            ),
+            connection_T_child_expression=from_json(
+                data["connection_T_child_expression"], **kwargs
+            ),
+            kappa_dof_id=from_json(data["kappa_dof_id"]),
+            phi_dof_id=from_json(data["phi_dof_id"]),
+            segment_length=data["segment_length"],
+        )
+
+    def copy_for_world(self, world: World) -> Self:
+        (
+            parent,
+            child,
+            parent_T_connection_expression,
+            connection_T_child_expression,
+        ) = self._find_references_in_world(world)
+        return self.__class__(
+            parent=parent,
+            child=child,
+            parent_T_connection_expression=parent_T_connection_expression,
+            connection_T_child_expression=connection_T_child_expression,
+            name=PrefixedName(self.name.name, prefix=self.name.prefix),
+            kappa_dof_id=self.kappa_dof_id,
+            phi_dof_id=self.phi_dof_id,
+            segment_length=self.segment_length,
+        )
+
+    def copy_with_new_parent(
+        self,
+        new_parent: KinematicStructureEntity,
+        parent_T_connection_expression: HomogeneousTransformationMatrix,
+    ) -> Self:
+        return self.__class__(
+            parent=new_parent,
+            child=self.child,
+            parent_T_connection_expression=parent_T_connection_expression,
+            connection_T_child_expression=self.connection_T_child_expression,
+            kappa_dof_id=self.kappa_dof_id,
+            phi_dof_id=self.phi_dof_id,
+            segment_length=self.segment_length,
+        )
+
     @classmethod
     def create_with_dofs(
         cls,
@@ -46,11 +108,9 @@ class PiecewiseConstantCurvatureConnection(Connection):
         parent: KinematicStructureEntity,
         child: KinematicStructureEntity,
         *,
-        name: Optional[PrefixedName] = None,
-        parent_T_connection_expression: Optional[
-            HomogeneousTransformationMatrix
-        ] = None,
-        connection_T_child_expression: Optional[HomogeneousTransformationMatrix] = None,
+        name: PrefixedName | None = None,
+        parent_T_connection_expression: HomogeneousTransformationMatrix | None = None,
+        connection_T_child_expression: HomogeneousTransformationMatrix | None = None,
         kappa_dof_id: UUID,
         phi_dof_id: UUID,
         segment_length: float,
@@ -186,6 +246,72 @@ class CosseratRodConnection(Connection):
     The intrinsic rest length of the rod segment.
     """
 
+    def to_json(self, **kwargs) -> dict[str, Any]:
+        result = super().to_json(**kwargs)
+        result["bending_x_dof_id"] = to_json(self.bending_x_dof_id, **kwargs)
+        result["bending_y_dof_id"] = to_json(self.bending_y_dof_id, **kwargs)
+        result["torsion_dof_id"] = to_json(self.torsion_dof_id, **kwargs)
+        result["extension_dof_id"] = to_json(self.extension_dof_id, **kwargs)
+        result["segment_length"] = self.segment_length
+        return result
+
+    @classmethod
+    def _from_json(cls, data: dict[str, Any], **kwargs) -> Self:
+        tracker = WorldEntityWithIDKwargsTracker.from_kwargs(kwargs)
+        return cls(
+            name=from_json(data["name"]),
+            parent=tracker.get(from_json(data["parent_id"])),
+            child=tracker.get(from_json(data["child_id"])),
+            parent_T_connection_expression=from_json(
+                data["parent_T_connection_expression"], **kwargs
+            ),
+            connection_T_child_expression=from_json(
+                data["connection_T_child_expression"], **kwargs
+            ),
+            bending_x_dof_id=from_json(data["bending_x_dof_id"]),
+            bending_y_dof_id=from_json(data["bending_y_dof_id"]),
+            torsion_dof_id=from_json(data["torsion_dof_id"]),
+            extension_dof_id=from_json(data["extension_dof_id"]),
+            segment_length=data["segment_length"],
+        )
+
+    def copy_for_world(self, world: World) -> Self:
+        (
+            parent,
+            child,
+            parent_T_connection_expression,
+            connection_T_child_expression,
+        ) = self._find_references_in_world(world)
+        return self.__class__(
+            parent=parent,
+            child=child,
+            parent_T_connection_expression=parent_T_connection_expression,
+            connection_T_child_expression=connection_T_child_expression,
+            name=PrefixedName(self.name.name, prefix=self.name.prefix),
+            bending_x_dof_id=self.bending_x_dof_id,
+            bending_y_dof_id=self.bending_y_dof_id,
+            torsion_dof_id=self.torsion_dof_id,
+            extension_dof_id=self.extension_dof_id,
+            segment_length=self.segment_length,
+        )
+
+    def copy_with_new_parent(
+        self,
+        new_parent: KinematicStructureEntity,
+        parent_T_connection_expression: HomogeneousTransformationMatrix,
+    ) -> Self:
+        return self.__class__(
+            parent=new_parent,
+            child=self.child,
+            parent_T_connection_expression=parent_T_connection_expression,
+            connection_T_child_expression=self.connection_T_child_expression,
+            bending_x_dof_id=self.bending_x_dof_id,
+            bending_y_dof_id=self.bending_y_dof_id,
+            torsion_dof_id=self.torsion_dof_id,
+            extension_dof_id=self.extension_dof_id,
+            segment_length=self.segment_length,
+        )
+
     @classmethod
     def create_with_dofs(
         cls,
@@ -193,11 +319,9 @@ class CosseratRodConnection(Connection):
         parent: KinematicStructureEntity,
         child: KinematicStructureEntity,
         *,
-        name: Optional[PrefixedName] = None,
-        parent_T_connection_expression: Optional[
-            HomogeneousTransformationMatrix
-        ] = None,
-        connection_T_child_expression: Optional[HomogeneousTransformationMatrix] = None,
+        name: PrefixedName | None = None,
+        parent_T_connection_expression: HomogeneousTransformationMatrix | None = None,
+        connection_T_child_expression: HomogeneousTransformationMatrix | None = None,
         bending_x_dof_id: UUID,
         bending_y_dof_id: UUID,
         torsion_dof_id: UUID,

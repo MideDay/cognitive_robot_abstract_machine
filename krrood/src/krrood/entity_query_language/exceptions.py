@@ -9,11 +9,12 @@ import uuid
 from abc import ABC
 from dataclasses import dataclass, field
 
-from typing_extensions import TYPE_CHECKING, Type, Any, List, Tuple, Optional
+from typing_extensions import TYPE_CHECKING, Any
 
 from krrood.exceptions import DataclassException
 
 if TYPE_CHECKING:
+    from krrood.entity_query_language.backends import QueryBackend
     from krrood.entity_query_language.query.query import (
         Query,
     )
@@ -24,12 +25,19 @@ if TYPE_CHECKING:
         SymbolicExpression,
         Selectable,
     )
-    from krrood.entity_query_language.core.mapped_variable import MappedVariable
+    from krrood.entity_query_language.core.mapped_variable import (
+        Attribute,
+        MappedVariable,
+    )
     from krrood.entity_query_language.core.variable import Variable
     from krrood.entity_query_language.query.match import (
         Match,
         AbstractMatchExpression,
         AttributeMatch,
+    )
+    from krrood.entity_query_language.operators.probabilistic_queries import (
+        Probability,
+        ProbabilisticQuery,
     )
 
 
@@ -215,7 +223,7 @@ class UnsupportedExpressionTypeForDistinct(UsageError):
     :doc:`/krrood/doc/eql/result_processors`.
     """
 
-    unsupported_expression_type: Type[SymbolicExpression]
+    unsupported_expression_type: type[SymbolicExpression]
 
     def error_message(self) -> str:
         return f"Distinct operation is not supported for expression type {self.unsupported_expression_type}"
@@ -280,6 +288,33 @@ class AmbiguousQueryAttribute(UsageError):
 
 
 @dataclass
+class NotNumberLikeFieldError(UsageError):
+    """
+    Raised when accessing a field expected to be number-like (see
+    :meth:`~krrood.entity_query_language.core.mapped_variable.Attribute.number_like_field`),
+    but it does not exist or resolves to a non-numeric type.
+    """
+
+    attribute: Attribute
+    """
+    The attribute that was accessed.
+    """
+
+    resolved_type: type | None
+    """
+    The attribute's resolved type, or None if it does not exist at all.
+    """
+
+    def error_message(self) -> str:
+        if self.resolved_type is None:
+            return f"{self.attribute} does not exist."
+        return f"{self.attribute} is {self.resolved_type}, not number-like."
+
+    def suggest_correction(self) -> str:
+        return f"give the queried type a number-valued '{self.attribute._attribute_name_}' field."
+
+
+@dataclass
 class MultipleValuesAlongAccessPath(UsageError):
     """
     Raised when a chain is followed from a value outside query evaluation and a step maps
@@ -307,6 +342,42 @@ class MultipleValuesAlongAccessPath(UsageError):
         return (
             "Follow a chain whose every step maps one value to one value, or aggregate "
             "the collection instead of flattening it."
+        )
+
+
+@dataclass
+class NoValueAlongAccessPath(UsageError):
+    """
+    Raised when a chain is followed from a value outside query evaluation and a step maps
+    that value to none, leaving the rest of the chain with nothing to follow.
+    """
+
+    chain: MappedVariable
+    """
+    The chain that was being followed.
+    """
+
+    step: MappedVariable
+    """
+    The step along it that reaches no value.
+    """
+
+    instance: Any
+    """
+    The value the chain was being followed from.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.chain._name_} passes through {self.step._name_}, which reaches no "
+            f"value on the given {type(self.instance).__name__}, so the rest of the "
+            f"access path has nothing to follow."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Follow the chain from a value that has something at every step of it, or "
+            "check for the missing one before following it."
         )
 
 
@@ -404,7 +475,7 @@ class AggregationUsageError(UsageError):
     For further details, see :doc:`/krrood/doc/eql/result_processors`.
     """
 
-    query: Optional[Query] = field(default=None, kw_only=True)
+    query: Query | None = field(default=None, kw_only=True)
     """
     The query that contains the aggregation.
     """
@@ -449,12 +520,12 @@ class NonAggregatedSelectedVariablesError(AggregationUsageError):
     The builder class for the GroupedDataSource operation.
     """
 
-    non_aggregated_variables: List[Selectable]
+    non_aggregated_variables: list[Selectable]
     """
     The non-aggregated selected variables.
     """
 
-    aggregated_variables: List[Selectable]
+    aggregated_variables: list[Selectable]
     """
     The aggregated variables.
     """
@@ -478,7 +549,7 @@ class NonAggregatorInHavingConditionsError(AggregationUsageError):
     For further details, see :doc:`/krrood/doc/eql/result_processors`.
     """
 
-    non_aggregators: Tuple[Selectable, ...]
+    non_aggregators: tuple[Selectable, ...]
 
     def error_message(self) -> str:
         return f"The having condition of the query {self.query} contains non-aggregators {self.non_aggregators}."
@@ -495,7 +566,7 @@ class AggregatorInWhereConditionsError(AggregationUsageError):
     For further details, see :doc:`/krrood/doc/eql/result_processors`.
     """
 
-    aggregators: Tuple[Aggregator, ...]
+    aggregators: tuple[Aggregator, ...]
     """
     The aggregators in the where condition.
     """
@@ -519,8 +590,8 @@ class WrongSelectableType(UsageError):
     :doc:`/krrood/doc/eql/writing_queries`.
     """
 
-    wrong_variable_type: Type
-    expected_types: List[Type]
+    wrong_variable_type: type
+    expected_types: list[type]
 
     def error_message(self) -> str:
         return f"Select expects one of {self.expected_types}, instead {self.wrong_variable_type} was given."
@@ -551,7 +622,7 @@ class LiteralConditionError(UsageError):
     The query that contains the literal condition.
     """
 
-    literal_conditions: List[Any]
+    literal_conditions: list[Any]
     """
     The literal conditions that are given to the query.
     """
@@ -576,7 +647,7 @@ class CannotProcessResultOfGivenChildType(UsageError):
     For further details, see :doc:`/krrood/doc/eql/result_processors`.
     """
 
-    unsupported_child_type: Type
+    unsupported_child_type: type
     """
     The unsupported child type.
     """
@@ -632,7 +703,7 @@ class UnSupportedOperand(UnsupportedOperation):
     :doc:`/krrood/doc/eql/comparators`.
     """
 
-    operation: Type[SymbolicExpression]
+    operation: type[SymbolicExpression]
     """
     The operation used.
     """
@@ -658,7 +729,7 @@ class UnsupportedNegation(UnsupportedOperation):
     :doc:`/krrood/doc/eql/logical_operators`.
     """
 
-    operation_type: Type[SymbolicExpression]
+    operation_type: type[SymbolicExpression]
     """
     The type of the operation that is being negated.
     """
@@ -745,12 +816,12 @@ class InvalidChildType(UsageError):
     For further details, see :doc:`/krrood/doc/eql/writing_queries`.
     """
 
-    invalid_child_type: Type
+    invalid_child_type: type
     """
     The invalid child type.
     """
 
-    correct_child_types: List[Type]
+    correct_child_types: list[type]
     """
     The list of valid child types.
     """
@@ -802,7 +873,7 @@ class NoneWrappedFieldError(ClassDiagramError):
     For further details, see :doc:`/krrood/doc/eql/domain_mapping`.
     """
 
-    clazz: Type
+    clazz: type
     attr_name: str
 
     def error_message(self) -> str:
@@ -904,6 +975,92 @@ class SelectiveBackendCannotResolveEllipsisMatch(DataclassException):
 
 
 @dataclass
+class BackendCannotEvaluateCause(DataclassException):
+    """
+    Raised when a match with a :class:`~krrood.entity_query_language.operators.causal.Cause`
+    (``cause``) intervention is evaluated with a backend that has no notion of a
+    causal graph to search over, and that backend was configured (via
+    ``raise_on_unresolvable_cause=True``) to fail loudly instead of warning and treating
+    the intervention as an ordinary unspecified field.
+    """
+
+    match: Match
+    """
+    The match that has a ``Cause`` attribute.
+    """
+
+    backend_type: type[QueryBackend]
+    """
+    The type of the backend that cannot evaluate the intervention causally.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.match} contains a cause intervention, which {self.backend_type.__name__} "
+            f"cannot evaluate causally: it has no notion of a causal graph to intervene on."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Evaluate with a ProbabilisticBackend backed by a CausalCircuit-aware model registry."
+
+
+@dataclass
+class BackendCannotEvaluateProbabilisticQuery(DataclassException):
+    """
+    Raised when a
+    :class:`~krrood.entity_query_language.operators.probabilistic_queries.ProbabilisticQuery`
+    is evaluated with any backend other than
+    :class:`~krrood.entity_query_language.backends.ProbabilisticBackend`.
+
+    Querying a probabilistic model directly is a probabilistic operation, not a data
+    selection, so most of these have no native/SQL evaluation strategy at all --
+    unlike every other query construct in this package. The one exception is
+    :class:`~krrood.entity_query_language.operators.probabilistic_queries.Probability`
+    (``probability_of(...)``), which *does* evaluate natively (counting matching rows
+    over an enumerable domain) and never raises this; ``distribution_of(...)`` still
+    does, unconditionally.
+    """
+
+    expression: ProbabilisticQuery
+    """
+    The probabilistic query that was evaluated.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.expression} cannot be evaluated natively: querying a probabilistic "
+            f"model directly is a probabilistic operation, not a data selection."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Evaluate with a ProbabilisticBackend backed by a model registry, e.g. .evaluate(backend=ProbabilisticBackend(...))."
+
+
+@dataclass
+class EvidenceHasZeroProbability(DataclassException):
+    """
+    Raised when a
+    :class:`~krrood.entity_query_language.operators.probabilistic_queries.Probability`
+    is conditioned on evidence that has zero probability, which leaves the conditional
+    probability undefined.
+    """
+
+    expression: Probability
+    """
+    The probability query whose evidence has zero probability.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.expression} is undefined: its evidence has zero probability, so "
+            f"there is nothing to condition on."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Condition on evidence that the model or the domain can satisfy."
+
+
+@dataclass
 class CalledMatchMultipleTimes(DataclassException):
     """
     Exception raised when a match expression is called multiple times.
@@ -920,6 +1077,89 @@ class CalledMatchMultipleTimes(DataclassException):
 
     def suggest_correction(self) -> str:
         return ""
+
+
+@dataclass
+class AmbiguousQuerySubject(UsageError):
+    """
+    Raised when a condition uses a query that selects several variables as a value,
+    leaving it without a single subject to stand for.
+    """
+
+    query: Query
+    """
+    The query that was used as a value in its own condition.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The query {self.query} selects {len(self.query._selected_variables_)} "
+            f"variables, so using it as a value in its own condition has no single "
+            f"subject to stand for."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Use the variable the value belongs to, e.g. `body == other`, or index the "
+            "query by that variable, e.g. `query[body] == other`."
+        )
+
+
+@dataclass
+class PositionalArgumentsInMatchPattern(DataclassException, TypeError):
+    """
+    Raised when the parentheses that state a match's pattern are given positional
+    arguments, which a pattern of named fields has no place for.
+    """
+
+    match: AbstractMatchExpression
+    """
+    The match whose pattern was given positional arguments.
+    """
+
+    arguments: tuple[Any, ...]
+    """
+    The positional arguments that were given.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"Match expression '{self.match}' was given the positional arguments "
+            f"{self.arguments} where its pattern is stated, and a pattern names fields."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Name the fields to match, as in `a(Drawer)(handle=...)`. To call a matched "
+            "instance that is itself callable, state the pattern first and call the "
+            "result: `an(Adder)(offset=1)(2)`, or `an(Adder)()(2)` for an empty pattern."
+        )
+
+
+@dataclass
+class CalledMatchAfterResolution(DataclassException):
+    """
+    Raised when a match expression is called with keyword arguments after it was already
+    resolved into its query expression, so the keyword arguments could no longer
+    constrain the query.
+    """
+
+    match: AbstractMatchExpression
+    """
+    The match that was called after its resolution.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"Match expression '{self.match}' was called after it was already resolved "
+            f"into its query expression (symbolic attribute access and `where` both "
+            f"resolve a match). The keyword arguments can no longer constrain the query."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Pass the keyword arguments before accessing attributes or calling `where`."
+        )
 
 
 @dataclass
@@ -944,6 +1184,142 @@ class UnderspecifiedStatementInfeasibleForEntityQueryLanguageGeneration(
 
 
 @dataclass
+class UnboundPatternVariable(UsageError):
+    """
+    Raised when an instance is constructed from bindings that leave a variable of the
+    match's pattern without a value, and the pattern states none for it either.
+    """
+
+    attribute_match: AttributeMatch
+    """
+    The attribute match whose assigned variable the bindings do not bind.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The bindings give no value to the variable assigned to "
+            f"'{self.attribute_match}', so the instance cannot be constructed."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Bind every variable of the pattern, keyed by the identifier of the "
+            "variable assigned to its attribute."
+        )
+
+
+@dataclass
+class NoAttributeWithAccessPathName(UsageError):
+    """
+    Raised when a match's pattern assigns a variable to no attribute whose access path
+    has the requested name.
+    """
+
+    match: Match
+    """
+    The match whose pattern was searched.
+    """
+
+    access_path_name: str
+    """
+    The requested name of an attribute's access path.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The pattern of '{self.match}' assigns a variable to no attribute whose "
+            f"access path is named '{self.access_path_name}'."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Name the access path from the matched class, e.g. 'Rectangle.width', and "
+            "leave the attribute open with '...' or give it a value in the pattern."
+        )
+
+
+@dataclass
+class CausesEffectRequiresEqualityComparator(UsageError):
+    """
+    Raised when a :func:`~krrood.entity_query_language.query.match.Match.causes_effect`
+    condition is not an equality comparator (or a conjunction of equality comparators).
+
+    A causal effect must be expressed as ``attribute == value`` (or several such
+    comparisons ANDed together), the same restriction Pearl's atomic point-intervention
+    ``do(X=x)`` already implies: you can ask what causes an attribute to equal a value,
+    not what causes it to satisfy an inequality or an arbitrary relation to another
+    attribute.
+    """
+
+    condition: SymbolicExpression
+    """
+    The condition that is not an equality comparator or conjunction thereof.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"causes_effect(...) requires an equality comparator (attribute == value) "
+            f"or a conjunction of equality comparators, got {self.condition}."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Compare an attribute against a literal value with `==`, e.g. "
+            "`match.causes_effect(match.status == SUCCESS)`, combining "
+            "several such comparisons with `and_` if needed."
+        )
+
+
+@dataclass
+class NoCausesEffectConditionForCause(DataclassException):
+    """
+    Raised when a :class:`~krrood.entity_query_language.operators.causal.Cause` (``cause``)
+    is present in a match but no
+    :meth:`~krrood.entity_query_language.query.match.Match.causes_effect` condition
+    declares which variable it should optimize for.
+    """
+
+    expression: Query
+    """
+    The query that has a ``Cause`` but no declared effect.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.expression} has a cause intervention but no causes_effect(...) "
+            f"condition, so there is nothing to search for the best intervention region "
+            f"against."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Add a causes_effect(...) condition declaring the effect, e.g. "
+            "`match.causes_effect(match.status == SUCCESS)`."
+        )
+
+
+@dataclass
+class NoCauseVariablesForRanking(DataclassException):
+    """
+    Raised when
+    :meth:`~krrood.entity_query_language.backends.ProbabilisticBackend.rank_causes` is
+    called on a match with no :class:`~krrood.entity_query_language.operators.causal.Cause`
+    (``cause``) fields to rank.
+    """
+
+    expression: Query
+    """
+    The query that has no ``Cause`` fields.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.expression} has no cause fields, so there is nothing to rank."
+
+    def suggest_correction(self) -> str:
+        return "Mark at least one field with cause before calling rank_causes()."
+
+
+@dataclass
 class MatchTypeCannotBeDetermined(DataclassException):
     """
     Raised when a match fails at inferring its type.
@@ -957,7 +1333,7 @@ class MatchTypeCannotBeDetermined(DataclassException):
     def error_message(self) -> str:
         return (
             f"Match type cannot be determined for {self.match}. "
-            f"Tried to infer the type from {self.match.factory}."
+            f"Tried to infer the type from {self.match._factory_}."
             f"The factory given to the match must ether be a classmethod the returns its class or a "
             f"method where the return type is a class which has been concretely imported (not via "
             f"TYPE_CHECKING). If that is not an option for you, set the `target_type` keyword "
@@ -993,7 +1369,7 @@ class WrongPropertyReturnStatementImplementation(ModelingError):
     The reason for the wrong property.
     """
 
-    clazz: Optional[Type] = None
+    clazz: type | None = None
     """
     The class that has the property.
     """
@@ -1020,7 +1396,7 @@ class NoReturnStatementInProperty(ModelingError):
     The property that is wrongly implemented.
     """
 
-    clazz: Optional[Type] = None
+    clazz: type | None = None
     """
     The class that has the property.
     """

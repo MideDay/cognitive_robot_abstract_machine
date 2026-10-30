@@ -1,13 +1,13 @@
 """
 Pure structural and semantic queries over EQL expression trees.
 
-These helpers answer questions about an expression's *shape* — its navigation chain, its
-chain root, whether it ends in a boolean attribute, whether it denotes a temporal value
-— without building anything or touching any rendering concern. They live in the core
-(next to the expression classes) because the facts they expose are domain knowledge of
-the query algebra, usable by any consumer (evaluation, optimization, verbalization, …),
+These helpers answer questions about an expression's *shape* — its navigation chain,
+its chain root, whether it reaches a boolean, whether it denotes a temporal value —
+without building anything or touching any rendering concern. They live in the core (next
+to the expression classes) because the facts they expose are domain knowledge of the
+query algebra, usable by any consumer (evaluation, optimization, verbalization, …),
 and they delegate to the existing :class:`MappedVariable` access-path properties rather
-than re-walking the tree.
+than re- walking the tree.
 """
 
 from __future__ import annotations
@@ -15,16 +15,20 @@ from __future__ import annotations
 import datetime
 import uuid
 
-from typing_extensions import Iterable, List, Set, Tuple
+from typing_extensions import Iterable
 
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
-from krrood.entity_query_language.core.mapped_variable import Attribute, MappedVariable
+from krrood.entity_query_language.core.mapped_variable import (
+    Attribute,
+    Call,
+    MappedVariable,
+)
 from krrood.entity_query_language.core.variable import Literal, Variable
 
 
 def walk_chain(
     expression: SymbolicExpression,
-) -> Tuple[List[MappedVariable], SymbolicExpression]:
+) -> tuple[list[MappedVariable], SymbolicExpression]:
     """
     Walk a ``MappedVariable`` chain outward-first.
 
@@ -55,7 +59,7 @@ def chain_root(expression: SymbolicExpression) -> SymbolicExpression:
     )
 
 
-def root_variable_ids(expressions: Iterable[SymbolicExpression]) -> Set[uuid.UUID]:
+def root_variable_ids(expressions: Iterable[SymbolicExpression]) -> set[uuid.UUID]:
     """
     :param expressions: Any expressions.
     :return: The ids of the distinct ``Variable`` chain-roots among *expressions* (e.g. for
@@ -69,13 +73,38 @@ def root_variable_ids(expressions: Iterable[SymbolicExpression]) -> Set[uuid.UUI
     }
 
 
-def chain_ends_in_boolean_attribute(chain: List[MappedVariable]) -> bool:
+def boolean_terminal_attribute(chain: list[MappedVariable]) -> Attribute | None:
     """
     :param chain: A walked chain (root-adjacent first).
-    :return: ``True`` when the walked *chain* ends in a ``bool``-typed attribute (the
-        predicative *"<navigation> is <attribute>"* form).
+    :return: The attribute the walked *chain* reaches a ``bool`` through, or ``None`` when
+        the chain reaches something else.
+
+    A method that returns a ``bool`` is read as such an attribute too: the call adds
+    nothing a reader can name, so ``body.has_collision()`` reaches its ``bool`` through
+    ``has_collision`` exactly as a ``bool`` field would.
     """
-    return bool(chain) and isinstance(chain[-1], Attribute) and chain[-1]._type_ is bool
+    if not chain:
+        return None
+    terminal = chain[-1]
+    if isinstance(terminal, Call):
+        called = terminal._child_
+        return (
+            called
+            if terminal._type_ is bool and isinstance(called, Attribute)
+            else None
+        )
+    if isinstance(terminal, Attribute) and terminal._type_ is bool:
+        return terminal
+    return None
+
+
+def chain_ends_in_boolean_terminal(chain: list[MappedVariable]) -> bool:
+    """
+    :param chain: A walked chain (root-adjacent first).
+    :return: ``True`` when the walked *chain* reaches a ``bool`` (the predicative
+        *"<navigation> is <attribute>"* form).
+    """
+    return boolean_terminal_attribute(chain) is not None
 
 
 def is_date_type(type_: object) -> bool:

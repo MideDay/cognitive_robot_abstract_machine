@@ -4,7 +4,11 @@ Tests for the Stretch apartment demo's perception pipeline configuration.
 
 import numpy as np
 
-from robokudo.annotators.image_cluster_extractor import ImageClusterExtractor
+from robokudo.annotators.image_cluster_extractor import (
+    ColorName,
+    ColorRangeBound,
+    ImageClusterExtractor,
+)
 from robokudo.annotators.plane import PlaneAnnotator
 from robokudo.annotators.pointcloud_cluster_extractor import PointCloudClusterExtractor
 from robokudo.annotators.pointcloud_crop import PointcloudCropAnnotator
@@ -19,15 +23,17 @@ from robokudo.descriptors.analysis_engines.stretch_demo import (
 )
 from test.robokudo_test.test_analysis_engine_query_composition import (
     bounded_build_time,
+    install_fake_collection_reader_descriptor,
 )
 
 
-def test_pointcloud_crop_is_narrowed_to_the_target_shelf_layer():
+def test_pointcloud_crop_is_narrowed_to_the_target_shelf_layer(monkeypatch):
     """
     Without a height-bounded, world-relative crop, the pipeline's wide RealSense field
     of view sees every shelf layer at once and answers a query with one untyped
     candidate per layer instead of just the object on the targeted one.
     """
+    install_fake_collection_reader_descriptor(monkeypatch)
     with bounded_build_time():
         pipeline = AnalysisEngine().implementation()
 
@@ -45,13 +51,16 @@ def test_pointcloud_crop_is_narrowed_to_the_target_shelf_layer():
     assert parameters.max_z == TARGET_SHELF_LAYER_MAX_WORLD_Z
 
 
-def test_pipeline_extracts_objects_by_color_not_depth_clustering():
+def test_pipeline_extracts_objects_by_color_not_depth_clustering(monkeypatch):
     """
     The target object is glossy enough that the RealSense returns no depth on its face,
-    which starves depth-based clustering of points to work with. Extracting by color
-    instead bounds the object's region from its RGB contour, so a depth hole just means
-    fewer 3D points survive within an already-correctly-shaped region.
+    which starves depth-based clustering of points to work with.
+
+    Extracting by color instead bounds the object's region from its RGB contour, so a
+    depth hole just means fewer 3D points survive within an already-correctly-shaped
+    region.
     """
+    install_fake_collection_reader_descriptor(monkeypatch)
     with bounded_build_time():
         pipeline = AnalysisEngine().implementation()
 
@@ -64,10 +73,16 @@ def test_pipeline_extracts_objects_by_color_not_depth_clustering():
         node for node in pipeline.children if isinstance(node, ImageClusterExtractor)
     )
     parameters = cluster_annotator.descriptor.parameters
-    red_hsv_range = parameters.color_name_to_hsv_range["red"]
+    red_color_range = parameters.color_ranges[ColorName.RED]
 
-    assert parameters.hsv_min == red_hsv_range["hsv_min"]
-    assert parameters.hsv_max == red_hsv_range["hsv_max"]
+    assert (
+        parameters.minimum_hue_saturation_value
+        == red_color_range[ColorRangeBound.LOWER]
+    )
+    assert (
+        parameters.maximum_hue_saturation_value
+        == red_color_range[ColorRangeBound.UPPER]
+    )
 
 
 def test_target_shelf_layer_bounds_are_the_midpoints_to_its_neighbours():

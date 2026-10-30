@@ -29,7 +29,7 @@ import logging
 import math
 import threading
 from dataclasses import dataclass
-from typing import Callable, List, Optional
+from typing_extensions import Callable
 
 from semantic_digital_twin.adapters.robocasa_dataset.mujoco_compat import (
     robocasa_version_assertions_relaxed,
@@ -38,11 +38,6 @@ from semantic_digital_twin.adapters.robocasa_dataset.mujoco_compat import (
 with robocasa_version_assertions_relaxed():
     from robocasa.models.scenes.scene_registry import LayoutType, StyleType
 
-from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
-from coraplex.datastructures.grasp import GraspDescription
-from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import sequential
 from coraplex.plans.failures import PlanFailure
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.robot_body import (
@@ -65,6 +60,11 @@ from semantic_digital_twin.spatial_types.spatial_types import (
 )
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import OmniDrive
+from coraplex.plans.context_extensions import RobotAccess
+from cramph.context import StatechartContext
+from coraplex.plans.executors import KinematicallySimulatedPlanExecutor
+from cramph.statechart import Statechart
+from cramph.composites import Sequence
 
 try:
     import rclpy
@@ -119,7 +119,7 @@ class KitchenSceneSummary:
     Total number of bodies in the parsed world.
     """
 
-    annotated_bodies: List[AnnotatedBody]
+    annotated_bodies: list[AnnotatedBody]
     """
     The semantically annotated bodies, one entry per attached annotation.
     """
@@ -170,7 +170,7 @@ def _start_rviz_publisher(
     world: World,
     tf_period_seconds: float = 0.1,
     marker_period_seconds: float = 2.0,
-) -> Optional[threading.Thread]:
+) -> threading.Thread | None:
     """
     Start publishing the world to RViz on a background thread and return immediately, so
     the caller can keep driving the world (for example while a robot performs a plan)
@@ -194,8 +194,10 @@ def _start_rviz_publisher(
     if not rclpy.ok():
         rclpy.init()
     node = rclpy.create_node("robocasa_kitchen_demo")
-    marker_publisher = VizMarkerPublisher(_world=world, node=node)
     tf_publisher = TFPublisher(_world=world, node=node)
+    marker_publisher = VizMarkerPublisher(
+        _world=world, node=node, tf_publisher=tf_publisher
+    )
 
     node.create_timer(tf_period_seconds, tf_publisher.on_state_change)
     node.create_timer(marker_period_seconds, marker_publisher.on_model_change)
@@ -365,26 +367,19 @@ def _spawn_robot_and_prepare_pick_up(
         world.add_semantic_annotation(Apple(root=world.get_body_by_name(apple_name)))
 
     pr2 = PR2.from_world(world)
-    context = Context(world=world, robot=pr2, _debug=False, ros_node=None)
-    context.evaluate_conditions = False
 
     apple = world.get_body_by_name(apple_name)
-    plan = sequential(
-        [
-            ParkArmsAction(Arms.BOTH),
-            MoveTorsoAction(TorsoState.HIGH),
+    apple_annotation = world.get_semantic_annotations_by_type(Apple)[0]
+    plan = Sequence(
+        nodes=[
+            ParkArmsAction(arms=pr2.all_arms),
+            MoveTorsoAction(torso_state=TorsoState.HIGH),
             PickUpAction(
-                apple,
-                Arms.RIGHT,
-                GraspDescription(
-                    ApproachDirection.FRONT,
-                    VerticalAlignment.TOP,
-                    pr2.right_arm.end_effector,
-                ),
+                grasp=apple_annotation.grasp_candidates()[0],
+                arm=pr2.right_arm,
             ),
-        ],
-        context=context,
-    ).plan
+        ]
+    )
 
     def perform() -> None:
         height_before = world.compute_forward_kinematics(world.root, apple).to_np()[
@@ -392,8 +387,13 @@ def _spawn_robot_and_prepare_pick_up(
         ]
         logger.info("Spawned PR2; parking arms, raising torso, picking up an apple ...")
         try:
-            with simulated_robot:
-                plan.perform()
+            executor = KinematicallySimulatedPlanExecutor(
+                StatechartContext.with_extensions(world, [RobotAccess(pr2)])
+            )
+            statechart = Statechart(context=executor.context)
+            statechart.add_node(plan)
+            executor.compile(statechart)
+            executor.execute()
         except PlanFailure as failure:
             logger.warning("Robot could not complete the pick-up: %s", failure)
             return

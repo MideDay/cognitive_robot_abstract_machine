@@ -46,7 +46,7 @@ box_world = World()
 
 with box_world.modify_world():
     box = Body(name=PrefixedName("box"), collision=ShapeCollection([Box(scale=Scale(0.5, 0.5, 0.5),
-                                                        color=Color(1., 1., 1., 1.),
+                                                        color=Color.from_rgba(red=1., green=1., blue=1., opacity=1.),
                                                         origin=HomogeneousTransformationMatrix.from_xyz_rpy(0,0,0,0,0,0),)],
                                                         ))
     box_world.add_kinematic_structure_entity(box)
@@ -59,14 +59,14 @@ be unable to fly by constraining the z-axis. Otherwise, he would get the idea to
 
 ```{code-cell} ipython3
 from random_events.interval import SimpleInterval
-from semantic_digital_twin.world_description.graph_of_convex_sets.boxes import GraphOfBoundingBoxes
-from semantic_digital_twin.world_description.geometry import BoundingBox
+from semantic_digital_twin.world_description.graph_of_convex_sets.boxes import VolumetricGraphOfBoundingBoxes
+from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
 
-search_space = BoundingBoxCollection([BoundingBox(min_x=-1, max_x=1,
+search_space = BoundingBoxCollection([VolumetricBoundingBox(min_x=-1, max_x=1,
                            min_y=-1, max_y=1,
                            min_z=0.1, max_z=0.2, origin=HomogeneousTransformationMatrix(reference_frame=box_world.root))], box_world.root)
                            
-graph_of_bounding_boxes = GraphOfBoundingBoxes.free_space_from_world(box_world, search_space=search_space)
+graph_of_bounding_boxes = VolumetricGraphOfBoundingBoxes.free_space_from_world(box_world, search_space=search_space)
 ```
 
 Let's have a look at the free space constructed. We can see that it is a rectangular catwalk around the obstacle.
@@ -112,10 +112,10 @@ apartment = os.path.realpath(os.path.join(Path(files("semantic_digital_twin")).p
 apartment_parser = URDFParser.from_file(apartment)
 world = apartment_parser.parse()
 
-search_space = BoundingBoxCollection([BoundingBox(min_x=-2, max_x=2,
+search_space = BoundingBoxCollection([VolumetricBoundingBox(min_x=-2, max_x=2,
                            min_y=-2, max_y=2,
                            min_z=0., max_z=2, origin=HomogeneousTransformationMatrix(reference_frame=world.root))], world.root)
-graph_of_bounding_boxes = GraphOfBoundingBoxes.free_space_from_world(world, search_space=search_space)
+graph_of_bounding_boxes = VolumetricGraphOfBoundingBoxes.free_space_from_world(world, search_space=search_space)
 ```
 
 We can now see the algebraic representation of the occupied and free space. The free space is the complement of the occupied space.

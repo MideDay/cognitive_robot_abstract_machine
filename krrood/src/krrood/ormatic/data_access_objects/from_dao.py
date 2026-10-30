@@ -5,19 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field, is_dataclass, fields, MISSING
 from functools import lru_cache
 from inspect import isclass
-from typing import (
-    Any,
-    Callable,
-    Set,
-    Dict,
-    NamedTuple,
-    Tuple,
-    Type,
-    List,
-    TYPE_CHECKING,
-    Optional,
-    Union,
-)
+from typing_extensions import Any, Callable, NamedTuple, TYPE_CHECKING, Optional, Union
 
 import rustworkx
 
@@ -29,7 +17,11 @@ from krrood.ormatic.data_access_objects.base import (
 )
 
 from krrood.ormatic.data_access_objects.alternative_mappings import AlternativeMapping
-from krrood.ormatic.data_access_objects.helper import get_dao_class
+from krrood.ormatic.data_access_objects.conversion_order import (
+    ConversionOrder,
+    DeclaredOrder,
+)
+from krrood.ormatic.data_access_objects.helper import get_data_access_object_class
 
 if TYPE_CHECKING:
     from krrood.ormatic.data_access_objects.dao import (
@@ -79,19 +71,19 @@ class _AllocationPlan:
     dataclass on every call.
     """
 
-    static_defaults: Tuple[_StaticDefault, ...]
+    static_defaults: tuple[_StaticDefault, ...]
     """
     Fields whose default is a fixed value.
     """
 
-    default_factories: Tuple[_DefaultFactory, ...]
+    default_factories: tuple[_DefaultFactory, ...]
     """
     Fields whose default must be produced by calling a factory.
     """
 
 
 @lru_cache(maxsize=None)
-def _get_allocation_plan(original_clazz: Type) -> _AllocationPlan:
+def _get_allocation_plan(original_clazz: type) -> _AllocationPlan:
     """
     Precompute the default values of a domain class for allocation.
 
@@ -133,7 +125,7 @@ class FromDataAccessObjectState(DataAccessObjectState[FromDataAccessObjectWorkIt
     Whether the state is currently in discovery mode.
     """
 
-    initialized_ids: Set[int] = field(default_factory=set)
+    initialized_ids: set[int] = field(default_factory=set)
     """
     Set of DAO ids that have been fully initialized.
     """
@@ -143,8 +135,8 @@ class FromDataAccessObjectState(DataAccessObjectState[FromDataAccessObjectWorkIt
     Whether the state is currently in the processing loop.
     """
 
-    synthetic_parent_daos: Dict[
-        Tuple[int, Type[DataAccessObject]], DataAccessObject
+    synthetic_parent_daos: dict[
+        tuple[int, type[DataAccessObject]], DataAccessObject
     ] = field(default_factory=dict)
     """
     Cache for synthetic parent DAOs to maintain identity across discovery and filling
@@ -167,8 +159,8 @@ class FromDataAccessObjectState(DataAccessObjectState[FromDataAccessObjectWorkIt
     `target`.
     """
 
-    _alternative_mappings_being_referenced: Dict[
-        AlternativeMapping, List[Tuple[Any, MappedVariable]]
+    _alternative_mappings_being_referenced: dict[
+        AlternativeMapping, list[tuple[Any, MappedVariable]]
     ] = field(default_factory=lambda: defaultdict(list))
     """
     A dictionary that maps remembers all occurrences of an alternative mapping in any
@@ -180,7 +172,7 @@ class FromDataAccessObjectState(DataAccessObjectState[FromDataAccessObjectWorkIt
     descriptions are MappedVariable instances from EQL.
     """
 
-    _converted_alternative_mappings: Dict[AlternativeMapping, Any] = field(
+    _converted_alternative_mappings: dict[AlternativeMapping, Any] = field(
         default_factory=dict
     )
     """
@@ -262,7 +254,7 @@ class FromDataAccessObjectState(DataAccessObjectState[FromDataAccessObjectWorkIt
         )
 
     def allocate_and_memoize(
-        self, dao_instance: DataAccessObject, original_clazz: Type
+        self, dao_instance: DataAccessObject, original_clazz: type
     ) -> Any:
         """
         Allocate a new instance and store it in the memoization dictionary.
@@ -283,7 +275,7 @@ class FromDataAccessObjectState(DataAccessObjectState[FromDataAccessObjectWorkIt
         return result
 
     def _build_class_dependencies(
-        self, alternative_mapping_types: List[Type[AlternativeMapping]]
+        self, alternative_mapping_types: list[type[AlternativeMapping]]
     ):
         """
         Build the class dependencies for the given types that can be used to infer the
@@ -292,7 +284,7 @@ class FromDataAccessObjectState(DataAccessObjectState[FromDataAccessObjectWorkIt
 
         :param alternative_mapping_types: The types to build the dependency graph for.
         """
-        types_to_index: Dict[Type, int] = {
+        types_to_index: dict[type, int] = {
             type_: self._class_dependencies.add_node(type_)
             for type_ in alternative_mapping_types
         }  # add all dao types to the dependency graph
@@ -306,9 +298,9 @@ class FromDataAccessObjectState(DataAccessObjectState[FromDataAccessObjectWorkIt
 
     def _build_dependencies_of_alternative_mapping(
         self,
-        alternative_mapping: Type[AlternativeMapping],
-        concrete_alternative_mappings: List[Type[AlternativeMapping]],
-        types_to_index: Dict[Type, int],
+        alternative_mapping: type[AlternativeMapping],
+        concrete_alternative_mappings: list[type[AlternativeMapping]],
+        types_to_index: dict[type, int],
     ):
         """
         Builds the dependencies of a given alternative mapping and updates the internal
@@ -343,7 +335,7 @@ class FromDataAccessObjectState(DataAccessObjectState[FromDataAccessObjectWorkIt
                 self._class_dependencies.add_edge(
                     types_to_index[concrete_alternative_mapping],
                     types_to_index[alternative_mapping],
-                    None,
+                    DeclaredOrder(concrete_alternative_mapping, alternative_mapping),
                 )
 
     def convert_alternative_mappings_to_domain_objects(self):
@@ -355,16 +347,15 @@ class FromDataAccessObjectState(DataAccessObjectState[FromDataAccessObjectWorkIt
         objects. The class dependency graph determines the conversion order so that the
         alternative mappings respect their dependencies.
         """
-        instances_by_type: Dict[Type, List[AlternativeMapping]] = defaultdict(list)
+        instances_by_type: dict[type, list[AlternativeMapping]] = defaultdict(list)
         for instance in self._alternative_mappings_being_referenced:
             instances_by_type[type(instance)].append(instance)
 
-        # types in dependency order first, then any referenced types not in the graph
+        # types in conversion order first, then any referenced types not in the graph
         # (e.g. instances that were already converted in a previous conversion)
-        ordered_types = [
-            self._class_dependencies[type_index]
-            for type_index in rustworkx.topological_sort(self._class_dependencies)
-        ]
+        ordered_types = ConversionOrder(
+            self._class_dependencies, self._alternative_mappings_being_referenced
+        ).sort_types()
         ordered_types += [
             type_ for type_ in instances_by_type if type_ not in set(ordered_types)
         ]

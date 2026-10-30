@@ -16,9 +16,9 @@ import), so the chain assembler can call it without a cycle.
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import TYPE_CHECKING
+from enum import StrEnum
+from typing_extensions import TYPE_CHECKING
 
-from typing_extensions import List
 
 from krrood.entity_query_language.verbalization import morphology
 from krrood.entity_query_language.verbalization.boolean_predicate import (
@@ -49,10 +49,49 @@ if TYPE_CHECKING:
     from krrood.entity_query_language.core.mapped_variable import Attribute
 
 
+class SpelledOutHead(StrEnum):
+    """
+    A word a boolean attribute's name can open with that already spells the head of the
+    predicate the attribute reads as.
+
+    ``has_collision`` says *have* itself, so the predicate it reads as must take the
+    rest of the name as its object and not say *have* a second time (*"has collision"*,
+    never *"has has collision"*).
+    """
+
+    HAS = "has"
+    HAVE = "have"
+    IS = "is"
+    ARE = "are"
+
+    @classmethod
+    def opening(cls, words: list[str]) -> SpelledOutHead | None:
+        """:param words: The words of an attribute's name, in order.
+
+        :return: The head *words* opens with and also says something about, or ``None`` when it
+            opens with no head or says nothing beyond it (a field simply called ``has``).
+        """
+        if len(words) < 2:
+            return None
+        return next((head for head in cls if head == words[0]), None)
+
+    @property
+    def predicate_type(self) -> type[BooleanPredicate]:
+        """
+        The predicate whose head this word spells.
+        """
+        return (
+            PossessivePredicate
+            if self in (SpelledOutHead.HAS, SpelledOutHead.HAVE)
+            else AdjectivalPredicate
+        )
+
+
 def default_boolean_predicate(attribute_name: str) -> BooleanPredicate:
     """:param attribute_name: The boolean attribute's name.
 
-    :return: The predicate inferred from *attribute_name*'s shape — adjectival for a
+    :return: The predicate inferred from *attribute_name*'s shape — the one whose head the name
+        already spells (*"has_collision"* → *"has collision"*), else adjectival for a
         participle/adjective-shaped name (*"completed"*, *"operational"*), else possessive (*"milk"* →
         *"has milk"*).
 
@@ -65,8 +104,13 @@ def default_boolean_predicate(attribute_name: str) -> BooleanPredicate:
     reliable source of the classification is an explicit definition through the field's grammar
     metadata.
     """
-    last = attribute_name.split("_")[-1]
-    if morphology.is_past_participle(last) or morphology.is_likely_adjective(last):
+    words = attribute_name.split("_")
+    spelled_head = SpelledOutHead.opening(words)
+    if spelled_head is not None:
+        return spelled_head.predicate_type(" ".join(words[1:]))
+    if morphology.is_past_participle(words[-1]) or morphology.is_likely_adjective(
+        words[-1]
+    ):
         return AdjectivalPredicate()
     return PossessivePredicate()
 
@@ -104,7 +148,7 @@ def boolean_predicate_clause(
     """
     head = replace(predicate.head(), negated=negated, number=number)
     predicate_object = predicate.predicate_object(attribute)
-    constituents: List[ClauseConstituent] = [subject, head]
+    constituents: list[ClauseConstituent] = [subject, head]
     if predicate_object is not None:
         constituents.append(predicate_object)
     return clause(*constituents)
@@ -141,7 +185,7 @@ def boolean_alternative_clause(
             Conjunctions.OR,
             Logicals.NOT,
         )
-    constituents: List[ClauseConstituent] = [subject, Logicals.EITHER, head]
+    constituents: list[ClauseConstituent] = [subject, Logicals.EITHER, head]
     if predicate_object is not None:
         constituents.append(predicate_object)
     constituents += [Conjunctions.OR, Logicals.NOT]
