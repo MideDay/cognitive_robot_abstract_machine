@@ -78,16 +78,6 @@ class SceneFile(PathEnumeration):
     The meshes the scene is built from, under the coraplex resources.
     """
 
-    CABLE_POST = Path(OBJECTS_DIRECTORY, "item_profile_8_40x40_720.stl")
-    """
-    The aluminium profile standing on the table.
-    """
-
-    CABLE_HANGER = Path(OBJECTS_DIRECTORY, "cable_hanger_2.stl")
-    """
-    The hanger mounted on the cable post.
-    """
-
     TOOL_HOLDER = Path(OBJECTS_DIRECTORY, "tool_holder.stl")
     """
     A holder a knife stands in blade-down.
@@ -114,8 +104,6 @@ class SceneBody(StrEnum):
     The names of the scene's bodies.
     """
 
-    CABLE_POST = "cable_post"
-    CABLE_HANGER = "cable_hanger"
     KNIFE_HOLDER = "knife_holder"
     MIXING_TOOL_HOLDER = "mixing_tool_holder"
     KNIFE = "knife"
@@ -224,30 +212,6 @@ class DaisyCuttingDemonstration(RobotDemonstration):
     executor_type: type[PlanExecutor] = KinematicallySimulatedPlanExecutor
 
     simulation_time_per_action: timedelta | None = timedelta(seconds=300)
-
-    cable_post: BodySpecification = field(
-        default_factory=lambda: BodySpecification.mesh(
-            SceneBody.CABLE_POST,
-            str(SceneFile.CABLE_POST),
-            parent_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
-                x=0.62, y=0.42, z=0.8477, roll=pi / 2, yaw=-pi / 2
-            ),
-            child_specifications=[
-                BodySpecification.mesh(
-                    SceneBody.CABLE_HANGER,
-                    str(SceneFile.CABLE_HANGER),
-                    parent_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
-                        y=0.310,  # 720/2 - 50
-                        z=0.02,
-                        roll=-pi / 2,
-                    ),
-                )
-            ],
-        )
-    )
-    """
-    The cable post on the table, with the cable hanger mounted on it.
-    """
 
     bread: SemanticAnnotationWithRootSpecification = field(
         default_factory=lambda: SemanticAnnotationWithRootSpecification(
@@ -383,7 +347,6 @@ class DaisyCuttingDemonstration(RobotDemonstration):
     def scene_specification(self) -> WorldSpecification:
         return WorldSpecification(
             objects=[
-                self.cable_post,
                 self.knife_holder.specification,
                 self.mixing_tool_holder.specification,
                 self.bread,
