@@ -27,7 +27,7 @@ from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix
 # %% Camera behavior
 
 
-@dataclass
+@dataclass(kw_only=True)
 class CustomDataclassView:
     label: str
     confidence: float
@@ -349,7 +349,7 @@ class TestStorage:
         assert retrieved_cas_record is not None
         retrieved_cas_record["views"] = {}
         rk_world.init_world_with_entity_tracker()
-        RecordedCameraWorld(observation).install(rk_world.world_instance())
+        RecordedCameraWorld(observation=observation).install(rk_world.world_instance())
         rk_world.init_world_entity_tracker_from_world(rk_world.world_instance())
         storage_instance.load_views_from_mongo_in_cas(retrieved_cas_record)
         restored_observation = retrieved_cas_record["views"][

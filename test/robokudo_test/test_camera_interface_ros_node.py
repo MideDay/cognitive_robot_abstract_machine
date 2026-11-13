@@ -10,7 +10,7 @@ from semantic_digital_twin.exceptions import ROSNodeNotRegisteredError
 # %% ROS node ownership
 
 
-@dataclass
+@dataclass(kw_only=True)
 class CameraConfigWithoutTF:
     """
     Minimal camera config that does not request TF lookup.
@@ -22,7 +22,7 @@ class CameraConfigWithoutTF:
     """
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RegisteredNode:
     """
     Mimic a registered ROS node.

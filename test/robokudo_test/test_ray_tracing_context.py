@@ -75,7 +75,7 @@ def test_resolver_uses_runtime_robots_default_camera(monkeypatch) -> None:
     monkeypatch.setattr(rk_world, "world_instance", lambda: world)
     monkeypatch.setattr(rk_world, "init_world_entity_tracker_from_world", Mock())
     resolver = RayTracingContextResolver(
-        RayTracingCameraConfiguration(source=RuntimeRobotWorldSource())
+        camera_config=RayTracingCameraConfiguration(source=RuntimeRobotWorldSource())
     )
 
     context = resolver.resolve()
@@ -100,7 +100,7 @@ def test_resolver_retries_runtime_lookup_after_world_becomes_available(
     monkeypatch.setattr(rk_world, "world_instance", lambda: next(runtime_worlds))
     monkeypatch.setattr(rk_world, "init_world_entity_tracker_from_world", Mock())
     resolver = RayTracingContextResolver(
-        RayTracingCameraConfiguration(source=RuntimeRobotWorldSource())
+        camera_config=RayTracingCameraConfiguration(source=RuntimeRobotWorldSource())
     )
 
     with pytest.raises(RobotAnnotationMissing):
@@ -160,7 +160,7 @@ def test_resolver_preserves_camera_pose_without_override(
     module_loader = Mock()
     module_loader.load_world_descriptor.return_value = descriptor
     resolver = RayTracingContextResolver(
-        RayTracingCameraConfiguration(source=WorldDescriptorSource()),
+        camera_config=RayTracingCameraConfiguration(source=WorldDescriptorSource()),
         module_loader=module_loader,
     )
     apply_camera_pose = Mock(wraps=RayTracingContextResolver._apply_camera_pose)
@@ -192,7 +192,9 @@ def test_resolver_applies_camera_pose_override_once() -> None:
     )
     module_loader = Mock()
     module_loader.load_world_descriptor.return_value = descriptor
-    resolver = RayTracingContextResolver(config, module_loader=module_loader)
+    resolver = RayTracingContextResolver(
+        camera_config=config, module_loader=module_loader
+    )
 
     context = resolver.resolve()
 

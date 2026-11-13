@@ -15,7 +15,7 @@ from robokudo.exceptions import ParentPipelineMissing
 from robokudo.pipeline import Pipeline
 
 
-@dataclass(eq=False)
+@dataclass(eq=False, kw_only=True)
 class ClearAnnotatorOutputs(Behaviour):
     """
     Clears the annotator outputs of the nearest pipeline it is part of.

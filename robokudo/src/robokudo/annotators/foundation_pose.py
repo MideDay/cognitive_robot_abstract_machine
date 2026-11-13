@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 # %% Object class meshes
 
 
-@dataclass
+@dataclass(kw_only=True)
 class ObjectClassMesh:
     """
     The mesh showing the objects of one class.
@@ -78,7 +78,7 @@ class ObjectClassMesh:
         return Mesh.from_trimesh(self.shape.mesh).local_file
 
 
-@dataclass
+@dataclass(kw_only=True)
 class ObjectClassMeshes:
     """
     The meshes of the object classes to pose, at most one per class.
@@ -117,7 +117,7 @@ class ObjectClassMeshes:
 # %% Tracking across frames
 
 
-@dataclass(eq=False)
+@dataclass(eq=False, kw_only=True)
 class PosedObject:
     """
     An object whose pose was determined in a frame.
@@ -141,7 +141,7 @@ class PosedObject:
     """
 
 
-@dataclass
+@dataclass(kw_only=True)
 class PreviousFramePoses:
     """
     Objects posed in the previous frame that are not yet matched to an object of the
@@ -222,7 +222,7 @@ class DrawableGeometryKey(StrEnum):
     """
 
 
-@dataclass
+@dataclass(kw_only=True)
 class NamedGeometry:
     """
     A geometry of the 3D view with its unique name.
@@ -250,7 +250,7 @@ class NamedGeometry:
         }
 
 
-@dataclass
+@dataclass(kw_only=True)
 class PoseVisualization:
     """
     The color image and the 3D geometries showing posed meshes.
@@ -331,11 +331,17 @@ class PoseVisualization:
             size=self.axis_length
         )
         axes.transform(axes_pose.to_np())
-        self.geometries.append(NamedGeometry(f"{label} bounding box", bounding_box))
-        self.geometries.append(NamedGeometry(f"{label} axes", axes))
+        self.geometries.append(
+            NamedGeometry(geometry_name=f"{label} bounding box", geometry=bounding_box)
+        )
+        self.geometries.append(
+            NamedGeometry(geometry_name=f"{label} axes", geometry=axes)
+        )
         if self.show_object_mesh:
             self.geometries.append(
-                NamedGeometry(f"{label} mesh", self.posed_mesh(shape, pose))
+                NamedGeometry(
+                    geometry_name=f"{label} mesh", geometry=self.posed_mesh(shape, pose)
+                )
             )
 
     def bounding_box(
@@ -486,7 +492,7 @@ class PoseVisualization:
 # %% Pose requests
 
 
-@dataclass(eq=False)
+@dataclass(eq=False, kw_only=True)
 class PoseRequest:
     """
     An object hypothesis whose pose is determined in the current frame.
@@ -520,7 +526,7 @@ class PoseRequest:
     """
 
 
-@dataclass(eq=False)
+@dataclass(eq=False, kw_only=True)
 class EstimatedPose:
     """
     The pose determined for a :class:`PoseRequest`.
@@ -546,7 +552,7 @@ class EstimatedPose:
         )
 
 
-@dataclass(eq=False)
+@dataclass(eq=False, kw_only=True)
 class PoseCandidate:
     """
     An object hypothesis that can be posed, before deciding whether and how.
@@ -599,7 +605,7 @@ class PoseCandidate:
 # %% Pose update modes
 
 
-@dataclass
+@dataclass(kw_only=True)
 class PoseUpdateMode(ABC):
     """
     Decides which objects get a new pose, and whether known poses are tracked or
@@ -615,7 +621,7 @@ class PoseUpdateMode(ABC):
         """
 
 
-@dataclass
+@dataclass(kw_only=True)
 class EstimateUnposedObjects(PoseUpdateMode):
     """
     Only objects without a :class:`PoseAnnotation` are estimated.
@@ -627,7 +633,7 @@ class EstimateUnposedObjects(PoseUpdateMode):
         return candidate.to_request()
 
 
-@dataclass
+@dataclass(kw_only=True)
 class EstimateAllObjects(PoseUpdateMode):
     """
     Every object is estimated, ignoring the poses it already has.
@@ -637,7 +643,7 @@ class EstimateAllObjects(PoseUpdateMode):
         return candidate.to_request()
 
 
-@dataclass
+@dataclass(kw_only=True)
 class TrackingPoseUpdateMode(PoseUpdateMode, ABC):
     """
     A mode that tracks objects with a known pose: one from their :class:`PoseAnnotation`
@@ -697,7 +703,7 @@ class TrackingPoseUpdateMode(PoseUpdateMode, ABC):
         return candidate.to_request(previous_pose=previous_pose)
 
 
-@dataclass
+@dataclass(kw_only=True)
 class EstimateAndTrack(TrackingPoseUpdateMode):
     """
     Objects with a known pose are tracked, the others are estimated.
@@ -709,7 +715,7 @@ class EstimateAndTrack(TrackingPoseUpdateMode):
         return self.previous_frame_tracking_request(candidate) or candidate.to_request()
 
 
-@dataclass
+@dataclass(kw_only=True)
 class TrackPosedObjects(TrackingPoseUpdateMode):
     """
     Only objects with a known pose are tracked.
@@ -724,7 +730,7 @@ class TrackPosedObjects(TrackingPoseUpdateMode):
 # %% FoundationPose annotator
 
 
-@dataclass(eq=False)
+@dataclass(eq=False, kw_only=True)
 class FoundationPoseAnnotator(ThreadedAnnotator):
     """
     Estimate and track the 6D pose of classified object hypotheses with masks, using the
@@ -1050,7 +1056,9 @@ class FoundationPoseAnnotator(ThreadedAnnotator):
                 estimated_pose.label,
             )
         if cas.cloud is not None:
-            visualization.geometries.append(NamedGeometry(CASViews.CLOUD, cas.cloud))
+            visualization.geometries.append(
+                NamedGeometry(geometry_name=CASViews.CLOUD, geometry=cas.cloud)
+            )
         output = self.get_annotator_output_struct()
         output.set_image(visualization.color_image)
         output.set_geometries(

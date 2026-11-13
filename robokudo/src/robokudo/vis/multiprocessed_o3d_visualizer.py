@@ -133,6 +133,7 @@ class O3DVisualizer(Visualizer, Visualizer.Observer):
 @dataclass(
     slots=True,
     frozen=True,
+    kw_only=True,
 )
 class MemoryMap(object):
     """A base memory map for shared memory."""
@@ -144,7 +145,7 @@ class MemoryMap(object):
 T = TypeVar("T", bound=object)
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 class ObjectMemoryMap(MemoryMap, Generic[T]):
     """A memory map for an object in shared memory."""
 
@@ -370,6 +371,7 @@ class ObjectMemoryMap(MemoryMap, Generic[T]):
 @dataclass(
     slots=True,
     frozen=True,
+    kw_only=True,
 )
 class ArrayMemoryMap(MemoryMap):
     """A memory map for a numpy array in shared memory."""
@@ -537,6 +539,7 @@ class Geometry3DMemoryMap(ObjectMemoryMap[G], Generic[G]):
 @dataclass(
     slots=True,
     frozen=True,
+    kw_only=True,
 )
 class PointCloudMemoryMap(Geometry3DMemoryMap[o3d.geometry.PointCloud]):
     points: ArrayMemoryMap
@@ -559,7 +562,7 @@ class PointCloudMemoryMap(Geometry3DMemoryMap[o3d.geometry.PointCloud]):
     ]
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 class LineSetMemoryMap(Geometry3DMemoryMap[o3d.geometry.LineSet]):
     colors: ArrayMemoryMap
     """Memory map of the line set colors."""
@@ -580,6 +583,7 @@ class LineSetMemoryMap(Geometry3DMemoryMap[o3d.geometry.LineSet]):
 @dataclass(
     slots=True,
     frozen=True,
+    kw_only=True,
 )
 class MeshBaseMemoryMap(Geometry3DMemoryMap[o3d.geometry.MeshBase]):
     vertices: ArrayMemoryMap
@@ -601,6 +605,7 @@ class MeshBaseMemoryMap(Geometry3DMemoryMap[o3d.geometry.MeshBase]):
 @dataclass(
     slots=True,
     frozen=True,
+    kw_only=True,
 )
 class TriangleMeshMemoryMap(Geometry3DMemoryMap[o3d.geometry.TriangleMesh]):
     vertices: ArrayMemoryMap
@@ -646,6 +651,7 @@ class TriangleMeshMemoryMap(Geometry3DMemoryMap[o3d.geometry.TriangleMesh]):
 @dataclass(
     slots=True,
     frozen=True,
+    kw_only=True,
 )
 class OrientedBoundingBoxMemoryMap(
     Geometry3DMemoryMap[o3d.geometry.OrientedBoundingBox]
@@ -673,6 +679,7 @@ class OrientedBoundingBoxMemoryMap(
 @dataclass(
     slots=True,
     frozen=True,
+    kw_only=True,
 )
 class AxisAlignedBoundingBoxMemoryMap(
     Geometry3DMemoryMap[o3d.geometry.AxisAlignedBoundingBox]
@@ -693,7 +700,7 @@ class AxisAlignedBoundingBoxMemoryMap(
     ]
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 class TetraMeshMemoryMap(Geometry3DMemoryMap[o3d.geometry.TetraMesh]):
     tetras: ArrayMemoryMap
     """Memory map of the tetra mesh tetras."""
@@ -715,7 +722,7 @@ class TetraMeshMemoryMap(Geometry3DMemoryMap[o3d.geometry.TetraMesh]):
     ]
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 class MaterialRecordMemoryMap(
     ObjectMemoryMap[o3d.visualization.rendering.MaterialRecord]
 ):
@@ -853,7 +860,7 @@ class MaterialRecordMemoryMap(
         return geometry, read_idx
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 class HalfEdgeMemoryMap(ObjectMemoryMap[o3d.geometry.HalfEdge]):
     data: ArrayMemoryMap
     """Memory map containing next, triangle_index, twin and vertex_indices."""
@@ -932,7 +939,7 @@ class HalfEdgeMemoryMap(ObjectMemoryMap[o3d.geometry.HalfEdge]):
         return half_edge, read_idx + self.byte_size
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 class HalfEdgeTriangleMeshMemoryMap(
     Geometry3DMemoryMap[o3d.geometry.HalfEdgeTriangleMesh]
 ):
@@ -1077,7 +1084,7 @@ class Geometry3DMemoryMapFactory:
         return cls.proxies[type(geometry["geometry"])].from_geometry(**geometry)
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 class MemoryMapTransport(object):
     """A message containing geometry data for visualization."""
 
@@ -1088,7 +1095,7 @@ class MemoryMapTransport(object):
     """The memory mappings for the geometries."""
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, kw_only=True)
 class SharedMemoryManager(object):
     """A manager for geometries in shared memory."""
 

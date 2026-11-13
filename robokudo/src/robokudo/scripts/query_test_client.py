@@ -58,7 +58,7 @@ class PrettyResultPrinter:
         return json.dumps(result_dict, indent=2)
 
 
-@dataclass(eq=False)
+@dataclass(eq=False, kw_only=True)
 class RoboKudoActionClient:
     """
     Send dynamic goals to the RoboKudo query action server.
@@ -127,7 +127,9 @@ class RoboKudoActionClient:
         """
         Create the ROS action client associated with the supplied node.
         """
-        self._action_client = ActionClient(self.node, Query, "/robokudo/query")
+        self._action_client = ActionClient(
+            node=self.node, action_type=Query, action_name="/robokudo/query"
+        )
 
     def send_goal(self, goal_type: str) -> None:
         """

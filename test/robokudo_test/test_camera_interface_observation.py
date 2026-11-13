@@ -50,7 +50,7 @@ from semantic_digital_twin.world_description.connections import Connection6DoF
 from semantic_digital_twin.world_description.world_entity import Body
 
 
-@dataclass
+@dataclass(kw_only=True)
 class SynchronizedImageConfiguration:
     """
     Provide the options consumed by the RGB-D reader's frame conversion.
@@ -72,7 +72,7 @@ class SynchronizedImageConfiguration:
     """
 
 
-@dataclass
+@dataclass(kw_only=True)
 class LiveColorCameraConfig:
     """
     Provide the options consumed by the RGB-only reader's frame conversion.
@@ -89,7 +89,7 @@ class LiveColorCameraConfig:
     """
 
 
-@dataclass
+@dataclass(kw_only=True)
 class OpenCVCameraTestConfig:
     """
     Provide the options consumed by one OpenCV frame conversion.
@@ -131,7 +131,7 @@ class OpenCVCameraTestConfig:
     """
 
 
-@dataclass
+@dataclass(kw_only=True)
 class SeekableImageSequence:
     """
     Provide the metadata operations used after an OpenCV frame is retrieved.

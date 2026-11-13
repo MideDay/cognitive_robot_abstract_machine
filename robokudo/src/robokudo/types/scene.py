@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from semantic_digital_twin.world_description.world_entity import Body
 
 
-@dataclass
+@dataclass(kw_only=True)
 class AnalyzableAnnotation(IdentifiableAnnotation):
     """
     An Annotation that describes an entity observed in the scene, that shall be analyzed further.
@@ -63,7 +63,7 @@ class AnalyzableAnnotation(IdentifiableAnnotation):
     """
 
 
-@dataclass
+@dataclass(kw_only=True)
 class ObjectHypothesis(AnalyzableAnnotation):
     """Hypothesis about an object in the scene.
 
@@ -72,7 +72,7 @@ class ObjectHypothesis(AnalyzableAnnotation):
     """
 
 
-@dataclass
+@dataclass(kw_only=True)
 class HumanHypothesis(ObjectHypothesis):
     """Hypothesis about a human in the scene.
 
@@ -99,7 +99,7 @@ class HumanHypothesis(ObjectHypothesis):
     """
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RegionHypothesis(AnalyzableAnnotation, Nameable):
     """Hypothesis about a region in the scene.
 
@@ -111,7 +111,7 @@ class RegionHypothesis(AnalyzableAnnotation, Nameable):
     ...
 
 
-@dataclass
+@dataclass(kw_only=True)
 class ParthoodHypothesis(AnalyzableAnnotation, Nameable):
     """Base class for part-whole relationships in objects.
 
@@ -126,11 +126,11 @@ class ParthoodHypothesis(AnalyzableAnnotation, Nameable):
     """
 
 
-@dataclass
+@dataclass(kw_only=True)
 class ParthoodComponentHypothesis(ParthoodHypothesis): ...
 
 
-@dataclass
+@dataclass(kw_only=True)
 class ParthoodFeatureHypothesis(ParthoodHypothesis):
     """Hypothesis about a feature part of an object.
 
@@ -145,7 +145,7 @@ class ParthoodFeatureHypothesis(ParthoodHypothesis):
     ...
 
 
-@dataclass
+@dataclass(kw_only=True)
 class OccupiedAnnotation(Annotation):
     """Annotation indicating region occupancy.
 

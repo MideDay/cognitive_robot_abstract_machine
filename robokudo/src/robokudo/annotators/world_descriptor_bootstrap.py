@@ -18,7 +18,7 @@ from robokudo.utils.world_descriptor import load_world_descriptor
 from robokudo.world_descriptor import BaseWorldDescriptor
 
 
-@dataclass
+@dataclass(kw_only=True)
 class _WorldEntitySnapshot:
     """
     Entity IDs present in the runtime world before a descriptor merge.
@@ -30,7 +30,7 @@ class _WorldEntitySnapshot:
     semantic_annotation_ids: set[UUID] = field(default_factory=set)
 
 
-@dataclass
+@dataclass(kw_only=True)
 class _MergedDescriptorEntities:
     """
     Entities that were added by the last descriptor merge.

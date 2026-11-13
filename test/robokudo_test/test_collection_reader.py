@@ -19,7 +19,7 @@ from robokudo.types.core import Query
 
 
 # %% Acquisition fixture
-@dataclass
+@dataclass(kw_only=True)
 class ReaderPipeline:
     """
     A pipeline with a controlled source of sensor data.
@@ -29,6 +29,7 @@ class ReaderPipeline:
     """
     Annotator receiving the controlled camera data.
     """
+
     pipeline: Pipeline
     """
     Pipeline owning the CAS.
@@ -52,7 +53,9 @@ def reader_pipeline() -> ReaderPipeline:
     )
     reader = CollectionReaderAnnotator(descriptor)
     pipeline = Pipeline(children=[reader])
-    return ReaderPipeline(reader, pipeline, camera_interface)
+    return ReaderPipeline(
+        reader=reader, pipeline=pipeline, camera_interface=camera_interface
+    )
 
 
 # %% Single-reader configuration
