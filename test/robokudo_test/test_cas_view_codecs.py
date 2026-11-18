@@ -30,11 +30,11 @@ def test_bytes_codec_roundtrip():
     registry = CASViewCodecRegistry()
     input_payload = b"\x00\x01\x02\x03"
 
-    encoded = registry.encode_view("blob", input_payload)
+    encoded = registry.encode_view(view_name="blob", value=input_payload)
     assert encoded is not None
     assert encoded["serializer_id"] == "bytes_v1"
 
-    decoded_name, decoded_payload = registry.decode_view(encoded)
+    decoded_name, decoded_payload = registry.decode_view(document=encoded)
     assert decoded_name == "blob"
     assert decoded_payload == input_payload
 
@@ -43,11 +43,11 @@ def test_ros_message_codec_roundtrip():
     registry = CASViewCodecRegistry()
     msg = String(data="hello")
 
-    encoded = registry.encode_view("msg", msg)
+    encoded = registry.encode_view(view_name="msg", value=msg)
     assert encoded is not None
     assert encoded["serializer_id"] == "ros_message_v1"
 
-    decoded_name, decoded_msg = registry.decode_view(encoded)
+    decoded_name, decoded_msg = registry.decode_view(document=encoded)
     assert decoded_name == "msg"
     assert isinstance(decoded_msg, String)
     assert decoded_msg.data == "hello"
@@ -63,11 +63,11 @@ def test_stamped_transform_codec_roundtrip():
     transform.timestamp.sec = 123
     transform.timestamp.nanosec = 456
 
-    encoded = registry.encode_view("tf", transform)
+    encoded = registry.encode_view(view_name="tf", value=transform)
     assert encoded is not None
     assert encoded["serializer_id"] == "robokudo_stamped_transform_v1"
 
-    decoded_name, decoded_transform = registry.decode_view(encoded)
+    decoded_name, decoded_transform = registry.decode_view(document=encoded)
     assert decoded_name == "tf"
     assert isinstance(decoded_transform, StampedTransform)
     assert decoded_transform.rotation == transform.rotation
@@ -114,8 +114,8 @@ def test_camera_observation_codec_resolves_camera_and_preserves_pose_state(
     )
     registry = CASViewCodecRegistry()
 
-    encoded = registry.encode_view("camera_observation", observation)
-    decoded_name, decoded_observation = registry.decode_view(encoded)
+    encoded = registry.encode_view(view_name="camera_observation", value=observation)
+    decoded_name, decoded_observation = registry.decode_view(document=encoded)
 
     assert decoded_name == "camera_observation"
     assert decoded_observation.camera is camera
@@ -136,16 +136,19 @@ def test_color_to_depth_ratio_roundtrip():
     registry = CASViewCodecRegistry()
     ratio = ColorToDepthRatio(horizontal=0.5, vertical=0.25)
 
-    encoded = registry.encode_view(CASViews.COLOR_TO_DEPTH_RATIO, ratio)
+    encoded = registry.encode_view(view_name=CASViews.COLOR_TO_DEPTH_RATIO, value=ratio)
 
-    assert registry.decode_view(encoded) == (CASViews.COLOR_TO_DEPTH_RATIO, ratio)
+    assert registry.decode_view(document=encoded) == (
+        CASViews.COLOR_TO_DEPTH_RATIO,
+        ratio,
+    )
 
 
 def test_decode_view_unknown_serializer_raises():
     registry = CASViewCodecRegistry()
     with pytest.raises(ValueError):
         registry.decode_view(
-            {
+            document={
                 "view_name": "unsupported",
                 "serializer_id": "unknown_codec_v1",
                 "type_name": "builtins.int",
@@ -159,7 +162,7 @@ def test_decode_view_missing_required_field_raises():
     registry = CASViewCodecRegistry()
     with pytest.raises(KeyError):
         registry.decode_view(
-            {
+            document={
                 "serializer_id": "bytes_v1",
                 "type_name": "builtins.bytes",
                 "payload": "AA==",

@@ -33,7 +33,9 @@ class AnalysisEngine(AnalysisEngineInterface):
             _world=world_instance(), node=ROSNodeRegistry().get()
         )
 
-        cr_storage_config = CollectionReaderDescriptorFactory.create_descriptor("mongo")
+        cr_storage_config = CollectionReaderDescriptorFactory.create_descriptor(
+            camera="mongo"
+        )
 
         seq = Pipeline("RWPipeline")
         seq.add_children(

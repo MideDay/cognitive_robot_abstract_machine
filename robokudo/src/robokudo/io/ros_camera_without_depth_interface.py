@@ -42,6 +42,7 @@ from semantic_digital_twin.datastructures.camera_model import (
     CameraDistortionModel,
     CameraModality,
 )
+from krrood.patterns.called_positionally import called_positionally
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -121,6 +122,7 @@ class ROSCameraWithoutDepthInterface(ROSCameraInterface):
 
     def rotate_camera_intrinsics(
         self,
+        *,
         intrinsic_matrix: npt.NDArray,
         image_size: tuple[int, int],
         rotation: ImageRotation = ImageRotation.COUNTERCLOCKWISE_90,
@@ -181,7 +183,7 @@ class ROSCameraWithoutDepthInterface(ROSCameraInterface):
 
     @staticmethod
     def rotate_camera_distortion(
-        coefficients: Sequence[float], distortion_model: str, rotation: ImageRotation
+        *, coefficients: Sequence[float], distortion_model: str, rotation: ImageRotation
     ) -> tuple[float, ...]:
         """
         Express lens distortion in the rotated image-axis convention.
@@ -226,6 +228,7 @@ class ROSCameraWithoutDepthInterface(ROSCameraInterface):
 
     def rotate_image_and_intrinsics(
         self,
+        *,
         image: npt.NDArray,
         intrinsic_matrix: npt.NDArray,
         rotation: ImageRotation = ImageRotation.COUNTERCLOCKWISE_90,
@@ -250,10 +253,13 @@ class ROSCameraWithoutDepthInterface(ROSCameraInterface):
             raise UnsupportedImageRotation(rotation=rotation)
 
         rotated_intrinsics, new_size = self.rotate_camera_intrinsics(
-            intrinsic_matrix, (width, height), rotation
+            intrinsic_matrix=intrinsic_matrix,
+            image_size=(width, height),
+            rotation=rotation,
         )
         return rotated_image, rotated_intrinsics, new_size
 
+    @called_positionally
     def callback(
         self,
         color_data: Image,
@@ -266,7 +272,9 @@ class ROSCameraWithoutDepthInterface(ROSCameraInterface):
         :param camera_info: Camera calibration info message, defaults to None
         """
         self.lock.acquire()
-        self.color = self.bridge.imgmsg_to_cv2(color_data, desired_encoding="bgr8")
+        self.color = self.bridge.imgmsg_to_cv2(
+            img_msg=color_data, desired_encoding="bgr8"
+        )
         self.timestamp = color_data.header.stamp
 
         self.camera_info = camera_info
@@ -279,7 +287,7 @@ class ROSCameraWithoutDepthInterface(ROSCameraInterface):
         self._has_new_data = True
         self.lock.release()
 
-    def set_data(self, cas: CAS) -> None:
+    def set_data(self, *, cas: CAS) -> None:
         """
         Update the Common Analysis Structure with latest camera data.
 
@@ -313,7 +321,7 @@ class ROSCameraWithoutDepthInterface(ROSCameraInterface):
             )
             rotated_image, rotated_intrinsics, new_size = (
                 self.rotate_image_and_intrinsics(
-                    self.color,
+                    image=self.color,
                     intrinsic_matrix=intrinsic_matrix,
                     rotation=self.camera_config.rotate_image,
                 )
@@ -345,15 +353,17 @@ class ROSCameraWithoutDepthInterface(ROSCameraInterface):
         self.camera_info.width = width
         self.camera_info.height = height
 
-        cas.set(CASViews.COLOR_IMAGE, self.color)
-        cas.set(CASViews.DEPTH_IMAGE, None)
-        cas.set(CASViews.COLOR_TO_DEPTH_RATIO, ColorToDepthRatio())
+        cas.set(view_name=CASViews.COLOR_IMAGE, value=self.color)
+        cas.set(view_name=CASViews.DEPTH_IMAGE, value=None)
+        cas.set(view_name=CASViews.COLOR_TO_DEPTH_RATIO, value=ColorToDepthRatio())
         camera_frame = self.camera_info.header.frame_id or self.camera_config.tf_from
-        self.validate_camera_frame_for_tf(camera_frame)
-        world_T_camera = self.world_T_camera_from_tf(self.timestamp)
+        self.validate_camera_frame_for_tf(camera_frame=camera_frame)
+        world_T_camera = self.world_T_camera_from_tf(timestamp=self.timestamp)
         self.store_camera_observation(
             cas=cas,
-            camera_model=RosCameraModelAdapter.from_camera_info(self.camera_info),
+            camera_model=RosCameraModelAdapter.from_camera_info(
+                camera_info=self.camera_info
+            ),
             camera_frame=camera_frame,
             timestamp_nanoseconds=(
                 self.timestamp.sec * 1_000_000_000 + self.timestamp.nanosec

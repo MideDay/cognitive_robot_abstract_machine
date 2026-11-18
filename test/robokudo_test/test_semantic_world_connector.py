@@ -94,7 +94,9 @@ def _set_camera_to_world_transform(
         reference_frame=world_body,
         child_frame=camera_body,
     )
-    cas.camera_observation = observation.with_world_T_camera(world_T_camera)
+    cas.camera_observation = observation.with_world_T_camera(
+        world_T_camera=world_T_camera
+    )
 
 
 def _stamped_world_poses(
@@ -146,6 +148,7 @@ def semdt_cas() -> CAS:
 class TestSemanticDigitalTwinConnector:
     def test_no_existing_beliefs_creates_belief_for_each_hypothesis(
         self,
+        *,
         connector: SemanticDigitalTwinConnector,
         semdt_cas: CAS,
     ) -> None:
@@ -155,7 +158,7 @@ class TestSemanticDigitalTwinConnector:
         ]
 
         associated_hypotheses = connector.associate_hypotheses_with_beliefs(
-            hypotheses, [], semdt_cas
+            object_hypotheses=hypotheses, object_beliefs=[], cas=semdt_cas
         )
 
         assert [hypothesis for hypothesis, _ in associated_hypotheses] == hypotheses
@@ -170,12 +173,13 @@ class TestSemanticDigitalTwinConnector:
 
     def test_high_similarity_updates_match_and_creates_beliefs_for_unmatched_hypotheses(
         self,
+        *,
         connector: SemanticDigitalTwinConnector,
         semdt_cas: CAS,
     ) -> None:
         previous_hypothesis = _make_hypothesis(translation=(0.0, 0.0, 1.0))
         existing_belief = connector.associate_hypotheses_with_beliefs(
-            [previous_hypothesis], [], semdt_cas
+            object_hypotheses=[previous_hypothesis], object_beliefs=[], cas=semdt_cas
         )[0][1]
         assert len(_stamped_world_poses(previous_hypothesis)) == 1
 
@@ -190,9 +194,9 @@ class TestSemanticDigitalTwinConnector:
         _attach_connector_to_pipeline(connector, semdt_cas)
 
         associated_hypotheses = connector.associate_hypotheses_with_beliefs(
-            [matched_hypothesis, unmatched_hypothesis],
-            [existing_belief],
-            semdt_cas,
+            object_hypotheses=[matched_hypothesis, unmatched_hypothesis],
+            object_beliefs=[existing_belief],
+            cas=semdt_cas,
         )
 
         assert len(rk_world.get_object_belief_states()) == 2
@@ -203,19 +207,22 @@ class TestSemanticDigitalTwinConnector:
 
     def test_low_similarity_assignment_creates_new_belief_instead_of_updating(
         self,
+        *,
         connector: SemanticDigitalTwinConnector,
         semdt_cas: CAS,
     ) -> None:
         previous_hypothesis = _make_hypothesis()
         existing_belief = connector.associate_hypotheses_with_beliefs(
-            [previous_hypothesis], [], semdt_cas
+            object_hypotheses=[previous_hypothesis], object_beliefs=[], cas=semdt_cas
         )[0][1]
         hypothesis = _make_hypothesis(translation=(5.0, 0.0, 1.0))
         connector.descriptor.parameters.confidence_threshold = 0.99
         _attach_connector_to_pipeline(connector, semdt_cas)
 
         associated_hypotheses = connector.associate_hypotheses_with_beliefs(
-            [hypothesis], [existing_belief], semdt_cas
+            object_hypotheses=[hypothesis],
+            object_beliefs=[existing_belief],
+            cas=semdt_cas,
         )
 
         assert len(rk_world.get_object_belief_states()) == 2
@@ -226,17 +233,19 @@ class TestSemanticDigitalTwinConnector:
 
     def test_add_world_pose_annotations_skips_hypotheses_without_transform(
         self,
+        *,
         connector: SemanticDigitalTwinConnector,
     ) -> None:
         cas = CAS()
         hypothesis = _make_hypothesis()
 
-        connector.add_world_pose_annotations([hypothesis], cas)
+        connector.add_world_pose_annotations(object_hypotheses=[hypothesis], cas=cas)
 
         assert _stamped_world_poses(hypothesis) == []
 
     def test_update_reads_cas_associates_beliefs_and_publishes_visualization(
         self,
+        *,
         connector: SemanticDigitalTwinConnector,
         semdt_cas: CAS,
     ) -> None:
@@ -252,7 +261,7 @@ class TestSemanticDigitalTwinConnector:
 
         color_image = np.zeros((80, 100, 3), dtype=np.uint8)
         hypothesis = _make_hypothesis(roi=(20, 25, 30, 20))
-        pipeline.cas.set(CASViews.COLOR_IMAGE, color_image)
+        pipeline.cas.set(view_name=CASViews.COLOR_IMAGE, value=color_image)
         pipeline.cas.annotations.append(hypothesis)
 
         status = connector.compute()
@@ -262,7 +271,9 @@ class TestSemanticDigitalTwinConnector:
         assert len(rk_world.get_object_belief_states()) == 1
         assert len(_stamped_world_poses(hypothesis)) == 1
         assert not np.array_equal(output_image, color_image)
-        assert np.array_equal(pipeline.cas.get(CASViews.COLOR_IMAGE), color_image)
+        assert np.array_equal(
+            pipeline.cas.get(view_name=CASViews.COLOR_IMAGE), color_image
+        )
 
 
 # %% belief updates as model changes

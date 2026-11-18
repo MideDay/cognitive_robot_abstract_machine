@@ -71,6 +71,7 @@ from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import Connection6DoF
 from semantic_digital_twin.world_description.world_entity import Body
+from krrood.patterns.called_positionally import called_positionally
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -125,6 +126,7 @@ class CameraInterface(object):
 
     @staticmethod
     def bind_world_T_camera(
+        *,
         world_frame: str,
         camera_frame: str,
         world_T_camera: HomogeneousTransformationMatrix,
@@ -178,7 +180,9 @@ class CameraInterface(object):
                     parent=world_body,
                     child=camera_body,
                     world=world,
-                    name=CameraInterface._standalone_mount_name(camera_body),
+                    name=CameraInterface._standalone_mount_name(
+                        camera_body=camera_body
+                    ),
                 )
                 world.add_connection(mount)
         if (
@@ -186,7 +190,7 @@ class CameraInterface(object):
             and camera_body.parent_connection is not None
             and camera_body.parent_connection.parent is world_body
             and camera_body.parent_connection.name
-            == CameraInterface._standalone_mount_name(camera_body)
+            == CameraInterface._standalone_mount_name(camera_body=camera_body)
         ):
             mount = camera_body.parent_connection
 
@@ -201,7 +205,7 @@ class CameraInterface(object):
         return runtime_world_T_camera
 
     @staticmethod
-    def _standalone_mount_name(camera_body: Body) -> PrefixedName:
+    def _standalone_mount_name(*, camera_body: Body) -> PrefixedName:
         """
         Identify the adjustable mount created for one standalone camera.
         """
@@ -210,7 +214,7 @@ class CameraInterface(object):
         )
 
     def static_world_T_camera_if_configured(
-        self, camera_frame: str
+        self, *, camera_frame: str
     ) -> HomogeneousTransformationMatrix | None:
         """
         Return the configured static camera pose bound to the runtime world.
@@ -229,6 +233,7 @@ class CameraInterface(object):
 
     def store_camera_observation(
         self,
+        *,
         cas: CAS,
         camera_model: PinholeCameraModel,
         camera_frame: str,
@@ -262,17 +267,18 @@ class CameraInterface(object):
         )
         if world_T_camera is not None and world_T_camera.child_frame is not camera.root:
             observation = observation.with_world_T_camera(
-                HomogeneousTransformationMatrix(
+                world_T_camera=HomogeneousTransformationMatrix(
                     data=world_T_camera,
                     reference_frame=world_T_camera.reference_frame,
                     child_frame=camera.root,
                 )
             )
-        self._register_camera(camera)
+        self._register_camera(camera=camera)
         cas.camera_observation = observation
 
     def _resolve_or_create_camera(
         self,
+        *,
         camera_frame: str,
         camera_model: PinholeCameraModel,
         modalities: tuple[CameraModality, ...],
@@ -316,7 +322,7 @@ class CameraInterface(object):
             modalities=modalities,
         )
 
-    def _register_camera(self, camera: Camera) -> None:
+    def _register_camera(self, *, camera: Camera) -> None:
         """
         Register a validated stream camera and connect a new optical root to the world.
 
@@ -338,13 +344,13 @@ class CameraInterface(object):
                             parent=existing_root,
                             child=camera_body,
                             world=runtime_world,
-                            name=self._standalone_mount_name(camera_body),
+                            name=self._standalone_mount_name(camera_body=camera_body),
                         )
                     )
             runtime_world.add_semantic_annotation(camera)
         init_world_entity_tracker_from_world(runtime_world)
 
-    def set_data(self, cas: CAS) -> None:
+    def set_data(self, *, cas: CAS) -> None:
         """
         This method is supposed to read in, convert (if needed) and put the data into
         the CAS. If you are running a CameraInterface which is getting data via callback
@@ -437,7 +443,7 @@ class ROSCameraInterface(CameraInterface):
         return True
 
     def world_T_camera_from_tf(
-        self, timestamp: builtin_interfaces.msg.Time
+        self, *, timestamp: builtin_interfaces.msg.Time
     ) -> HomogeneousTransformationMatrix | None:
         """
         Return the sampled TF camera pose bound to the runtime world.
@@ -455,7 +461,7 @@ class ROSCameraInterface(CameraInterface):
             world_T_camera=self._world_T_camera,
         )
 
-    def validate_camera_frame_for_tf(self, camera_frame: str) -> None:
+    def validate_camera_frame_for_tf(self, *, camera_frame: str) -> None:
         """
         Require the image optical frame to match the configured TF source.
         """
@@ -632,7 +638,7 @@ class KinectCameraInterface(ROSCameraInterface):
     def get_node(self) -> rclpy.node.Node:
         return self.node
 
-    def blackhole_callback(self, data: Any) -> None:
+    def blackhole_callback(self, *, data: Any) -> None:
         """
         This callback is just a dummy to receive data coming from a workaround
         subscription to handle problems with the ApproximateTimeSynchronizer.
@@ -641,6 +647,7 @@ class KinectCameraInterface(ROSCameraInterface):
         """
         pass
 
+    @called_positionally
     def callback(
         self,
         color_data: Image | CompressedImage,
@@ -693,7 +700,9 @@ class KinectCameraInterface(ROSCameraInterface):
             color_arr = np.frombuffer(color_data.data, np.uint8)
             self.color = cv2.imdecode(color_arr, cv2.IMREAD_COLOR)
         else:
-            self.color = self.bridge.imgmsg_to_cv2(color_data, "bgr8")
+            self.color = self.bridge.imgmsg_to_cv2(
+                img_msg=color_data, desired_encoding="bgr8"
+            )
 
         self.timestamp = color_data.header.stamp
 
@@ -710,7 +719,9 @@ class KinectCameraInterface(ROSCameraInterface):
                     data_name="Depth data",
                     context="uncompressed depth conversion",
                 )
-            self.depth = self.bridge.imgmsg_to_cv2(depth_data, "32FC1")
+            self.depth = self.bridge.imgmsg_to_cv2(
+                img_msg=depth_data, desired_encoding="32FC1"
+            )
 
         self.camera_info = camera_info
 
@@ -723,7 +734,7 @@ class KinectCameraInterface(ROSCameraInterface):
         self._has_new_data = True
         self.lock.release()
 
-    def set_data(self, cas: CAS) -> None:
+    def set_data(self, *, cas: CAS) -> None:
         if not self.has_new_data():
             return
 
@@ -740,16 +751,20 @@ class KinectCameraInterface(ROSCameraInterface):
 
         self.color_to_depth_ratio = self.camera_config.color_to_depth_ratio
 
-        cas.set(CASViews.COLOR_IMAGE, self.color)
-        cas.set(CASViews.DEPTH_IMAGE, self.depth)
-        cas.set(CASViews.COLOR_TO_DEPTH_RATIO, self.color_to_depth_ratio)
+        cas.set(view_name=CASViews.COLOR_IMAGE, value=self.color)
+        cas.set(view_name=CASViews.DEPTH_IMAGE, value=self.depth)
+        cas.set(
+            view_name=CASViews.COLOR_TO_DEPTH_RATIO, value=self.color_to_depth_ratio
+        )
 
         camera_frame = self.camera_info.header.frame_id or self.camera_config.tf_from
-        self.validate_camera_frame_for_tf(camera_frame)
-        world_T_camera = self.world_T_camera_from_tf(self.timestamp)
+        self.validate_camera_frame_for_tf(camera_frame=camera_frame)
+        world_T_camera = self.world_T_camera_from_tf(timestamp=self.timestamp)
         self.store_camera_observation(
             cas=cas,
-            camera_model=RosCameraModelAdapter.from_camera_info(self.camera_info),
+            camera_model=RosCameraModelAdapter.from_camera_info(
+                camera_info=self.camera_info
+            ),
             camera_frame=camera_frame,
             timestamp_nanoseconds=(
                 self.timestamp.sec * 1_000_000_000 + self.timestamp.nanosec

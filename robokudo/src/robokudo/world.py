@@ -353,7 +353,7 @@ def add_object_hypothesis_as_belief_state(
     rk_world = world_instance()
 
     object_belief = ObjectBeliefState.create_with_new_body().add_hypothesis(
-        object_hypothesis
+        hypothesis=object_hypothesis
     )
     object_belief_body = object_belief.body
     _tracked_objects[object_belief.uuid] = object_belief
@@ -396,7 +396,7 @@ def update_belief_state_with_object_hypothesis(
     """
     rk_world = world_instance()
 
-    object_belief.add_hypothesis(object_hypothesis)
+    object_belief.add_hypothesis(hypothesis=object_hypothesis)
     object_belief_body = object_belief.body
 
     world_body = _get_world_body_from_cas(cas, rk_world)

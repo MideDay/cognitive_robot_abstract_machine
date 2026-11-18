@@ -24,7 +24,7 @@ class AnalysisEngine(AnalysisEngineInterface):
         Create a pipeline that does tabletop segmentation.
         """
         kinect_config = CollectionReaderDescriptorFactory.create_descriptor(
-            "kinect_wo_tf"
+            camera="kinect_wo_tf"
         )
 
         seq = Pipeline("RWPipeline")

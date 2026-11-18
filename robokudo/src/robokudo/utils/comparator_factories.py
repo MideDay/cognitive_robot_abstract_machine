@@ -70,7 +70,7 @@ class FeatureComparatorFactory:
 
     @classmethod
     def for_annotation(
-        cls, annotation: type[Annotation], weight: float, **kwargs
+        cls, *, annotation: type[Annotation], weight: float, **kwargs
     ) -> FeatureComparator | None:
         """
         Get a feature comparator for the given annotation type and assign it the given
@@ -89,7 +89,7 @@ class FeatureComparatorFactory:
 
     @classmethod
     def for_type(
-        cls, rk_type: type[RkType], weight: float, **kwargs
+        cls, *, rk_type: type[RkType], weight: float, **kwargs
     ) -> FeatureComparator | None:
         """
         Get a feature comparator for the given robokudo type and assign it the given

@@ -74,6 +74,7 @@ from robokudo.utils.error_handling import (
     has_blackboard_exception,
 )
 from robokudo.utils.query import ObjectHypothesisQueryMatcher, QueryHandler
+from krrood.patterns.called_positionally import called_positionally
 
 
 class QueryAnnotator(BaseAnnotator):
@@ -136,15 +137,15 @@ class QueryAnnotator(BaseAnnotator):
         """
         self.rk_logger.debug(f"{self.__class__.__name__}.update()")
 
-        assert (
-            self.action_server is not None
-        ), "Action server should be initialized by now."
+        assert self.action_server is not None, (
+            "Action server should be initialized by now."
+        )
         query = self.action_server.new_query
         self.rk_logger.debug(f"self.action_server.new_query: {query}")
 
         if query:
             self.feedback_message = f"Query: {query}"
-            self.get_cas().set(CASViews.QUERY, query)
+            self.get_cas().set(view_name=CASViews.QUERY, value=query)
             self.action_server.start_processing()
             # self.publish_feedback()
 
@@ -175,7 +176,7 @@ class QueryFeedback(BaseAnnotator):
 
     def update(self) -> Status:
         self.rk_logger.debug(f"{self.__class__.__name__}.update()")
-        QueryHandler.send_feedback_str(self.feedback_str)
+        QueryHandler.send_feedback_str(feedback_str=self.feedback_str)
 
         return Status.SUCCESS
 
@@ -217,7 +218,7 @@ class QueryFeedbackAndCount(BaseAnnotator):
 
     def update(self) -> Status:
         self.rk_logger.debug(f"{self.__class__.__name__}.update()")
-        QueryHandler.send_feedback_str(f"Count: {self.i}")
+        QueryHandler.send_feedback_str(feedback_str=f"Count: {self.i}")
         self.i = self.i + 1
         if self.i > self.count_until:
             self.i = 0
@@ -275,7 +276,7 @@ class QueryReply(BaseAnnotator):
         od.pose.append(pose_stamped)
         result.res = [od]
 
-        QueryHandler.send_answer(result)
+        QueryHandler.send_answer(result=result)
 
         return Status.SUCCESS
 
@@ -364,8 +365,10 @@ class GenerateQueryResult(BaseAnnotator):
         query_result = []
         result = Query.Result()
         requested_object = None
-        if self.descriptor.parameters.filter_by_query and cas.contains(CASViews.QUERY):
-            query = cas.get(CASViews.QUERY)
+        if self.descriptor.parameters.filter_by_query and cas.contains(
+            view_name=CASViews.QUERY
+        ):
+            query = cas.get(view_name=CASViews.QUERY)
             requested_object = query.obj
 
         for annotation in annotations:
@@ -373,7 +376,7 @@ class GenerateQueryResult(BaseAnnotator):
                 continue
 
             if requested_object is not None and not self.query_matcher.matches(
-                annotation, requested_object
+                object_hypothesis=annotation, requested_object=requested_object
             ):
                 skipped_object_hypotheses_count += 1
                 continue
@@ -387,13 +390,17 @@ class GenerateQueryResult(BaseAnnotator):
                         f"no converter available for annotation type {type(oh_annotation)}, skipping annotation."
                     )
                     continue
-                if not converter.can_convert(oh_annotation):
+                if not converter.can_convert(annotation=oh_annotation):
                     self.rk_logger.warning(
                         f"converter for {type(oh_annotation)} available but cannot convert, skipping annotation."
                     )
                     continue
 
-                converter.convert(oh_annotation, cas, object_designator)
+                converter.convert(
+                    annotation=oh_annotation,
+                    cas=cas,
+                    object_designator=object_designator,
+                )
                 self.rk_logger.info(
                     f"converted {type(oh_annotation)} on OH {object_hypotheses_count}"
                 )
@@ -402,7 +409,7 @@ class GenerateQueryResult(BaseAnnotator):
             object_hypotheses_count += 1
 
         result.res = query_result
-        QueryHandler.send_answer(result)
+        QueryHandler.send_answer(result=result)
 
         self.feedback_message = (
             f"Send result for {object_hypotheses_count} object hypotheses "
@@ -479,10 +486,12 @@ class QueryActionServer(Node):
         Blackboard().set(BBIdentifier.QUERY_PREEMPT_REQUESTED, False)
         Blackboard().set(BBIdentifier.QUERY_PREEMPT_ACK, False)
 
+    @called_positionally
     def goal_cb(self, goal_request: Query.Goal) -> GoalResponse:
         self.logger.info(f"Received new goal: {goal_request}")
         return GoalResponse.ACCEPT
 
+    @called_positionally
     def cancel_cb(self, goal_handle: ServerGoalHandle) -> CancelResponse:
         self.logger.info(f"Received cancel request:{goal_handle}")
         Blackboard().set(BBIdentifier.QUERY_PREEMPT_REQUESTED, True)
@@ -506,6 +515,7 @@ class QueryActionServer(Node):
         """
         return self.query is not None
 
+    @called_positionally
     async def execute_cb(self, goal_handle: ServerGoalHandle) -> Query.Result | None:
         """
         Action server execution callback.

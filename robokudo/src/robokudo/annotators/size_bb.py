@@ -70,9 +70,11 @@ class SizeBBAnnotator(BaseAnnotator):
         :raises Exception: If camera viewpoint transform cannot be found in CAS
         """
         start_timer = default_timer()
-        vis_geometries = [self.get_cas().get_copy(CASViews.CLOUD)]
-        object_hypotheses = self.get_cas().filter_annotations_by_type(ObjectHypothesis)
-        visualization_img = self.get_cas().get_copy(CASViews.COLOR_IMAGE)
+        vis_geometries = [self.get_cas().get_copy(view_name=CASViews.CLOUD)]
+        object_hypotheses = self.get_cas().filter_annotations_by_type(
+            type_to_include=ObjectHypothesis
+        )
+        visualization_img = self.get_cas().get_copy(view_name=CASViews.COLOR_IMAGE)
         for oh in object_hypotheses:
             if not isinstance(oh, ObjectHypothesis):
                 continue
@@ -87,7 +89,7 @@ class SizeBBAnnotator(BaseAnnotator):
                 )
             except Exception as e:
                 self.rk_logger.warning(
-                    f"Couldn't find camera viewpoint in the CAS." f"Fail. Error: {e}"
+                    f"Couldn't find camera viewpoint in the CAS.Fail. Error: {e}"
                 )
                 return Status.FAILURE
 
@@ -191,6 +193,6 @@ class SizeBBAnnotator(BaseAnnotator):
 
         end_timer = default_timer()
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"
-        self.get_annotator_output_struct().set_image(visualization_img)
-        self.get_annotator_output_struct().set_geometries(vis_geometries)
+        self.get_annotator_output_struct().set_image(img=visualization_img)
+        self.get_annotator_output_struct().set_geometries(geometries=vis_geometries)
         return Status.SUCCESS

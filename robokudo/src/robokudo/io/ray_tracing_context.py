@@ -84,14 +84,16 @@ class RayTracingContextResolver:
 
         source = self.camera_config.source
         if isinstance(source, WorldDescriptorSource):
-            world = self._load_descriptor_world(source)
-            camera = self._select_descriptor_camera(world, source)
+            world = self._load_descriptor_world(source=source)
+            camera = self._select_descriptor_camera(world=world, source=source)
             if source.camera_pose is not None:
-                self._apply_camera_pose(world, camera, source.camera_pose)
+                self._apply_camera_pose(
+                    world=world, camera=camera, camera_pose=source.camera_pose
+                )
             robokudo.world.set_world(world)
         else:
             world = robokudo.world.world_instance()
-            camera = self._select_runtime_robot_camera(world, source)
+            camera = self._select_runtime_robot_camera(world=world, source=source)
 
         robokudo.world.init_world_entity_tracker_from_world(world)
         self._context = RayTracingContext(world=world, camera=camera)
@@ -99,6 +101,7 @@ class RayTracingContextResolver:
 
     @staticmethod
     def _apply_camera_pose(
+        *,
         world: World,
         camera: Camera,
         camera_pose: HomogeneousTransformationMatrix,
@@ -133,6 +136,7 @@ class RayTracingContextResolver:
 
     @staticmethod
     def _select_descriptor_camera(
+        *,
         world: World,
         source: WorldDescriptorSource,
     ) -> Camera:
@@ -165,7 +169,7 @@ class RayTracingContextResolver:
             )
         raise CameraAnnotationMissing()
 
-    def _load_descriptor_world(self, source: WorldDescriptorSource) -> World:
+    def _load_descriptor_world(self, *, source: WorldDescriptorSource) -> World:
         """
         Load the standalone world described by ``source``.
 
@@ -180,6 +184,7 @@ class RayTracingContextResolver:
 
     @staticmethod
     def _select_runtime_robot_camera(
+        *,
         world: World,
         source: RuntimeRobotWorldSource,
     ) -> Camera:

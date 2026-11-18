@@ -56,7 +56,7 @@ class CameraViewpointVisualizer(BaseAnnotator):
             self.rk_logger.warning(f"Couldn't find viewpoint in the CAS: {err}")
             return Status.FAILURE
 
-        cloud = self.get_cas().get(CASViews.CLOUD)
+        cloud = self.get_cas().get(view_name=CASViews.CLOUD)
         world_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.2)
         world_frame.transform(world_to_camera_transform)
 
@@ -64,6 +64,6 @@ class CameraViewpointVisualizer(BaseAnnotator):
             {"name": "World frame", "geometry": world_frame},
             {"name": "Cloud", "geometry": cloud},
         ]
-        self.get_annotator_output_struct().set_geometries(geometries)
+        self.get_annotator_output_struct().set_geometries(geometries=geometries)
 
         return Status.SUCCESS

@@ -135,7 +135,7 @@ class ViewPayload:
     type_name: str
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_document(self, view_name: str) -> dict[str, Any]:
+    def to_document(self, *, view_name: str) -> dict[str, Any]:
         """
         Build a storage document for one encoded view.
         """
@@ -148,7 +148,7 @@ class ViewPayload:
         }
 
     @staticmethod
-    def from_document(document: dict[str, Any]) -> ViewPayload:
+    def from_document(*, document: dict[str, Any]) -> ViewPayload:
         """
         Create a payload object from a storage document.
         """
@@ -167,19 +167,19 @@ class ViewCodec:
 
     serializer_id: str
 
-    def can_encode(self, value: Any) -> bool:
+    def can_encode(self, *, value: Any) -> bool:
         """
         Return ``True`` when this codec can encode ``value``.
         """
         raise NotImplementedError
 
-    def encode(self, value: Any) -> ViewPayload:
+    def encode(self, *, value: Any) -> ViewPayload:
         """
         Encode a runtime value into a :class:`ViewPayload`.
         """
         raise NotImplementedError
 
-    def decode(self, payload: ViewPayload) -> Any:
+    def decode(self, *, payload: ViewPayload) -> Any:
         """
         Decode a persisted payload back into a runtime value.
         """
@@ -193,13 +193,13 @@ class JsonLikeCodec(ViewCodec):
 
     serializer_id: str = "json_like_v1"
 
-    def can_encode(self, value: Any) -> bool:
+    def can_encode(self, *, value: Any) -> bool:
         """
         Check whether the value is already JSON-compatible.
         """
         return _is_json_like(value)
 
-    def encode(self, value: Any) -> ViewPayload:
+    def encode(self, *, value: Any) -> ViewPayload:
         """
         Wrap a JSON-like value without further transformation.
         """
@@ -209,7 +209,7 @@ class JsonLikeCodec(ViewCodec):
             type_name=_full_type_name(value),
         )
 
-    def decode(self, payload: ViewPayload) -> Any:
+    def decode(self, *, payload: ViewPayload) -> Any:
         """
         Return the raw payload value.
         """
@@ -223,13 +223,13 @@ class TupleCodec(ViewCodec):
 
     serializer_id: str = "tuple_v1"
 
-    def can_encode(self, value: Any) -> bool:
+    def can_encode(self, *, value: Any) -> bool:
         """
         Check whether the value is a tuple.
         """
         return isinstance(value, tuple)
 
-    def encode(self, value: tuple[Any, ...]) -> ViewPayload:
+    def encode(self, *, value: tuple[Any, ...]) -> ViewPayload:
         """
         Encode a tuple as a list payload.
         """
@@ -239,7 +239,7 @@ class TupleCodec(ViewCodec):
             type_name=_full_type_name(value),
         )
 
-    def decode(self, payload: ViewPayload) -> tuple[Any, ...]:
+    def decode(self, *, payload: ViewPayload) -> tuple[Any, ...]:
         """
         Decode list payload data back to a tuple.
         """
@@ -253,13 +253,13 @@ class BytesCodec(ViewCodec):
 
     serializer_id: str = "bytes_v1"
 
-    def can_encode(self, value: Any) -> bool:
+    def can_encode(self, *, value: Any) -> bool:
         """
         Check whether the value is ``bytes`` or ``bytearray``.
         """
         return isinstance(value, (bytes, bytearray))
 
-    def encode(self, value: bytes | bytearray) -> ViewPayload:
+    def encode(self, *, value: bytes | bytearray) -> ViewPayload:
         """
         Encode bytes as a base64 text payload.
         """
@@ -270,7 +270,7 @@ class BytesCodec(ViewCodec):
             type_name=_full_type_name(value),
         )
 
-    def decode(self, payload: ViewPayload) -> bytes:
+    def decode(self, *, payload: ViewPayload) -> bytes:
         """
         Decode base64 text payload into raw bytes.
         """
@@ -284,13 +284,13 @@ class NumpyCodec(ViewCodec):
 
     serializer_id: str = "numpy_npy_base64_v1"
 
-    def can_encode(self, value: Any) -> bool:
+    def can_encode(self, *, value: Any) -> bool:
         """
         Check whether the value is a NumPy array.
         """
         return isinstance(value, np.ndarray)
 
-    def encode(self, value: np.ndarray) -> ViewPayload:
+    def encode(self, *, value: np.ndarray) -> ViewPayload:
         """
         Encode a NumPy array as base64 encoded ``.npy`` data.
         """
@@ -303,7 +303,7 @@ class NumpyCodec(ViewCodec):
             metadata={"dtype": str(value.dtype), "shape": list(value.shape)},
         )
 
-    def decode(self, payload: ViewPayload) -> np.ndarray:
+    def decode(self, *, payload: ViewPayload) -> np.ndarray:
         """
         Decode base64 encoded ``.npy`` payload data.
         """
@@ -319,13 +319,13 @@ class RosMessageCodec(ViewCodec):
 
     serializer_id: str = "ros_message_v1"
 
-    def can_encode(self, value: Any) -> bool:
+    def can_encode(self, *, value: Any) -> bool:
         """
         Check whether the value looks like a ROS message.
         """
         return hasattr(value, "get_fields_and_field_types")
 
-    def encode(self, value: Any) -> ViewPayload:
+    def encode(self, *, value: Any) -> ViewPayload:
         """
         Encode a ROS message to dictionary payload data.
         """
@@ -335,7 +335,7 @@ class RosMessageCodec(ViewCodec):
             type_name=_full_type_name(value),
         )
 
-    def decode(self, payload: ViewPayload) -> Any:
+    def decode(self, *, payload: ViewPayload) -> Any:
         """
         Decode dictionary payload data to a ROS message object.
         """
@@ -350,13 +350,13 @@ class Open3DPointCloudCodec(ViewCodec):
 
     serializer_id: str = "open3d_pointcloud_pcd_base64_v1"
 
-    def can_encode(self, value: Any) -> bool:
+    def can_encode(self, *, value: Any) -> bool:
         """
         Check whether the value is an Open3D point cloud.
         """
         return is_open3d_point_cloud(value)
 
-    def encode(self, value: Any) -> ViewPayload:
+    def encode(self, *, value: Any) -> ViewPayload:
         """
         Encode a point cloud as base64-encoded PCD data.
         """
@@ -366,7 +366,7 @@ class Open3DPointCloudCodec(ViewCodec):
             type_name=_full_type_name(value),
         )
 
-    def decode(self, payload: ViewPayload) -> Any:
+    def decode(self, *, payload: ViewPayload) -> Any:
         """
         Decode base64-encoded PCD data to an Open3D point cloud.
         """
@@ -380,13 +380,13 @@ class StampedTransformCodec(ViewCodec):
 
     serializer_id: str = "robokudo_stamped_transform_v1"
 
-    def can_encode(self, value: Any) -> bool:
+    def can_encode(self, *, value: Any) -> bool:
         """
         Check whether the value is a ``StampedTransform``.
         """
         return isinstance(value, StampedTransform)
 
-    def encode(self, value: StampedTransform) -> ViewPayload:
+    def encode(self, *, value: StampedTransform) -> ViewPayload:
         """
         Encode a ``StampedTransform`` into plain dictionary data.
         """
@@ -405,7 +405,7 @@ class StampedTransformCodec(ViewCodec):
             type_name=_full_type_name(value),
         )
 
-    def decode(self, payload: ViewPayload) -> StampedTransform:
+    def decode(self, *, payload: ViewPayload) -> StampedTransform:
         """
         Decode plain dictionary data to a ``StampedTransform``.
         """
@@ -427,13 +427,13 @@ class HomogeneousTransformationMatrixCodec(ViewCodec):
 
     serializer_id: str = "semdt_homogeneous_transform_v1"
 
-    def can_encode(self, value: Any) -> bool:
+    def can_encode(self, *, value: Any) -> bool:
         """
         Check whether the value is a homogeneous transformation matrix.
         """
         return isinstance(value, HomogeneousTransformationMatrix)
 
-    def encode(self, value: HomogeneousTransformationMatrix) -> ViewPayload:
+    def encode(self, *, value: HomogeneousTransformationMatrix) -> ViewPayload:
         """
         Encode a transformation matrix with its native JSON representation.
         """
@@ -455,7 +455,7 @@ class HomogeneousTransformationMatrixCodec(ViewCodec):
             },
         )
 
-    def decode(self, payload: ViewPayload) -> HomogeneousTransformationMatrix:
+    def decode(self, *, payload: ViewPayload) -> HomogeneousTransformationMatrix:
         """
         Decode matrix payload data using the active world entity tracker.
         """
@@ -507,10 +507,10 @@ class CameraObservationCodec(ViewCodec):
         """
         return "robokudo_camera_observation_v3"
 
-    def can_encode(self, value: Any) -> bool:
+    def can_encode(self, *, value: Any) -> bool:
         return isinstance(value, CameraObservation)
 
-    def encode(self, value: CameraObservation) -> ViewPayload:
+    def encode(self, *, value: CameraObservation) -> ViewPayload:
         """
         Record the optical pose and image calibration linked to the semantic camera.
 
@@ -529,11 +529,13 @@ class CameraObservationCodec(ViewCodec):
             type_name=_full_type_name(value),
         )
 
-    def decode(self, payload: ViewPayload) -> CameraObservation:
-        return self.decode_with_tracker(payload, world.get_world_entity_tracker())
+    def decode(self, *, payload: ViewPayload) -> CameraObservation:
+        return self.decode_with_tracker(
+            payload=payload, tracker=world.get_world_entity_tracker()
+        )
 
     def decode_with_tracker(
-        self, payload: ViewPayload, tracker: WorldEntityWithIDKwargsTracker
+        self, *, payload: ViewPayload, tracker: WorldEntityWithIDKwargsTracker
     ) -> CameraObservation:
         """
         Restore the observation against a recorded world's entity tracker.
@@ -570,7 +572,7 @@ class KrroodCodec(ViewCodec):
 
     serializer_id: str = "krrood_json_v1"
 
-    def can_encode(self, value: Any) -> bool:
+    def can_encode(self, *, value: Any) -> bool:
         """
         Probe whether KRROOD can serialize the given value.
         """
@@ -580,7 +582,7 @@ class KrroodCodec(ViewCodec):
         except Exception:
             return False
 
-    def encode(self, value: Any) -> ViewPayload:
+    def encode(self, *, value: Any) -> ViewPayload:
         """
         Encode a value using KRROOD JSON serialization.
         """
@@ -590,7 +592,7 @@ class KrroodCodec(ViewCodec):
             type_name=_full_type_name(value),
         )
 
-    def decode(self, payload: ViewPayload) -> Any:
+    def decode(self, *, payload: ViewPayload) -> Any:
         """
         Decode a value using KRROOD JSON deserialization.
         """
@@ -626,16 +628,16 @@ class CASViewCodecRegistry:
             ]
         )
 
-    def _find_encoder(self, value: Any) -> ViewCodec | None:
+    def _find_encoder(self, *, value: Any) -> ViewCodec | None:
         """
         Return the first registered codec that can encode ``value``.
         """
         for codec in self.codecs:
-            if codec.can_encode(value):
+            if codec.can_encode(value=value):
                 return codec
         return None
 
-    def _find_decoder(self, serializer_id: str) -> ViewCodec:
+    def _find_decoder(self, *, serializer_id: str) -> ViewCodec:
         """
         Return the codec registered for a serializer identifier.
         """
@@ -645,7 +647,7 @@ class CASViewCodecRegistry:
         raise UnknownViewSerializer(serializer_id=serializer_id)
 
     def encode_view(
-        self, view_name: str, value: Any, strict: bool = True
+        self, *, view_name: str, value: Any, strict: bool = True
     ) -> dict[str, Any] | None:
         """
         Encode a single CAS view into a storage document.
@@ -658,41 +660,41 @@ class CASViewCodecRegistry:
         :raises CASViewCodecMissing: If no codec accepts the value and strict mode is
             enabled.
         """
-        codec = self._find_encoder(value)
+        codec = self._find_encoder(value=value)
         if codec is None:
             if strict:
                 raise CASViewCodecMissing(view_name=view_name, value_type=type(value))
             return None
-        return codec.encode(value).to_document(view_name=view_name)
+        return codec.encode(value=value).to_document(view_name=view_name)
 
-    def decode_view(self, document: dict[str, Any]) -> tuple[str, Any]:
+    def decode_view(self, *, document: dict[str, Any]) -> tuple[str, Any]:
         """
         Decode a single storage document into one CAS view.
         """
         view_name = document["view_name"]
-        payload = ViewPayload.from_document(document)
-        codec = self._find_decoder(payload.serializer_id)
-        return view_name, codec.decode(payload)
+        payload = ViewPayload.from_document(document=document)
+        codec = self._find_decoder(serializer_id=payload.serializer_id)
+        return view_name, codec.decode(payload=payload)
 
     def encode_views(
-        self, views: dict[str, Any], strict: bool = True
+        self, *, views: dict[str, Any], strict: bool = True
     ) -> list[dict[str, Any]]:
         """
         Encode multiple CAS views into storage documents.
         """
         documents: list[dict[str, Any]] = []
         for view_name, value in views.items():
-            document = self.encode_view(view_name, value, strict=strict)
+            document = self.encode_view(view_name=view_name, value=value, strict=strict)
             if document is not None:
                 documents.append(document)
         return documents
 
-    def decode_views(self, documents: Iterable[dict[str, Any]]) -> dict[str, Any]:
+    def decode_views(self, *, documents: Iterable[dict[str, Any]]) -> dict[str, Any]:
         """
         Decode storage documents into CAS view values.
         """
         result: dict[str, Any] = {}
         for document in documents:
-            view_name, view_value = self.decode_view(document)
+            view_name, view_value = self.decode_view(document=document)
             result[view_name] = view_value
         return result

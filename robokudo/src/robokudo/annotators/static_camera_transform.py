@@ -61,7 +61,9 @@ class StaticCameraTransformAnnotator(BaseAnnotator):
             camera_frame=str(observation.camera.root.name),
             world_T_camera=parameters.world_T_camera,
         )
-        cas.camera_observation = observation.with_world_T_camera(world_T_camera)
+        cas.camera_observation = observation.with_world_T_camera(
+            world_T_camera=world_T_camera
+        )
 
         end_timer = default_timer()
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"

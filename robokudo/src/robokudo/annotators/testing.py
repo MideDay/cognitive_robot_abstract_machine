@@ -34,6 +34,7 @@ from robokudo.annotators.core import BaseAnnotator, ThreadedAnnotator
 from robokudo.cas import CAS, CASViews
 from robokudo.types.scene import ObjectHypothesis
 from robokudo.utils.error_handling import catch_and_raise_to_blackboard
+from krrood.patterns.called_positionally import called_positionally
 
 
 class SlowAnnotator(ThreadedAnnotator):
@@ -77,7 +78,7 @@ class SlowAnnotator(ThreadedAnnotator):
             "%s.compute(): Start doing the heavy stuff" % self.__class__.__name__
         )
 
-        self.color = self.get_cas().get(CASViews.COLOR_IMAGE)
+        self.color = self.get_cas().get(view_name=CASViews.COLOR_IMAGE)
         vis = copy.deepcopy(self.color)
 
         vis = cv2.putText(
@@ -90,7 +91,7 @@ class SlowAnnotator(ThreadedAnnotator):
             2,
         )
         vis = cv2.rectangle(vis, (400, 400), (650, 650), (0, 0, 255), 2)
-        self.get_annotator_output_struct().set_image(vis)
+        self.get_annotator_output_struct().set_image(img=vis)
 
         time.sleep(self.sleep_in_s)  # in s
 
@@ -127,7 +128,7 @@ class EmptyAnnotator(BaseAnnotator):
         :return: SUCCESS status
         """
         vis = np.zeros((640, 480, 3), dtype="uint8")
-        self.get_annotator_output_struct().set_image(vis)
+        self.get_annotator_output_struct().set_image(img=vis)
 
         return Status.SUCCESS
 
@@ -216,7 +217,7 @@ class FakeCollectionReaderAnnotator(BaseAnnotator):
         """List of collection reader descriptors"""
         # self.rk_logger.debug("%s" % (get_line_context(self)))
 
-    def setup(self, timeout: float) -> bool:
+    def setup(self, *, timeout: float) -> bool:
         """
         Set up the collection reader.
 
@@ -272,6 +273,7 @@ class FakeCollectionReaderAnnotator(BaseAnnotator):
         )
         return new_status
 
+    @called_positionally
     def terminate(self, new_status: Status) -> None:
         """
         Clean up when transitioning to non-running state.
@@ -351,7 +353,7 @@ class ScopedAnnotator(BaseAnnotator):
         self.descriptor.parameters.analysis_scope = []  # test overwrite => error case
 
         data_to_analyze = self.get_data_from_analysis_scope(
-            self.descriptor.parameters.analysis_scope
+            analysis_scope=self.descriptor.parameters.analysis_scope
         )
 
         # Your Annotator now has to decide which kinds of data it expects and how it would process them

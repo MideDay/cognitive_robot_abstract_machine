@@ -102,7 +102,9 @@ class CLIPAnnotator(ZeroShotClassificationAnnotator):
 
         self.rk_logger.debug(f"Initialized {self.__class__.__name__}")
 
-    def _get_image_features(self, images: list[Image.Image]) -> npt.NDArray[np.float32]:
+    def _get_image_features(
+        self, *, images: list[Image.Image]
+    ) -> npt.NDArray[np.float32]:
         """
         Get normalized image features for the given images.
 
@@ -132,6 +134,7 @@ class CLIPAnnotator(ZeroShotClassificationAnnotator):
 
     def _search_index(
         self,
+        *,
         features: npt.NDArray[np.float32],
         k: int,
         use_softmax: bool,
@@ -163,9 +166,9 @@ class CLIPAnnotator(ZeroShotClassificationAnnotator):
 
         return class_similarities, class_indices
 
-    def classify(self, images: list[Image.Image]) -> list[list[Classification]]:
+    def classify(self, *, images: list[Image.Image]) -> list[list[Classification]]:
         class_similarities, class_indices = self._search_index(
-            features=self._get_image_features(images),
+            features=self._get_image_features(images=images),
             k=self._candidate_count(),
             use_softmax=self.descriptor.parameters.use_softmax,
             save_top_k=self.descriptor.parameters.save_top_k,

@@ -43,10 +43,10 @@ def test_interface_publishes_aligned_body_color_rgbd_frame() -> None:
     )
     cas = CAS()
 
-    interface.set_data(cas)
+    interface.set_data(cas=cas)
 
     assert cas.color_image.shape[:2] == cas.depth_image.shape
-    assert cas.get(CASViews.OBJECT_IMAGE).shape == cas.depth_image.shape
+    assert cas.get(view_name=CASViews.OBJECT_IMAGE).shape == cas.depth_image.shape
     assert not any(isinstance(view, CameraInfo) for view in cas.views.values())
     context = interface.context_resolver.resolve()
     assert cas.camera_observation.camera is context.camera
@@ -73,7 +73,7 @@ def test_interface_publishes_effective_model_for_field_of_view_camera():
     )
     cas = CAS()
 
-    interface.set_data(cas)
+    interface.set_data(cas=cas)
 
     assert cas.camera_observation.camera is context.camera
     assert cas.camera_observation.effective_camera_model.resolution is resolution
@@ -116,7 +116,7 @@ def test_interface_publishes_shared_rendered_frame(monkeypatch: MonkeyPatch) -> 
     monkeypatch.setattr(context.world.ray_tracer, "render", render)
     cas = CAS()
 
-    interface.set_data(cas)
+    interface.set_data(cas=cas)
 
     render.assert_called_once_with(
         context.camera, rgb_mode=interface.camera_config.rgb_mode
@@ -127,7 +127,7 @@ def test_interface_publishes_shared_rendered_frame(monkeypatch: MonkeyPatch) -> 
         cas.depth_image, frame.depth_in_millimeters.swapaxes(0, 1)
     )
     np.testing.assert_array_equal(
-        cas.get(CASViews.OBJECT_IMAGE), frame.segmentation.swapaxes(0, 1)
+        cas.get(view_name=CASViews.OBJECT_IMAGE), frame.segmentation.swapaxes(0, 1)
     )
-    assert cas.get(CASViews.BODY_COLORS) == frame.body_colors
+    assert cas.get(view_name=CASViews.BODY_COLORS) == frame.body_colors
     assert cas.camera_observation.effective_camera_model is frame.camera_model

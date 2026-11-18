@@ -127,7 +127,7 @@ class StorageReaderInterface(CameraInterface):
         Camera identity selected from the first recorded world snapshot.
         """
 
-    def _restore_sensor_world(self, cas_frame: dict[str, Any]) -> None:
+    def _restore_sensor_world(self, *, cas_frame: dict[str, Any]) -> None:
         """
         Extract the recorded camera into the active reasoning world.
 
@@ -136,18 +136,22 @@ class StorageReaderInterface(CameraInterface):
         :raises InvalidCameraObservation: If recorded sensor identities or names
             conflict.
         """
-        camera_payload = self._load_camera_payload(cas_frame)
+        camera_payload = self._load_camera_payload(cas_frame=cas_frame)
         recorded_world = World()
         restored = self._restore_world(
-            cas_frame[StorageDocumentField.WORLD], recorded_world
+            snapshot=cas_frame[StorageDocumentField.WORLD], target_world=recorded_world
         )
         observation = CameraObservationCodec().decode_with_tracker(
-            camera_payload, restored.tracker
+            payload=camera_payload, tracker=restored.tracker
         )
         projection_started = perf_counter()
         reasoning_world = rk_world.world_instance()
-        self._check_sensor_conflicts(observation, reasoning_world)
-        RecordedCameraWorld(observation=observation).install(reasoning_world)
+        self._check_sensor_conflicts(
+            observation=observation, reasoning_world=reasoning_world
+        )
+        RecordedCameraWorld(observation=observation).install(
+            reasoning_world=reasoning_world
+        )
         rk_world.init_world_entity_tracker_from_world(reasoning_world)
         self._recorded_camera_id = observation.camera.id
         self.rk_logger.debug(
@@ -156,7 +160,7 @@ class StorageReaderInterface(CameraInterface):
             perf_counter() - projection_started,
         )
 
-    def _load_camera_payload(self, cas_frame: dict[str, Any]) -> ViewPayload:
+    def _load_camera_payload(self, *, cas_frame: dict[str, Any]) -> ViewPayload:
         """
         Load the camera observation document referenced by a recorded frame.
 
@@ -167,13 +171,13 @@ class StorageReaderInterface(CameraInterface):
         if CASViews.CAMERA_OBSERVATION not in cas_frame[StorageDocumentField.VIEW_IDS]:
             raise CameraObservationMissing()
         camera_document = self.storage.load_view_document(
-            cas_frame, CASViews.CAMERA_OBSERVATION
+            cas_document=cas_frame, view_name=CASViews.CAMERA_OBSERVATION
         )
-        return ViewPayload.from_document(camera_document)
+        return ViewPayload.from_document(document=camera_document)
 
     @staticmethod
     def _check_sensor_conflicts(
-        observation: CameraObservation, reasoning_world: World
+        *, observation: CameraObservation, reasoning_world: World
     ) -> None:
         """
         Reject recorded sensor identities or names already present in the target world.
@@ -207,7 +211,7 @@ class StorageReaderInterface(CameraInterface):
             )
 
     @staticmethod
-    def _restore_world(snapshot: str, target_world: World) -> RestoredWorld:
+    def _restore_world(*, snapshot: str, target_world: World) -> RestoredWorld:
         """
         Apply a recorded snapshot into the supplied world.
 
@@ -224,7 +228,7 @@ class StorageReaderInterface(CameraInterface):
             tracker=tracker, duration=timedelta(seconds=perf_counter() - started)
         )
 
-    def _restore_full_world(self, cas_frame: dict[str, Any]) -> None:
+    def _restore_full_world(self, *, cas_frame: dict[str, Any]) -> None:
         """
         Replace reasoning state with the complete recorded frame world.
 
@@ -233,7 +237,7 @@ class StorageReaderInterface(CameraInterface):
         rk_world.init_world_with_entity_tracker()
         reasoning_world = rk_world.world_instance()
         restored = self._restore_world(
-            cas_frame[StorageDocumentField.WORLD], reasoning_world
+            snapshot=cas_frame[StorageDocumentField.WORLD], target_world=reasoning_world
         )
         rk_world.init_world_entity_tracker_from_world(reasoning_world)
         self.rk_logger.debug(
@@ -256,7 +260,7 @@ class StorageReaderInterface(CameraInterface):
 
         return self.reader.cursor_has_frames()
 
-    def set_data(self, cas: CAS) -> None:
+    def set_data(self, *, cas: CAS) -> None:
         """
         Update the Common Analysis Structure with data from storage.
 
@@ -275,10 +279,10 @@ class StorageReaderInterface(CameraInterface):
 
         if self.camera_config.replay_mode == MongoReplayMode.SENSOR_CONTEXT:
             if self._recorded_camera_id is None:
-                self._restore_sensor_world(cas_frame)
+                self._restore_sensor_world(cas_frame=cas_frame)
             included_views = set(self.SENSOR_VIEW_NAMES)
         elif self.camera_config.replay_mode == MongoReplayMode.FULL_WORLD:
-            self._restore_full_world(cas_frame)
+            self._restore_full_world(cas_frame=cas_frame)
             included_views = None
         else:
             raise UnknownMode(
@@ -286,7 +290,7 @@ class StorageReaderInterface(CameraInterface):
             )
         cas_frame[StorageDocumentField.VIEWS] = {}
         self.storage.load_views_from_mongo_in_cas(
-            cas_frame, included_view_names=included_views
+            cas_document=cas_frame, included_view_names=included_views
         )
 
         # Bring flat CAS representation into the proper CAS class
@@ -294,18 +298,22 @@ class StorageReaderInterface(CameraInterface):
             if view_name == CASViews.CAMERA_OBSERVATION:
                 cas.camera_observation = view_content
             else:
-                cas.set(view_name, view_content)
+                cas.set(view_name=view_name, value=view_content)
         observation = cas.require_camera_observation()
         if self.camera_config.replay_mode == MongoReplayMode.SENSOR_CONTEXT:
             if observation.camera.id != self._recorded_camera_id:
                 raise InvalidCameraObservation(
                     reason="recorded camera identity changed during playback"
                 )
-            RecordedCameraWorld.apply_pose(rk_world.world_instance(), observation)
+            RecordedCameraWorld.apply_pose(
+                world=rk_world.world_instance(), observation=observation
+            )
 
         # Restore annotations
         if self.camera_config.restore_annotations:
-            self.storage.load_annotations_from_mongo_in_cas(cas_frame, cas)
+            self.storage.load_annotations_from_mongo_in_cas(
+                cas_document=cas_frame, cas=cas
+            )
 
         if cas.depth_image is None:
             # no depth image available

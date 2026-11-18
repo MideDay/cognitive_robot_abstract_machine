@@ -44,7 +44,7 @@ class WorldVisualizer(robokudo.annotators.core.ThreadedAnnotator):
         super().__init__(name=name, descriptor=descriptor)
 
     @staticmethod
-    def _body_size(body: Body) -> np.ndarray | None:
+    def _body_size(*, body: Body) -> np.ndarray | None:
         shape_collection = (
             body.collision
             if body.collision is not None and len(body.collision) > 0
@@ -58,7 +58,7 @@ class WorldVisualizer(robokudo.annotators.core.ThreadedAnnotator):
     @robokudo.utils.error_handling.catch_and_raise_to_blackboard
     def compute(self) -> py_trees.common.Status:
         start_timer = default_timer()
-        cloud = self.get_cas().get(CASViews.CLOUD)
+        cloud = self.get_cas().get(view_name=CASViews.CLOUD)
         runtime_world = rk_world.world_instance()
 
         try:
@@ -81,7 +81,7 @@ class WorldVisualizer(robokudo.annotators.core.ThreadedAnnotator):
                 body = predefined_object.body
                 if body is None:
                     continue
-                size = self._body_size(body)
+                size = self._body_size(body=body)
                 if size is None:
                     continue
                 world_T_body = body.global_pose.to_np()
@@ -111,7 +111,9 @@ class WorldVisualizer(robokudo.annotators.core.ThreadedAnnotator):
             }
         )
 
-        self.get_annotator_output_struct().set_geometries(visualized_geometries)
+        self.get_annotator_output_struct().set_geometries(
+            geometries=visualized_geometries
+        )
 
         end_timer = default_timer()
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"

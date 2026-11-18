@@ -98,13 +98,13 @@ def test_interface_publishes_row_first_pixels(
         context.world.ray_tracer, "render", Mock(return_value=rectangular_frame)
     )
     cas = CAS()
-    optical_interface.set_data(cas)
+    optical_interface.set_data(cas=cas)
     images = {
         CASViews.COLOR_IMAGE: rectangular_frame.color_bgr,
         CASViews.DEPTH_IMAGE: rectangular_frame.depth_in_millimeters,
         CASViews.OBJECT_IMAGE: rectangular_frame.segmentation,
     }
-    np.testing.assert_array_equal(cas.get(view), images[view].swapaxes(0, 1))
+    np.testing.assert_array_equal(cas.get(view_name=view), images[view].swapaxes(0, 1))
 
 
 def test_interface_publishes_rendered_optical_pose(
@@ -120,7 +120,7 @@ def test_interface_publishes_rendered_optical_pose(
         context.world.ray_tracer, "render", Mock(return_value=rectangular_frame)
     )
     cas = CAS()
-    optical_interface.set_data(cas)
+    optical_interface.set_data(cas=cas)
     np.testing.assert_allclose(
         cas.camera_observation.world_T_camera.to_np(),
         context.camera.root.global_transform.to_np(),
@@ -143,7 +143,7 @@ def test_sensor_projection_preserves_optical_root_pose(
         context.world.ray_tracer, "render", Mock(return_value=rectangular_frame)
     )
     cas = CAS()
-    optical_interface.set_data(cas)
+    optical_interface.set_data(cas=cas)
     world = RecordedCameraWorld(observation=cas.camera_observation).project()
     camera = world.get_semantic_annotation_by_id(context.camera.id)
     np.testing.assert_allclose(
@@ -174,7 +174,7 @@ def test_static_optical_pose_binds_camera_root(
         context.world.ray_tracer, "render", Mock(return_value=rectangular_frame)
     )
     cas = CAS()
-    optical_interface.set_data(cas)
+    optical_interface.set_data(cas=cas)
     descriptor = StaticCameraTransformAnnotator.Descriptor()
     descriptor.parameters = descriptor.Parameters()
     descriptor.parameters.world_T_camera = HomogeneousTransformationMatrix.from_xyz_rpy(
@@ -215,7 +215,7 @@ def test_replayed_optical_pose_updates_camera_root(
         context.world.ray_tracer, "render", Mock(return_value=rectangular_frame)
     )
     cas = CAS()
-    optical_interface.set_data(cas)
+    optical_interface.set_data(cas=cas)
     world = RecordedCameraWorld(observation=cas.camera_observation).project()
     camera = world.get_semantic_annotation_by_id(context.camera.id)
     world_T_optical = HomogeneousTransformationMatrix.from_xyz_rpy(
@@ -227,7 +227,7 @@ def test_replayed_optical_pose_updates_camera_root(
         world_T_camera=world_T_optical,
         timestamp_nanoseconds=0,
     )
-    RecordedCameraWorld.apply_pose(world, observation)
+    RecordedCameraWorld.apply_pose(world=world, observation=observation)
     np.testing.assert_allclose(
         camera.root.global_transform.to_np(), world_T_optical.to_np(), atol=1e-12
     )
@@ -249,11 +249,11 @@ def test_optical_observation_roundtrip_preserves_root_pose(
         context.world.ray_tracer, "render", Mock(return_value=rectangular_frame)
     )
     cas = CAS()
-    optical_interface.set_data(cas)
+    optical_interface.set_data(cas=cas)
     codec = CameraObservationCodec()
     restored = codec.decode_with_tracker(
-        codec.encode(cas.camera_observation),
-        WorldEntityWithIDKwargsTracker.from_world(context.world),
+        payload=codec.encode(value=cas.camera_observation),
+        tracker=WorldEntityWithIDKwargsTracker.from_world(context.world),
     )
     world = RecordedCameraWorld(observation=restored).project()
     camera = world.get_semantic_annotation_by_id(context.camera.id)

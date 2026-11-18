@@ -44,6 +44,7 @@ from robokudo.cas import CAS, CASViews
 from robokudo.defs import PACKAGE_NAME
 from robokudo.types.core import Annotation
 from robokudo.utils.tree import find_parent_of_type
+from krrood.patterns.called_positionally import called_positionally
 
 """
 This module contains superclasses for annotators.  the two main superclasses are Base- and ThreadedAnnotator.
@@ -188,6 +189,7 @@ class BaseAnnotator(Behaviour):
         """
         return Status.SUCCESS
 
+    @called_positionally
     def terminate(self, new_status: Status) -> None:
         """
         Handle annotator termination.
@@ -201,7 +203,7 @@ class BaseAnnotator(Behaviour):
             % (self.__class__.__name__, self.status, new_status)
         )
 
-    def key_callback(self, key: int) -> None:
+    def key_callback(self, *, key: int) -> None:
         """
         Handle keyboard input events.
 
@@ -210,7 +212,7 @@ class BaseAnnotator(Behaviour):
         self.rk_logger.debug("%s.keyCallback() got %i" % (self.__class__.__name__, key))
 
     def mouse_callback(
-        self, event: int, x: int, y: int, flags: int, param: int
+        self, *, event: int, x: int, y: int, flags: int, param: int
     ) -> None:
         """
         Handle mouse interaction events in the visualizer window.
@@ -291,7 +293,7 @@ class BaseAnnotator(Behaviour):
         )
         annotator_output_pipeline_map_buffer.map[
             self.get_parent_pipeline().name
-        ].init_annotator(self.name)
+        ].init_annotator(annotator_name=self.name)
 
     def get_class_name(self) -> str:
         """
@@ -305,7 +307,7 @@ class BaseAnnotator(Behaviour):
         return type(self).__name__
 
     def get_data_from_analysis_scope(
-        self, analysis_scope: list[str | type]
+        self, *, analysis_scope: list[str | type]
     ) -> dict[str | type, Any]:
         """
         Look up data to analyze based on a list of Types or String constants.
@@ -341,11 +343,13 @@ class BaseAnnotator(Behaviour):
                     self.rk_logger.warning(
                         "You have passed a string that is not defining a valid CASView from robokudo.cas.CASViews"
                     )
-                result[content] = self.get_cas().get(content)
+                result[content] = self.get_cas().get(view_name=content)
             elif issubclass(content, Annotation):
                 # We assume that typically only few annotations are requested here
                 # Otherwise we should iterate over all annotations and filter once to save resources
-                result[content] = self.get_cas().filter_annotations_by_type(content)
+                result[content] = self.get_cas().filter_annotations_by_type(
+                    type_to_include=content
+                )
             else:
                 self.rk_logger.error(
                     f"Couldn't lookup data {content} - Unsupported type"
@@ -363,7 +367,7 @@ class BaseAnnotator(Behaviour):
         if not hasattr(self, "_times"):
             setattr(self, "_times", defaultdict(list))
 
-    def set_time_recording(self, value: float, func: str = "update") -> None:
+    def set_time_recording(self, *, value: float, func: str = "update") -> None:
         """
         Record timing information for a function.
 
@@ -401,7 +405,7 @@ class BaseAnnotator(Behaviour):
             )
             self.published_variables: dict[str, float] = dict()
 
-    def update_published_variable(self, name: str, value: float) -> None:
+    def update_published_variable(self, *, name: str, value: float) -> None:
         """
         Store a value that shall be published whenever self.publish_variables() is
         called.
@@ -470,7 +474,7 @@ class Worker(object):
         self._fn: Callable = fn
         self._args: tuple = args
 
-    def start(self, callback: Callable | None = None) -> threading.Thread:
+    def start(self, *, callback: Callable | None = None) -> threading.Thread:
         """
         Start executing the function in a separate thread.
 
@@ -579,6 +583,7 @@ class ThreadedAnnotator(BaseAnnotator):
         )
         return Status.SUCCESS
 
+    @called_positionally
     def terminate(self, new_status: Status) -> None:
         """
         Handle annotator termination.

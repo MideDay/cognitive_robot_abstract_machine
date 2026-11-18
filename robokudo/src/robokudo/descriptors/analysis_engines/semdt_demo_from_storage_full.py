@@ -35,7 +35,7 @@ class AnalysisEngine(AnalysisEngineInterface):
         )
 
         cr_storage_config = CollectionReaderDescriptorFactory.create_descriptor(
-            "mongo", loop=False
+            camera="mongo", loop=False
         )
 
         seq = Pipeline("RWPipeline")

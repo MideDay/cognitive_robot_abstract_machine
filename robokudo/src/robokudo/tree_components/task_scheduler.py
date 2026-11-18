@@ -151,7 +151,7 @@ class IterativeTaskScheduler(TaskSchedulerBase):
         self.idx: int = 0
         """Current index in tree_list"""
 
-    def setup(self, timeout: float) -> bool:
+    def setup(self, *, timeout: float) -> bool:
         """Set up all trees in the list.
 
         .. note::

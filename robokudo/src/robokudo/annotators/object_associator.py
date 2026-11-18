@@ -26,16 +26,18 @@ class ObjectAssociator(BaseAnnotator):
 
         self.obj_comparator = (
             ObjectHypothesisComparator(self.get_cas)
-            .with_comparator_for(PoseAnnotation, 0.3, max_distance=0.5)
-            .with_comparator_for(Classification, 0.3)
-            .with_comparator_for(BoundingBox3DAnnotation, 0.1)
-            .with_comparator_for(ColorHistogram, 0.2)
-            .with_comparator_for(ImageROI, 0.1)
+            .with_comparator_for(
+                compared_type=PoseAnnotation, weight=0.3, max_distance=0.5
+            )
+            .with_comparator_for(compared_type=Classification, weight=0.3)
+            .with_comparator_for(compared_type=BoundingBox3DAnnotation, weight=0.1)
+            .with_comparator_for(compared_type=ColorHistogram, weight=0.2)
+            .with_comparator_for(compared_type=ImageROI, weight=0.1)
         )
 
     def update(self) -> Status:
         new_ohs: list[ObjectHypothesis] = self.get_cas().filter_annotations_by_type(
-            ObjectHypothesis
+            type_to_include=ObjectHypothesis
         )
 
         if len(self.tracked_objects) == 0:
@@ -50,7 +52,9 @@ class ObjectAssociator(BaseAnnotator):
             best_similarity = 0.0
 
             for oh_id, prev_oh in enumerate(self.tracked_objects):
-                similarity = self.obj_comparator.compute_similarity(prev_oh, new_oh)
+                similarity = self.obj_comparator.compute_similarity(
+                    hypothesis1=prev_oh, hypothesis2=new_oh
+                )
                 if similarity > 0.5 and similarity > best_similarity:
                     best_match_id = oh_id
                     best_similarity = similarity

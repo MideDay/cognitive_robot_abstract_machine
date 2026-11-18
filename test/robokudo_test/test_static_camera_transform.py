@@ -51,7 +51,7 @@ def test_static_transform_binds_observation_camera_frame(
                     world=runtime_world,
                 )
             )
-    camera_model = RosCameraModelAdapter.from_camera_info(camera_info)
+    camera_model = RosCameraModelAdapter.from_camera_info(camera_info=camera_info)
     cas = CAS()
     cas.camera_observation = CameraObservation(
         camera=Camera(

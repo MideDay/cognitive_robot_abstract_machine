@@ -33,7 +33,7 @@ class HypothesisComparator(Generic[THyothesis]):
         """
 
     def compute_similarity(
-        self, hypothesis1: THyothesis, hypothesis2: THyothesis
+        self, *, hypothesis1: THyothesis, hypothesis2: THyothesis
     ) -> float:
         """
         Compute the similarity between two hypotheses.
@@ -47,6 +47,7 @@ class HypothesisComparator(Generic[THyothesis]):
 
     def with_comparator_for(
         self,
+        *,
         compared_type: type[Annotation | RkType],
         weight: float,
         **kwargs,
@@ -65,7 +66,7 @@ class HypothesisComparator(Generic[THyothesis]):
         """
         if issubclass(compared_type, Annotation):
             comparator = FeatureComparatorFactory.for_annotation(
-                compared_type, weight, **kwargs
+                annotation=compared_type, weight=weight, **kwargs
             )
             if not comparator:
                 raise KeyError(f"No comparator found for annotation {compared_type}")
@@ -73,7 +74,7 @@ class HypothesisComparator(Generic[THyothesis]):
             self.annotation_comparators[compared_type] = comparator
         elif issubclass(compared_type, RkType):
             comparator = FeatureComparatorFactory.for_type(
-                compared_type, weight, **kwargs
+                rk_type=compared_type, weight=weight, **kwargs
             )
             if not comparator:
                 raise KeyError(f"No comparator found for annotation {compared_type}")
@@ -86,7 +87,7 @@ class HypothesisComparator(Generic[THyothesis]):
 
 class ObjectHypothesisComparator(HypothesisComparator[ObjectHypothesis]):
     def compute_similarity(
-        self, hypothesis1: ObjectHypothesis, hypothesis2: ObjectHypothesis
+        self, *, hypothesis1: ObjectHypothesis, hypothesis2: ObjectHypothesis
     ) -> float:
         """
         Compute the similarity between two hypotheses.
@@ -103,7 +104,7 @@ class ObjectHypothesisComparator(HypothesisComparator[ObjectHypothesis]):
         if ImageROI in self.type_comparators:
             image_roi_comparator = self.type_comparators[ImageROI]
             similarity = image_roi_comparator.compute_similarity(
-                hypothesis1.roi, hypothesis2.roi
+                query_value=hypothesis1.roi, obj_value=hypothesis2.roi
             )
             total_weight += image_roi_comparator.weight
             total_similarity += similarity * image_roi_comparator.weight
@@ -114,15 +115,21 @@ class ObjectHypothesisComparator(HypothesisComparator[ObjectHypothesis]):
         for annotation_type in self.annotation_comparators.keys():
             comparator = self.annotation_comparators[annotation_type]
 
-            annotations1 = cas.filter_by_type(annotation_type, hypothesis1.annotations)
-            annotations2 = cas.filter_by_type(annotation_type, hypothesis2.annotations)
+            annotations1 = cas.filter_by_type(
+                type_to_include=annotation_type, input_list=hypothesis1.annotations
+            )
+            annotations2 = cas.filter_by_type(
+                type_to_include=annotation_type, input_list=hypothesis2.annotations
+            )
 
             total_compared = 0
             for ann1 in annotations1:
                 for ann2 in annotations2:
                     # Compare only annotations from the same source
                     if ann1.source == ann2.source:
-                        similarity = comparator.compute_similarity(ann1, ann2)
+                        similarity = comparator.compute_similarity(
+                            query_value=ann1, obj_value=ann2
+                        )
 
                         total_weight += comparator.weight
                         total_similarity += similarity * comparator.weight

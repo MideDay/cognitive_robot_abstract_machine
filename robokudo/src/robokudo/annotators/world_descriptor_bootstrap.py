@@ -105,7 +105,7 @@ class WorldDescriptorBootstrapAnnotator(BaseAnnotator):
         rk_world.init_world_entity_tracker_from_world(rk_world.world_instance())
 
     @staticmethod
-    def _snapshot_world_entities(world: Any) -> _WorldEntitySnapshot:
+    def _snapshot_world_entities(*, world: Any) -> _WorldEntitySnapshot:
         """
         Capture all entities present before merging a descriptor world.
         """
@@ -122,7 +122,7 @@ class WorldDescriptorBootstrapAnnotator(BaseAnnotator):
 
     @staticmethod
     def _entities_added_since(
-        world: Any, before: _WorldEntitySnapshot
+        *, world: Any, before: _WorldEntitySnapshot
     ) -> _MergedDescriptorEntities:
         """
         Return entities that were added after a snapshot was taken.
@@ -150,7 +150,7 @@ class WorldDescriptorBootstrapAnnotator(BaseAnnotator):
             },
         )
 
-    def _remove_merged_descriptor_entities(self, runtime_world: Any) -> None:
+    def _remove_merged_descriptor_entities(self, *, runtime_world: Any) -> None:
         """
         Remove only the entities added by the previous descriptor merge.
         """
@@ -196,7 +196,7 @@ class WorldDescriptorBootstrapAnnotator(BaseAnnotator):
 
         self._merged_descriptor_entities.clear()
 
-    def augment_world(self, world_descriptor: BaseWorldDescriptor) -> None:
+    def augment_world(self, *, world_descriptor: BaseWorldDescriptor) -> None:
         """
         Merge descriptor entities into the current shared world.
         """
@@ -210,13 +210,13 @@ class WorldDescriptorBootstrapAnnotator(BaseAnnotator):
             self._merged_descriptor_entities.clear()
 
         if reload_on_update:
-            self._remove_merged_descriptor_entities(runtime_world)
+            self._remove_merged_descriptor_entities(runtime_world=runtime_world)
 
         try:
-            before = self._snapshot_world_entities(runtime_world)
+            before = self._snapshot_world_entities(world=runtime_world)
             runtime_world.merge_world(world_descriptor.world)
             self._merged_descriptor_entities = self._entities_added_since(
-                runtime_world, before
+                world=runtime_world, before=before
             )
         except Exception as error:
             raise WorldDescriptorBootstrapError(
@@ -239,7 +239,7 @@ class WorldDescriptorBootstrapAnnotator(BaseAnnotator):
             return Status.SUCCESS
 
         descriptor = load_world_descriptor(self)
-        self.augment_world(descriptor)
+        self.augment_world(world_descriptor=descriptor)
 
         end_timer = default_timer()
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"

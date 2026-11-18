@@ -58,9 +58,9 @@ class SemanticDigitalTwinConnector(ThreadedAnnotator):
 
         self.object_comparator = (
             ObjectHypothesisComparator(self.get_cas)
-            .with_comparator_for(ImageROI, weight=0.2)
-            .with_comparator_for(StampedPoseAnnotation, weight=0.4)
-            .with_comparator_for(BoundingBox3DAnnotation, weight=0.4)
+            .with_comparator_for(compared_type=ImageROI, weight=0.2)
+            .with_comparator_for(compared_type=StampedPoseAnnotation, weight=0.4)
+            .with_comparator_for(compared_type=BoundingBox3DAnnotation, weight=0.4)
         )
 
     def compute(self) -> Status:
@@ -71,14 +71,16 @@ class SemanticDigitalTwinConnector(ThreadedAnnotator):
 
         cas = self.get_cas()
         object_hypotheses: list[ObjectHypothesis] = cas.filter_annotations_by_type(
-            ObjectHypothesis
+            type_to_include=ObjectHypothesis
         )
         object_beliefs = list(world.get_object_belief_states().values())
 
         associated_hypotheses = self.associate_hypotheses_with_beliefs(
-            object_hypotheses, object_beliefs, cas
+            object_hypotheses=object_hypotheses, object_beliefs=object_beliefs, cas=cas
         )
-        self.create_association_visualization(associated_hypotheses)
+        self.create_association_visualization(
+            associated_hypotheses=associated_hypotheses
+        )
         self.log_world_state()
 
         end_timer = default_timer()
@@ -87,6 +89,7 @@ class SemanticDigitalTwinConnector(ThreadedAnnotator):
 
     def associate_hypotheses_with_beliefs(
         self,
+        *,
         object_hypotheses: list[ObjectHypothesis],
         object_beliefs: list[ObjectBeliefState],
         cas: CAS,
@@ -98,33 +101,37 @@ class SemanticDigitalTwinConnector(ThreadedAnnotator):
             return []
 
         # Association uses the newest pose annotation from each hypothesis.
-        self.add_world_pose_annotations(object_hypotheses, cas)
+        self.add_world_pose_annotations(object_hypotheses=object_hypotheses, cas=cas)
 
         if len(object_beliefs) == 0:
-            return self.create_new_beliefs_for_hypotheses(object_hypotheses, cas)
+            return self.create_new_beliefs_for_hypotheses(
+                object_hypotheses=object_hypotheses, cas=cas
+            )
 
         cost_matrix = self.create_association_cost_matrix(
-            object_hypotheses, object_beliefs
+            object_hypotheses=object_hypotheses, object_beliefs=object_beliefs
         )
         hypothesis_indices, belief_indices = linear_sum_assignment(cost_matrix)
 
         associated_hypotheses = self.apply_assignment(
-            object_hypotheses,
-            object_beliefs,
-            cost_matrix,
-            hypothesis_indices,
-            belief_indices,
-            cas,
+            object_hypotheses=object_hypotheses,
+            object_beliefs=object_beliefs,
+            cost_matrix=cost_matrix,
+            hypothesis_indices=hypothesis_indices,
+            belief_indices=belief_indices,
+            cas=cas,
         )
         associated_hypotheses.extend(
             self.create_new_beliefs_for_unmatched_hypotheses(
-                object_hypotheses, set(hypothesis_indices), cas
+                object_hypotheses=object_hypotheses,
+                matched_hypothesis_indices=set(hypothesis_indices),
+                cas=cas,
             )
         )
         return associated_hypotheses
 
     def add_world_pose_annotations(
-        self, object_hypotheses: list[ObjectHypothesis], cas: CAS
+        self, *, object_hypotheses: list[ObjectHypothesis], cas: CAS
     ) -> None:
         """
         Add world-frame stamped poses to hypotheses when a camera pose is available.
@@ -138,7 +145,9 @@ class SemanticDigitalTwinConnector(ThreadedAnnotator):
         world_T_camera = observation.world_T_camera_or_raise()
 
         for object_hypothesis in object_hypotheses:
-            pose_annotation = self.get_latest_pose_annotation(object_hypothesis)
+            pose_annotation = self.get_latest_pose_annotation(
+                object_hypothesis=object_hypothesis
+            )
             if pose_annotation is None:
                 continue
 
@@ -157,6 +166,7 @@ class SemanticDigitalTwinConnector(ThreadedAnnotator):
 
     @staticmethod
     def get_latest_pose_annotation(
+        *,
         object_hypothesis: ObjectHypothesis,
     ) -> PoseAnnotation | None:
         """
@@ -169,6 +179,7 @@ class SemanticDigitalTwinConnector(ThreadedAnnotator):
 
     def create_association_cost_matrix(
         self,
+        *,
         object_hypotheses: list[ObjectHypothesis],
         object_beliefs: list[ObjectBeliefState],
     ) -> np.ndarray:
@@ -179,13 +190,15 @@ class SemanticDigitalTwinConnector(ThreadedAnnotator):
         for hypothesis_idx, object_hypothesis in enumerate(object_hypotheses):
             for belief_idx, object_belief in enumerate(object_beliefs):
                 similarity = self.object_comparator.compute_similarity(
-                    object_hypothesis, object_belief.latest_hypothesis
+                    hypothesis1=object_hypothesis,
+                    hypothesis2=object_belief.latest_hypothesis,
                 )
                 cost_matrix[hypothesis_idx][belief_idx] = -similarity
         return cost_matrix
 
     def apply_assignment(
         self,
+        *,
         object_hypotheses: list[ObjectHypothesis],
         object_beliefs: list[ObjectBeliefState],
         cost_matrix: np.ndarray,
@@ -217,7 +230,7 @@ class SemanticDigitalTwinConnector(ThreadedAnnotator):
         return associated_hypotheses
 
     def create_new_beliefs_for_hypotheses(
-        self, object_hypotheses: list[ObjectHypothesis], cas: CAS
+        self, *, object_hypotheses: list[ObjectHypothesis], cas: CAS
     ) -> list[tuple[ObjectHypothesis, ObjectBeliefState]]:
         """
         Create object beliefs for all given hypotheses.
@@ -232,6 +245,7 @@ class SemanticDigitalTwinConnector(ThreadedAnnotator):
 
     def create_new_beliefs_for_unmatched_hypotheses(
         self,
+        *,
         object_hypotheses: list[ObjectHypothesis],
         matched_hypothesis_indices: set[int],
         cas: CAS,
@@ -245,7 +259,9 @@ class SemanticDigitalTwinConnector(ThreadedAnnotator):
             if hypothesis_idx not in matched_hypothesis_indices
         ]
         # Hungarian assignment only pairs min(len(hypotheses), len(beliefs)); extras start new beliefs.
-        return self.create_new_beliefs_for_hypotheses(unmatched_hypotheses, cas)
+        return self.create_new_beliefs_for_hypotheses(
+            object_hypotheses=unmatched_hypotheses, cas=cas
+        )
 
     def log_world_state(self) -> None:
         """
@@ -258,21 +274,24 @@ class SemanticDigitalTwinConnector(ThreadedAnnotator):
 
     def create_association_visualization(
         self,
+        *,
         associated_hypotheses: list[tuple[ObjectHypothesis, ObjectBeliefState]],
     ) -> None:
         """
         Publish a 2D image showing which SemDT UUID each hypothesis maps to.
         """
         cas = self.get_cas()
-        if not cas.contains(CASViews.COLOR_IMAGE):
+        if not cas.contains(view_name=CASViews.COLOR_IMAGE):
             return
 
-        visualization_img = cas.get_copy(CASViews.COLOR_IMAGE)
+        visualization_img = cas.get_copy(view_name=CASViews.COLOR_IMAGE)
         object_hypotheses = [
             object_hypothesis for object_hypothesis, _ in associated_hypotheses
         ]
         labels_by_hypothesis_id = {
-            id(object_hypothesis): self.get_object_belief_label(object_belief)
+            id(object_hypothesis): self.get_object_belief_label(
+                object_belief=object_belief
+            )
             for object_hypothesis, object_belief in associated_hypotheses
         }
 
@@ -283,10 +302,10 @@ class SemanticDigitalTwinConnector(ThreadedAnnotator):
                 id(object_hypothesis), "unassociated"
             ),
         )
-        self.get_annotator_output_struct().set_image(visualization_img)
+        self.get_annotator_output_struct().set_image(img=visualization_img)
 
     @staticmethod
-    def get_object_belief_label(object_belief: ObjectBeliefState) -> str:
+    def get_object_belief_label(*, object_belief: ObjectBeliefState) -> str:
         """
         Return a compact display label for an object belief UUID.
         """

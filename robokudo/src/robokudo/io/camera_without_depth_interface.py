@@ -130,7 +130,7 @@ class OpenCVCameraWithoutDepthInterface(CameraInterface):
 
         return self._has_new_data
 
-    def set_data(self, cas: CAS) -> None:
+    def set_data(self, *, cas: CAS) -> None:
         """
         Update the Common Analysis Structure with latest frame data.
 
@@ -219,9 +219,9 @@ class OpenCVCameraWithoutDepthInterface(CameraInterface):
         if self.camera_config.update_global_with_depth_parameter:
             AnnotatorPredefinedParameters.global_with_depth = depth is not None
 
-        cas.set(CASViews.COLOR_IMAGE, color)
-        cas.set(CASViews.DEPTH_IMAGE, depth)
-        cas.set(CASViews.COLOR_TO_DEPTH_RATIO, color_to_depth_ratio)
+        cas.set(view_name=CASViews.COLOR_IMAGE, value=color)
+        cas.set(view_name=CASViews.DEPTH_IMAGE, value=depth)
+        cas.set(view_name=CASViews.COLOR_TO_DEPTH_RATIO, value=color_to_depth_ratio)
         camera_frame = camera_info.header.frame_id or self.camera_config.camera_frame
         modalities = (
             (CameraModality.COLOR, CameraModality.DEPTH)
@@ -230,7 +230,9 @@ class OpenCVCameraWithoutDepthInterface(CameraInterface):
         )
         self.store_camera_observation(
             cas=cas,
-            camera_model=RosCameraModelAdapter.from_camera_info(camera_info),
+            camera_model=RosCameraModelAdapter.from_camera_info(
+                camera_info=camera_info
+            ),
             camera_frame=camera_frame,
             timestamp_nanoseconds=timestamp_nanoseconds,
             modalities=modalities,

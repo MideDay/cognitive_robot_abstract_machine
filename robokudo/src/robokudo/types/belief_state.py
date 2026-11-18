@@ -36,7 +36,7 @@ class ObjectBeliefState:
         self.hypotheses = deque(maxlen=self.max_num_hypotheses)
 
     @classmethod
-    def create_with_new_body(cls, name: PrefixedName | None = None) -> Self:
+    def create_with_new_body(cls, *, name: PrefixedName | None = None) -> Self:
         """
         Create a new ObjectBeliefState with a new Body.
 
@@ -87,7 +87,7 @@ class ObjectBeliefState:
                     return annotation
         return None
 
-    def add_hypothesis(self, hypothesis: ObjectHypothesis) -> Self:
+    def add_hypothesis(self, *, hypothesis: ObjectHypothesis) -> Self:
         """
         Add a new hypothesis to the belief state.
 

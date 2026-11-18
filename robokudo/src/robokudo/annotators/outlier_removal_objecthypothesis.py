@@ -33,6 +33,7 @@ from robokudo.types.annotation import Classification
 from robokudo.types.scene import ObjectHypothesis
 from robokudo.utils.error_handling import catch_and_raise_to_blackboard
 from semantic_digital_twin.adapters.ros.node_registry import ROSNodeRegistry
+from krrood.patterns.called_positionally import called_positionally
 
 """
 This module implements a statistical outlierremoval based on the standard deviation and
@@ -117,6 +118,7 @@ class OutlierRemovalOnObjectHypothesisAnnotator(BaseAnnotator):
 
         self.rk_logger.info("OutlierRemovalNode initialized with current parameters")
 
+    @called_positionally
     def parameters_callback(self, params: list[Parameter]) -> SetParametersResult:
         for param in params:
             if hasattr(self.descriptor.parameters, param.name):
@@ -150,7 +152,9 @@ class OutlierRemovalOnObjectHypothesisAnnotator(BaseAnnotator):
 
         :return: True, if at least one of the object hypotheses could be optimized. False otherwise.
         """
-        annotations = self.get_cas().filter_annotations_by_type(ObjectHypothesis)
+        annotations = self.get_cas().filter_annotations_by_type(
+            type_to_include=ObjectHypothesis
+        )
         vis_geometries = []
 
         optimized_one_cluster = False
@@ -161,7 +165,7 @@ class OutlierRemovalOnObjectHypothesisAnnotator(BaseAnnotator):
 
             if len(self.descriptor.parameters.skip_removal_on_classes) > 0:
                 classes: list[Classification] = CAS.filter_by_type(
-                    Classification, annotation.annotations
+                    type_to_include=Classification, input_list=annotation.annotations
                 )
 
                 found_class = False
@@ -220,8 +224,8 @@ class OutlierRemovalOnObjectHypothesisAnnotator(BaseAnnotator):
         if not optimized_one_cluster:
             return False
 
-        visualization_img = self.get_cas().get(CASViews.COLOR_IMAGE)
-        self.get_annotator_output_struct().set_image(visualization_img)
-        self.get_annotator_output_struct().set_geometries(vis_geometries)
+        visualization_img = self.get_cas().get(view_name=CASViews.COLOR_IMAGE)
+        self.get_annotator_output_struct().set_image(img=visualization_img)
+        self.get_annotator_output_struct().set_geometries(geometries=vis_geometries)
 
         return True

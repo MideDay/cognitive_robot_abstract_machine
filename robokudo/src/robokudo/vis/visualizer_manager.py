@@ -71,7 +71,7 @@ class VisualizationManager(Behaviour):
         self.visualizers: dict[str, list[Visualizer]] = {}
         """Mapping of pipeline name to list of Visualizers"""
 
-    def create_visualizers_for_pipeline(self, pipeline: Pipeline) -> None:
+    def create_visualizers_for_pipeline(self, *, pipeline: Pipeline) -> None:
         """Create visualizer instances for a pipeline.
 
         :param pipeline: Pipeline to create visualizers for
@@ -168,7 +168,9 @@ class VisualizationManager(Behaviour):
             assert pipeline_name in self.pipelines
 
             if pipeline_name not in self.visualizers:
-                self.create_visualizers_for_pipeline(self.pipelines[pipeline_name])
+                self.create_visualizers_for_pipeline(
+                    pipeline=self.pipelines[pipeline_name]
+                )
 
             # Ping Visualizers if there is new data for this Pipeline
             if annotator_output_pipeline_map_visualized.map[pipeline_name].redraw:
@@ -176,9 +178,9 @@ class VisualizationManager(Behaviour):
                     visualizer.new_data_available()
 
                 # Visualizers have been informed
-                annotator_output_pipeline_map_visualized.map[pipeline_name].redraw = (
-                    False
-                )
+                annotator_output_pipeline_map_visualized.map[
+                    pipeline_name
+                ].redraw = False
 
         # Pre-tick
         for pipeline_name, visualizer_list in self.visualizers.items():

@@ -50,7 +50,7 @@ class RayTracingCameraInterface(CameraInterface):
         """
         return True
 
-    def set_data(self, cas: CAS) -> None:
+    def set_data(self, *, cas: CAS) -> None:
         """
         Render a simulated RGB-D frame and write it into the CAS.
 
@@ -73,6 +73,7 @@ class RayTracingCameraInterface(CameraInterface):
 
     def _write_frame_to_cas(
         self,
+        *,
         cas: CAS,
         context: RayTracingContext,
         frame: RenderedRGBDFrame,
@@ -92,12 +93,23 @@ class RayTracingCameraInterface(CameraInterface):
         camera = context.camera
         world_T_camera = camera.root.global_transform
 
-        cas.set(CASViews.COLOR_IMAGE, frame.color_bgr.swapaxes(0, 1).copy())
-        cas.set(CASViews.DEPTH_IMAGE, frame.depth_in_millimeters.swapaxes(0, 1).copy())
-        cas.set(CASViews.COLOR_TO_DEPTH_RATIO, self.camera_config.color_to_depth_ratio)
-        cas.set(CASViews.OBJECT_IMAGE, frame.segmentation.swapaxes(0, 1).copy())
-        cas.set(CASViews.BODY_COLORS, frame.body_colors)
-        cas.set_ref(CASViews.GROUND_TRUTH_WORLD_REFERENCE, world)
+        cas.set(
+            view_name=CASViews.COLOR_IMAGE, value=frame.color_bgr.swapaxes(0, 1).copy()
+        )
+        cas.set(
+            view_name=CASViews.DEPTH_IMAGE,
+            value=frame.depth_in_millimeters.swapaxes(0, 1).copy(),
+        )
+        cas.set(
+            view_name=CASViews.COLOR_TO_DEPTH_RATIO,
+            value=self.camera_config.color_to_depth_ratio,
+        )
+        cas.set(
+            view_name=CASViews.OBJECT_IMAGE,
+            value=frame.segmentation.swapaxes(0, 1).copy(),
+        )
+        cas.set(view_name=CASViews.BODY_COLORS, value=frame.body_colors)
+        cas.set_ref(view_name=CASViews.GROUND_TRUTH_WORLD_REFERENCE, value=world)
         cas.camera_observation = CameraObservation(
             camera=camera,
             effective_camera_model=camera_model,

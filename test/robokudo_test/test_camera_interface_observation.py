@@ -48,6 +48,7 @@ from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import Connection6DoF
 from semantic_digital_twin.world_description.world_entity import Body
+from krrood.patterns.called_positionally import called_positionally
 
 
 @dataclass(kw_only=True)
@@ -147,6 +148,7 @@ class SeekableImageSequence:
     Number of frames in the source.
     """
 
+    @called_positionally
     def get(self, property_identifier: int) -> float:
         """
         Return the requested playback metadata.
@@ -158,6 +160,7 @@ class SeekableImageSequence:
             return self.frame_position
         return self.frame_count
 
+    @called_positionally
     def set(self, property_identifier: int, value: float) -> bool:
         """
         Accept a playback-position update.
@@ -199,7 +202,7 @@ def test_camera_info_conversion_preserves_effective_calibration(
     """
     The semantic pinhole model represents every relevant CameraInfo value.
     """
-    camera_model = RosCameraModelAdapter.from_camera_info(camera_info)
+    camera_model = RosCameraModelAdapter.from_camera_info(camera_info=camera_info)
 
     assert camera_model.resolution == CameraResolution(width=640, height=480)
     assert camera_model.focal_length_x == camera_info.k[0]
@@ -218,10 +221,10 @@ def test_camera_model_conversion_preserves_ros_calibration(
     """
     The reverse conversion recreates the ROS calibration values.
     """
-    camera_model = RosCameraModelAdapter.from_camera_info(camera_info)
+    camera_model = RosCameraModelAdapter.from_camera_info(camera_info=camera_info)
 
     converted_info = RosCameraModelAdapter.to_camera_info(
-        camera_model,
+        camera_model=camera_model,
         frame_id=camera_info.header.frame_id,
     )
 
@@ -270,7 +273,7 @@ def test_ros_frame_alias_reuses_robot_optical_body(
 
     interface.store_camera_observation(
         cas=cas,
-        camera_model=RosCameraModelAdapter.from_camera_info(camera_info),
+        camera_model=RosCameraModelAdapter.from_camera_info(camera_info=camera_info),
         camera_frame=camera_info.header.frame_id,
         timestamp_nanoseconds=123,
         modalities=(CameraModality.COLOR,),
@@ -327,7 +330,9 @@ def test_mismatched_pose_child_is_rejected_at_acquisition(
     with pytest.raises(InvalidCameraObservation):
         interface.store_camera_observation(
             cas=CAS(),
-            camera_model=RosCameraModelAdapter.from_camera_info(camera_info),
+            camera_model=RosCameraModelAdapter.from_camera_info(
+                camera_info=camera_info
+            ),
             camera_frame=camera_info.header.frame_id,
             timestamp_nanoseconds=123,
             modalities=(CameraModality.COLOR,),
@@ -349,7 +354,7 @@ def test_static_pose_uses_observation_camera_without_reparenting_robot(
     cas = CAS()
     CameraInterface(BaseCameraConfig(interface_type="test")).store_camera_observation(
         cas=cas,
-        camera_model=RosCameraModelAdapter.from_camera_info(camera_info),
+        camera_model=RosCameraModelAdapter.from_camera_info(camera_info=camera_info),
         camera_frame=camera_info.header.frame_id,
         timestamp_nanoseconds=123,
         modalities=(CameraModality.COLOR,),
@@ -395,7 +400,7 @@ def test_static_pose_creates_isolated_world_reference(
     cas = CAS()
     CameraInterface(BaseCameraConfig(interface_type="test")).store_camera_observation(
         cas=cas,
-        camera_model=RosCameraModelAdapter.from_camera_info(camera_info),
+        camera_model=RosCameraModelAdapter.from_camera_info(camera_info=camera_info),
         camera_frame=camera_info.header.frame_id,
         timestamp_nanoseconds=123,
         modalities=(CameraModality.COLOR,),
@@ -455,7 +460,7 @@ def test_camera_observation_reuses_camera_rooted_in_stream_frame(
 
     interface.store_camera_observation(
         cas=cas,
-        camera_model=RosCameraModelAdapter.from_camera_info(camera_info),
+        camera_model=RosCameraModelAdapter.from_camera_info(camera_info=camera_info),
         camera_frame=camera_info.header.frame_id,
         timestamp_nanoseconds=123,
         modalities=(CameraModality.COLOR,),
@@ -483,7 +488,7 @@ def test_camera_observation_creates_standalone_camera_without_world_pose(
 
     interface.store_camera_observation(
         cas=cas,
-        camera_model=RosCameraModelAdapter.from_camera_info(camera_info),
+        camera_model=RosCameraModelAdapter.from_camera_info(camera_info=camera_info),
         camera_frame=camera_info.header.frame_id,
         timestamp_nanoseconds=456,
         modalities=(CameraModality.COLOR,),
@@ -515,7 +520,7 @@ def test_camera_observation_connects_new_camera_in_rooted_world_without_pose(
 
     interface.store_camera_observation(
         cas=cas,
-        camera_model=RosCameraModelAdapter.from_camera_info(camera_info),
+        camera_model=RosCameraModelAdapter.from_camera_info(camera_info=camera_info),
         camera_frame=camera_info.header.frame_id,
         timestamp_nanoseconds=456,
         modalities=(CameraModality.COLOR,),
@@ -550,7 +555,7 @@ def test_live_reader_rejects_tf_source_for_a_different_optical_frame(
     interface.lock = Lock()
 
     with pytest.raises(InvalidCameraObservation):
-        interface.set_data(CAS())
+        interface.set_data(cas=CAS())
 
     assert runtime_world.bodies == []
 
@@ -583,7 +588,7 @@ def test_live_reader_uses_robot_optical_body_for_tf_pose(
     interface.lock = Lock()
     cas = CAS()
 
-    interface.set_data(cas)
+    interface.set_data(cas=cas)
 
     observation = cas.require_camera_observation()
     assert observation.camera.root is camera_body
@@ -618,7 +623,7 @@ def test_live_reader_creates_isolated_camera_mount_for_tf_pose(
     interface.lock = Lock()
     cas = CAS()
 
-    interface.set_data(cas)
+    interface.set_data(cas=cas)
 
     observation = cas.require_camera_observation()
     assert runtime_world.root is observation.world_T_camera.reference_frame
@@ -652,7 +657,7 @@ def test_rgbd_reader_stores_camera_observation(
     interface.lock = Lock()
     cas = CAS()
 
-    interface.set_data(cas)
+    interface.set_data(cas=cas)
 
     assert cas.camera_observation.camera.root.name.name == camera_info.header.frame_id
     assert cas.camera_observation.camera.modalities == (
@@ -686,7 +691,7 @@ def test_rgb_only_reader_stores_camera_observation(
     interface.lock = Lock()
     cas = CAS()
 
-    interface.set_data(cas)
+    interface.set_data(cas=cas)
 
     assert cas.camera_observation.camera.root.name.name == camera_info.header.frame_id
     assert cas.camera_observation.camera.modalities == (CameraModality.COLOR,)
@@ -727,7 +732,7 @@ def test_rgb_only_rotation_updates_effective_calibration(
     interface.lock = Lock()
     cas = CAS()
 
-    interface.set_data(cas)
+    interface.set_data(cas=cas)
 
     expected_resolution = CameraResolution(
         width=original_height,
@@ -788,7 +793,7 @@ def test_rgbd_high_resolution_crop_updates_effective_resolution(
     interface.lock = Lock()
     cas = CAS()
 
-    interface.set_data(cas)
+    interface.set_data(cas=cas)
 
     expected_resolution = CameraResolution(width=1280, height=960)
     assert cas.color_image.shape[:2] == (
@@ -831,7 +836,7 @@ def test_opencv_reader_stores_camera_observation(
         lambda: timestamp_nanoseconds,
     )
 
-    interface.set_data(cas)
+    interface.set_data(cas=cas)
 
     assert cas.camera_observation.camera.root.name.name == camera_info.header.frame_id
     assert cas.camera_observation.camera.modalities == (CameraModality.COLOR,)
@@ -974,4 +979,4 @@ def test_camera_pose_requires_a_sampled_transform(
 ) -> None:
     """A camera pose cannot be bound before its first successful TF lookup."""
     with pytest.raises(CameraPoseMissing):
-        transform_camera.world_T_camera_from_tf(Time())
+        transform_camera.world_T_camera_from_tf(timestamp=Time())

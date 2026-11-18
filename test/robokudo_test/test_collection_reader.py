@@ -98,7 +98,7 @@ def test_collection_reader_populates_fresh_cas(reader_pipeline: ReaderPipeline) 
     assert reader_pipeline.pipeline.cas.cas_id == original_cas.cas_id + 1
     reader_pipeline.camera_interface.has_new_data.assert_called_once_with()
     reader_pipeline.camera_interface.set_data.assert_called_once_with(
-        reader_pipeline.pipeline.cas
+        cas=reader_pipeline.pipeline.cas
     )
 
 

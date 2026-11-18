@@ -118,7 +118,7 @@ class StorageWriter(BaseAnnotator):
 
         persist_cas = copy.deepcopy(self.get_cas())
 
-        flat_cas = self.storage.generate_dict_from_real_cas(persist_cas)
+        flat_cas = self.storage.generate_dict_from_real_cas(cas=persist_cas)
         flat_cas["view_ids"] = {}
 
         world = robokudo.world.world_instance()
@@ -135,11 +135,11 @@ class StorageWriter(BaseAnnotator):
         flat_cas[StorageDocumentField.WORLD] = json_str
 
         # step 1: persist each view
-        self.storage.store_views_in_mongo(flat_cas)
+        self.storage.store_views_in_mongo(cas_dict=flat_cas)
 
         # step 2: persist cas and pointers to each view
         del flat_cas["views"]
-        result = self.storage.store_cas_dict(flat_cas)
+        result = self.storage.store_cas_dict(cas_dict=flat_cas)
         if not result.acknowledged:
             self.rk_logger.error(f"mongo db error when trying to store cas")
             return Status.FAILURE
