@@ -7,5 +7,5 @@
 - Read 2026-11-26 at `1c309c7af2`: merge probe CLEAN against main `81bf3ace24` (8 newer commits, none in coraplex or experiments); no PR on cram2 or the fork.
 
 ## Next
-- The user opens the draft PR to cram2 from `.files/pr_body.md`, adds `api-break`, and the plan item gets its number.
+- Draft PR #1076 on cram2 is open: the user adds `api-break` and discusses the break with the coraplex code owners before requesting review.
 - When semDT makes `RobotSpecification.spawn` and `MultiSim.step_simulation` keyword-only, add `*` to the coraplex stand-ins `RecordingRobotSpecification.spawn` and `SimulationThatCountsItsSteps.step_simulation`.
