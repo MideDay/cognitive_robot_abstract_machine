@@ -38,11 +38,13 @@ items:
   pull_request_number: null
   track: in-flight
   blockers:
-  - Fix for the exec'd cell script and the step_simulation stand-ins is in the working tree,
-    not yet amended into the methods commit; all 17 CI-gated MuJoCo files pass with it (164
-    passed).
-  - Full rerun runs/rebased5b (CI=true, sdt_robots onward, plus the robokudo MongoDB files)
-    in progress. Not pushed, no PR.
+    - >-
+      Fix for the exec'd cell script and the step_simulation stand-ins is in the working tree, not
+      yet amended into the methods commit; all 17 CI-gated MuJoCo files pass with it (164 passed).
+    - >-
+      Rerun runs/rebased5b stopped by the user during coraplex: 8 batches passed (5003). Resume with
+      coraplex, experiments, robokudo and the MongoDB files (run_rebased5b.sh, CI=true). Fix not yet
+      amended. Not pushed, no PR.
   depends_on: []
   status: in progress
   recommended_model: opus
