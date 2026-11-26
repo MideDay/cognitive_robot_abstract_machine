@@ -1,1 +1,2 @@
 fork_repository = "MideDay/cognitive_robot_abstract_machine"
+upstream_repository = "cram2/cognitive_robot_abstract_machine"
