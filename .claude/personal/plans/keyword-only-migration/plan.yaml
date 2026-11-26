@@ -38,6 +38,10 @@ items:
     branch: refactor/dataclass_pure_kwargs_coraplex
     pull_request_number: null
     track: in-flight
+    blockers:
+      - >-
+        Awaiting the user: open the draft PR to cram2 from .files/pr_body.md and add api-break (no
+        PR exists; merge probe CLEAN at 1c309c7af2 against main 81bf3ace24).
     depends_on: []
     status: in progress
     recommended_model: sonnet
