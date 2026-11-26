@@ -56,7 +56,7 @@ items:
   title: Make random_events' dataclass fields and method parameters keyword-only
   track: libraries
   depends_on: []
-  status: not started
+  status: in progress
   recommended_model: sonnet
   notes: 'Survey on 2026-11-26: 15 dataclasses and 58 methods in 8 files. Every package depends
     on it, so expect callers everywhere.'
