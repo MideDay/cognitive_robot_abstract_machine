@@ -36,12 +36,12 @@ items:
   - id: coraplex
     title: "Make coraplex's dataclass fields and method parameters keyword-only"
     branch: refactor/dataclass_pure_kwargs_coraplex
-    pull_request_number: null
+    pull_request_number: 1076
     track: in-flight
     blockers:
       - >-
-        Awaiting the user: open the draft PR to cram2 from .files/pr_body.md and add api-break (no
-        PR exists; merge probe CLEAN at 1c309c7af2 against main 81bf3ace24).
+        Awaiting the user: add the api-break label to #1076 and discuss the break with the coraplex
+        code owners or in the Cramgineers channel before requesting review.
     depends_on: []
     status: in progress
     recommended_model: sonnet
