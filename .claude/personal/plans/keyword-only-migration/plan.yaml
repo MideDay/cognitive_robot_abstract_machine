@@ -56,12 +56,11 @@ items:
     track: in-flight
     blockers:
       - >-
-        CI-only MuJoCo tests (CI=true, 18 files) never ran locally; 5 live-session tests fail at
-        ace404badc: cell script swing_the_hinge.py calls MujocoSim.step_simulation positionally
-        (exec'd, so no checker saw it).
+        Fix for the exec'd cell script and the step_simulation stand-ins is in the working tree, not
+        yet amended into the methods commit; all 17 CI-gated MuJoCo files pass with it (164 passed).
       - >-
-        Test run runs/rebased5 died during sdt_robots; the head 81bf3ace24 replay is untested. Not
-        pushed, no PR.
+        Full rerun runs/rebased5b (CI=true, sdt_robots onward, plus the robokudo MongoDB files) in
+        progress. Not pushed, no PR.
     depends_on: []
     status: in progress
     recommended_model: opus
