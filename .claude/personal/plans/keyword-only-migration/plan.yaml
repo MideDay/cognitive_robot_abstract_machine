@@ -54,6 +54,14 @@ items:
     branch: refactor/dataclass_pure_kwargs_semantic_digital_twin
     pull_request_number: null
     track: in-flight
+    blockers:
+      - >-
+        CI-only MuJoCo tests (CI=true, 18 files) never ran locally; 5 live-session tests fail at
+        ace404badc: cell script swing_the_hinge.py calls MujocoSim.step_simulation positionally
+        (exec'd, so no checker saw it).
+      - >-
+        Test run runs/rebased5 died during sdt_robots; the head 81bf3ace24 replay is untested. Not
+        pushed, no PR.
     depends_on: []
     status: in progress
     recommended_model: opus
