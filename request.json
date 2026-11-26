@@ -1,0 +1,9 @@
+{
+  "kind": "pull-request-report",
+  "request_identifier": "21f5d7530abb0c8a",
+  "upstream": "cram2/cognitive_robot_abstract_machine",
+  "fork_owner": "MideDay",
+  "pull_request": null,
+  "branch": "refactor/dataclass_pure_kwargs_coraplex",
+  "failure_logs": false
+}
