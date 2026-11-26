@@ -55,6 +55,8 @@ items:
 - id: random-events
   title: Make random_events' dataclass fields and method parameters keyword-only
   track: libraries
+  branch: refactor/dataclass_pure_kwargs_random_events
+  session: https://claude.ai/code/session_012wb1ereq2i4y8Fs4Jhgz32
   depends_on: []
   status: in progress
   recommended_model: sonnet
