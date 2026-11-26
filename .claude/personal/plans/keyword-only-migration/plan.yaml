@@ -1,0 +1,126 @@
+schema_version: 1
+id: keyword-only-migration
+title: "Keyword-only dataclasses and methods in every package"
+description: >
+  Make every dataclass kw_only=True and every method take its parameters after
+  self/cls by keyword only, package by package, as krrood check requires.
+  krrood (#923), cramph (#940), giskardpy (#967) and robokudo (#1062) are merged.
+default_repository: cram2/cognitive_robot_abstract_machine
+
+waves:
+  - id: in-flight
+    name: "In flight"
+    description: "Branches with the migration already done, waiting to be reviewed and merged."
+  - id: independent
+    name: "Packages below semantic_digital_twin, and leftovers"
+    description: "Packages semDT builds on, and gaps left in packages already migrated; independent of each other."
+  - id: leaves
+    name: "Packages built on semantic_digital_twin"
+    description: "Packages that call semDT, migrated after it so its keyword calls are in place."
+
+tracks:
+  - id: in-flight
+    name: "In flight"
+    wave: in-flight
+  - id: libraries
+    name: "Libraries"
+    wave: independent
+  - id: leftovers
+    name: "Leftovers"
+    wave: independent
+  - id: leaves
+    name: "Leaf packages"
+    wave: leaves
+
+items:
+  - id: coraplex
+    title: "Make coraplex's dataclass fields and method parameters keyword-only"
+    branch: refactor/dataclass_pure_kwargs_coraplex
+    pull_request_number: null
+    track: in-flight
+    depends_on: []
+    status: in progress
+    recommended_model: sonnet
+    notes: >
+      Pushed to work at 1c309c7af2 (fields, methods, rule fixes, main merged); tests pass.
+      Waiting for the user to open the draft PR from the plan .files/pr_body.md and add api-break.
+      Two test stand-ins stay positional until semDT converts spawn and step_simulation.
+  - id: semantic-digital-twin
+    title: "Make semantic_digital_twin's dataclass fields and method parameters keyword-only"
+    branch: refactor/dataclass_pure_kwargs_semantic_digital_twin
+    pull_request_number: null
+    track: in-flight
+    depends_on: []
+    status: in progress
+    recommended_model: opus
+    notes: >
+      Two local commits (67dee9c8e9 fields, 245abbb48f methods) in worktree
+      ~/libs/cognitive_robot_abstract_machine-main, not pushed, 30 commits behind main.
+      Catch up with main (and coraplex, if it merged first) with the catch-up codemods; status in plan peppy-bumblebee.
+      Then add * to coraplex's stand-ins RecordingRobotSpecification.spawn and SimulationThatCountsItsSteps.step_simulation.
+  - id: random-events
+    title: "Make random_events' dataclass fields and method parameters keyword-only"
+    track: libraries
+    depends_on: []
+    status: not started
+    recommended_model: sonnet
+    notes: "Survey on 2026-11-26: 15 dataclasses and 58 methods in 8 files. Every package depends on it, so expect callers everywhere."
+  - id: physics-simulators
+    title: "Make physics_simulators' dataclass fields and method parameters keyword-only"
+    track: libraries
+    depends_on: []
+    status: not started
+    recommended_model: sonnet
+    notes: >
+      Survey on 2026-11-26: 7 dataclasses and 47 methods in 2 files, plus its tests.
+      semDT's multi_sim hands it callbacks and overrides, which may need @called_positionally.
+  - id: domain-models
+    title: "Make the domain_models packages' dataclass fields and method parameters keyword-only"
+    track: libraries
+    depends_on: []
+    status: not started
+    recommended_model: haiku
+    notes: >
+      krrood_spatial_math, krrood_compute_resources and krrood_synchronization, and test/krrood_spatial_math_test.
+      Survey on 2026-11-26: 19 dataclasses and 83 methods in 3 files.
+  - id: probabilistic-model
+    title: "Make probabilistic_model's dataclass fields and method parameters keyword-only"
+    track: libraries
+    depends_on: []
+    status: deferred
+    recommended_model: sonnet
+    notes: "Its maintainers (Tom Schierenbeck and others) convert it piece by piece with their feature work; left to them."
+  - id: done-package-leftovers
+    title: "Convert what the migrated packages still take positionally"
+    track: leftovers
+    depends_on: []
+    status: not started
+    recommended_model: haiku
+    notes: >
+      robokudo tests: about 154 test methods take fixtures positionally. krrood: dataclass_source.py, code_generation
+      and eql/rdr exceptions, corner_case.py, and test mimics. giskardpy: 5 in test_ros2_stuff.
+  - id: segmind
+    title: "Make segmind's dataclass fields and method parameters keyword-only"
+    track: leaves
+    depends_on: [semantic-digital-twin]
+    status: not started
+    recommended_model: sonnet
+    notes: "Survey on 2026-11-26: 38 dataclasses and 90 methods in 20 files, plus its tests."
+  - id: root-package
+    title: "Make the root package and the top-level test helpers keyword-only"
+    track: leaves
+    depends_on: [semantic-digital-twin]
+    status: not started
+    recommended_model: haiku
+    notes: >
+      cognitive_robot_abstract_machine/ (exceptions, orm_generation, orm_interfaces), the test/*.py helpers,
+      test/dataset, test/cognitive_robot_abstract_machine_test and .github/docker/setup_workspace.py.
+  - id: experiments
+    title: "Make experiments' dataclass fields and method parameters keyword-only"
+    track: leaves
+    depends_on: [semantic-digital-twin, coraplex]
+    status: not started
+    recommended_model: opus
+    notes: >
+      Last: it calls every other package and nothing imports it. Survey on 2026-11-26: 182 dataclasses and
+      233 methods in 49 files, plus its tests. coraplex already converted its demonstration overrides.
