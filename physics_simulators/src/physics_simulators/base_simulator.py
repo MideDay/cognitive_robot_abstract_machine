@@ -33,14 +33,14 @@ class SimulatorStopReason(Enum):
     OTHER = 5
 
 
-@dataclass
+@dataclass(kw_only=True)
 class SimulatorConstraints:
     max_real_time: float = None
     max_simulation_time: float = None
     max_number_of_steps: int = None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class SimulatorRenderer:
     """
     Base class for Renderer.
@@ -78,7 +78,7 @@ class SimulatorRenderer:
         self._is_running = False
 
 
-@dataclass
+@dataclass(kw_only=True)
 class SimulatorCallbackResult:
     """
     Container for callback result, including its type, info, and result.
@@ -127,7 +127,7 @@ class SimulatorCallbackResult:
         return self
 
 
-@dataclass
+@dataclass(kw_only=True)
 class SimulatorCallback:
     """
     Base class for Simulator Callback.
@@ -164,7 +164,7 @@ class SimulatorCallback:
         return result
 
 
-@dataclass
+@dataclass(kw_only=True)
 class BaseSimulator:
     """
     Base class for Base Simulator.

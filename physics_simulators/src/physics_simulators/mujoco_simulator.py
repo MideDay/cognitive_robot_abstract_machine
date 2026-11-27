@@ -54,7 +54,7 @@ class MujocoEnvironmentVariable(StrEnum):
     """
 
 
-@dataclass
+@dataclass(kw_only=True)
 class MujocoRenderer(SimulatorRenderer):
     """
     MuJoCo Renderer class.
@@ -75,7 +75,7 @@ class MujocoRenderer(SimulatorRenderer):
         return self._mj_viewer
 
 
-@dataclass(unsafe_hash=True)
+@dataclass(unsafe_hash=True, kw_only=True)
 class MujocoSimulator(BaseSimulator):
     """
     Mujoco Simulator class.

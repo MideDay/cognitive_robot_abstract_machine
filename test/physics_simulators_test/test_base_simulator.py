@@ -31,9 +31,9 @@ class TestBaseSimulator:
         ) -> BaseSimulator:
             callbacks = callbacks or []
             simulator = self.Simulator(
-                self.headless,
-                self.step_size if step_size is None else step_size,
-                callbacks,
+                _headless=self.headless,
+                _step_size=self.step_size if step_size is None else step_size,
+                _callbacks=callbacks,
             )
             return simulator
 
@@ -247,7 +247,7 @@ class TestBaseSimulator:
         ) -> SimulatorCallbackResult:
             return result_1
 
-        function_1 = SimulatorCallback(function_1)
+        function_1 = SimulatorCallback(callback=function_1)
 
         result_2 = SimulatorCallbackResult(
             type=SimulatorCallbackResult.ResultType.FAILURE_AFTER_EXECUTION_ON_DATA,
@@ -260,7 +260,7 @@ class TestBaseSimulator:
         ) -> SimulatorCallbackResult:
             return result_2
 
-        function_2 = SimulatorCallback(function_2)
+        function_2 = SimulatorCallback(callback=function_2)
 
         simulator = simulator_factory(callbacks=[function_1, function_2])
         self._assert_initialized(simulator)
