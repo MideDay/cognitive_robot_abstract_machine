@@ -9,6 +9,8 @@
 - Stack pass: success, nothing to do (`work/main` at `bae41bf22c`). `/upstream-reviews`: #1084 approved by LucaKro, no threads; CI tests skipped on the draft (only `find-api-breaks` and `label` ran, both passed).
 - Fields commit applied cleanly; methods commit: 5 conflicts combined by hand (random_events keywords from main + semDT keywords from the branch). 0 positional lines in semDT; no fields call edits needed.
 
+- Replayed: fields `60167ecf0e`, methods `29f598dbda`; catch-up found nothing new; mypy `call-arg` diff empty; import sweep as main; ORM regenerated.
+
 ## Next
-- Methods catch-up dry run, then the checks and the test run.
+- Read `runs/rebased7*` (CI=true), then ask before force-pushing.
 - Labels: `api-break` is set; `maintenance` still missing (the user).
