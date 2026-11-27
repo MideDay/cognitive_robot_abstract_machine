@@ -39,9 +39,8 @@ items:
   track: in-flight
   blockers:
     - >-
-      PR #1084 (112c015e2f) conflicts with main bae41bf22c (random_events #1082, #1060) in 5 semDT
-      files (merge probe 2026-11-27). Replay with the catch-up codemods next. LucaKro approved
-      112c015e2f; CI tests skipped on the draft.
+      Replayed onto main bae41bf22c (fields 60167ecf0e, methods 29f598dbda), not pushed yet; static
+      checks clean; CI=true test run runs/rebased7 in progress. PR #1084 still at 112c015e2f.
   depends_on: []
   status: in progress
   recommended_model: opus
