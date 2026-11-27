@@ -1,12 +1,11 @@
 ## Plan
-- Make physics_simulators' 7 dataclasses `kw_only=True` and its 47 methods (plus 23 test methods) keyword-only, with the callers in semDT, cramph, giskardpy, coraplex, experiments and the semDT book (item physics-simulators of plan keyword-only-migration).
-- `simulator_callback` is a decorator and gets `@called_positionally`; `start` hands `run` its constraints by `kwargs=`.
+- Make physics_simulators' 7 dataclasses `kw_only=True` and its 47 methods (plus 23 test methods) keyword-only, with the callers in semDT, cramph, giskardpy, coraplex and experiments (item physics-simulators of plan keyword-only-migration).
 - Plan, decisions and helpers: `~/.claude/plans/keyword-only-physics-simulators.md`, `.files/` next to it.
 
 ## Done
-- Bootstrap `bd70eed92e` on main `bae41bf22c` pushed to `work`; item recorded in progress (no PR number yet).
+- Local, not pushed: fields `2034c6480f`, methods `61774ad5fc` (`simulator_callback` marked `@called_positionally`; physics_simulators now depends on `krrood>=26.10.0`, user approved), check fixes `41057ec89c` (CI's `krrood check --since HEAD^1`).
+- Checker 0 positional left; mypy same as main. Tests with CI=true pass for physics_simulators, cramph pacer, semDT MuJoCo adapters, multi_sim and robots, giskardpy MuJoCo and coraplex mobile robot.
 
 ## Next
-- Commit 1 (fields): codemod, checker, tests; ask before committing.
-- Commit 2 (methods), then verify: checkers, mypy, tests per package, the book page's cells.
+- Experiments live-session tests are still running; then ask before pushing to `work`.
 - The user opens the draft PR from `.files/pr_body.md` and adds `api-break`.
