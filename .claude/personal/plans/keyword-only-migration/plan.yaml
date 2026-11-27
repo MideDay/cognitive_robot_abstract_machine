@@ -39,21 +39,22 @@ items:
   track: in-flight
   blockers:
     - >-
-      Fix for the exec'd cell script and the step_simulation stand-ins is in the working tree, not
-      yet amended into the methods commit; all 17 CI-gated MuJoCo files pass with it (164 passed).
+      Behind main 913a92c231 by 55 commits, which include coraplex #1076 (merged), #1065, #1069 and
+      #1072; this branch merges second, so it replays onto main and reruns the catch-up codemods
+      (read 2026-11-27).
     - >-
-      Rerun runs/rebased5b stopped by the user during coraplex: 8 batches passed (5003). Resume with
-      coraplex, experiments, robokudo and the MongoDB files (run_rebased5b.sh, CI=true). Fix not yet
-      amended. Not pushed, no PR.
+      The step_simulation fix (swing_the_hinge.py, coraplex conftest, test_pacer.py) is still in the
+      working tree of ace404badc, to be amended before the replay; the CI=true test rerun has to run
+      again on the replayed commits. Not pushed, no PR, no upstream PR.
   depends_on: []
   status: in progress
   recommended_model: opus
-  notes: 'Two local commits (67dee9c8e9 fields, 245abbb48f methods) in worktree ~/libs/cognitive_robot_abstract_machine-main,
-    not pushed, 30 commits behind main. Catch up with main (and coraplex, if it merged first)
-    with the catch-up codemods; status in plan peppy-bumblebee. Then add * to coraplex''s
-    stand-ins RecordingRobotSpecification.spawn and SimulationThatCountsItsSteps.step_simulation.
-
-    '
+  notes: >
+    Two local commits on main 81bf3ace24 (fields 1afa0bb6a5, methods ace404badc) in worktree
+    ~/libs/cognitive_robot_abstract_machine-main; replay details in plan peppy-bumblebee. Coraplex
+    merged first (#1076), so this branch reruns the catch-up codemods over coraplex's new code;
+    RecordingRobotSpecification.spawn already has its *, and
+    SimulationThatCountsItsSteps.step_simulation gets it in the working-tree fix.
 - id: random-events
   title: Make random_events' dataclass fields and method parameters keyword-only
   track: libraries
