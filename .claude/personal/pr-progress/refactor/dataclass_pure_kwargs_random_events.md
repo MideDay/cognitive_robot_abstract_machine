@@ -3,10 +3,10 @@
 - Plan, status and helpers: `~/.claude/plans/keyword-only-random-events.md`, `.files/` next to it.
 
 ## Done
-- Bootstrap `8721e88a37` pushed to `work`. Commit 1 (fields) `7d12c7ee93`, local.
-- 2026-11-27: main `913a92c231` merged locally as `8759e30cf1`; 6 positional `Continuous`/`Integer` calls from #1069 keywordized (uncommitted, goes into the methods commit's catch-up). 58 methods confirmed (`CPPWrapper._from_cpp` was only missed by the earlier check run).
+- Bootstrap `8721e88a37` pushed to `work`. Commit 1 (fields) `7d12c7ee93` and the merge of main `913a92c231` (`8759e30cf1`), local.
+- Methods change in the working tree: 58 methods, 988 codemod + 25 hand call edits, 53 doc edits, plus 6 constructions commit 1 missed (runtime classes) - the user wants those in commit 2.
+- Read 2026-11-27 on the working tree: every suite green except 6 gazebo warehouse errors (ROS package missing locally); CI=true MuJoCo, live session and coraplex green; 12 of 14 docs run, the 2 krrood ones fail on main too.
 
 ## Next
-- Commit 2 (methods): `kwonly_methods.py` with `CHECK_FILE=check_merged.txt` over the merged file list, then `md_methods.py` for the docs.
-- Verify: checkers, mypy, tests per package, docs cells. Ask before each commit and push.
+- Ask before commit 2 and before pushing with `maintenance push`.
 - The user opens the draft PR from `.files/pr_body.md` and adds `api-break`.
