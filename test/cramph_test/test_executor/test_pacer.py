@@ -226,8 +226,9 @@ class SimulationOfSettlingJoints:
         for joint in self.joints.values():
             joint.step()
 
-    @called_positionally
-    def get_actuators_lengths(self, actuator_names: list[str]) -> ActuatorLengthsRead:
+    def get_actuators_lengths(
+        self, *, actuator_names: list[str]
+    ) -> ActuatorLengthsRead:
         """
         :param actuator_names: The servos to read, each named after its joint.
         :return: Where the joint of each of them stands.

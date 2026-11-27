@@ -32,14 +32,18 @@ def test_a_restored_snapshot_puts_the_joint_back_where_it_was():
         world.notify_state_change()
         simulation.step_simulation(timedelta(seconds=0.2))
         snapshot = simulation.take_snapshot()
-        position_at_snapshot = simulation.simulator.get_joint_value("hinge").result
+        position_at_snapshot = simulation.simulator.get_joint_value(
+            joint_name="hinge"
+        ).result
         world.state[degree_of_freedom].position = -0.5
         world.notify_state_change()
         simulation.step_simulation(timedelta(seconds=1))
 
         simulation.restore_snapshot(snapshot=snapshot)
 
-        restored_position = simulation.simulator.get_joint_value("hinge").result
+        restored_position = simulation.simulator.get_joint_value(
+            joint_name="hinge"
+        ).result
     finally:
         simulation.stop_simulation()
 
@@ -63,7 +67,9 @@ def test_continuing_from_a_restored_snapshot_repeats_what_followed_it():
         simulation.step_simulation(timedelta(seconds=0.1))
         snapshot = simulation.take_snapshot()
         simulation.step_simulation(timedelta(seconds=0.3))
-        first_continuation = simulation.simulator.get_joint_value("hinge").result
+        first_continuation = simulation.simulator.get_joint_value(
+            joint_name="hinge"
+        ).result
         world.state[degree_of_freedom].position = -0.5
         world.notify_state_change()
         simulation.step_simulation(timedelta(seconds=1))
@@ -71,7 +77,9 @@ def test_continuing_from_a_restored_snapshot_repeats_what_followed_it():
         simulation.restore_snapshot(snapshot=snapshot)
         simulation.step_simulation(timedelta(seconds=0.3))
 
-        second_continuation = simulation.simulator.get_joint_value("hinge").result
+        second_continuation = simulation.simulator.get_joint_value(
+            joint_name="hinge"
+        ).result
     finally:
         simulation.stop_simulation()
 

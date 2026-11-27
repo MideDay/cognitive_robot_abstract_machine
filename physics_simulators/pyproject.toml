@@ -17,6 +17,7 @@ classifiers = [
 ]
 dependencies = [
     "mujoco==4.0.1",
+    "krrood>=26.10.0",
 ]
 
 [project.urls]

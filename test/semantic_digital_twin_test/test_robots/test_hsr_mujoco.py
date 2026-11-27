@@ -242,7 +242,9 @@ def test_the_servos_drive_the_joints_to_a_commanded_configuration(hsrb):
         _command(hsrb, commanded)
         simulation.step_simulation(timedelta(seconds=3))
         reached = {
-            joint_name: simulation.simulator.get_joint_value(joint_name).result
+            joint_name: simulation.simulator.get_joint_value(
+                joint_name=joint_name
+            ).result
             for joint_name in commanded
         }
     finally:
@@ -260,7 +262,9 @@ def test_the_torso_rises_with_half_the_arm_lift(hsrb):
     try:
         _command(hsrb, {HSRBJoint.ARM_LIFT: 0.4})
         simulation.step_simulation(timedelta(seconds=4))
-        torso_lift = simulation.simulator.get_joint_value(HSRBJoint.TORSO_LIFT).result
+        torso_lift = simulation.simulator.get_joint_value(
+            joint_name=HSRBJoint.TORSO_LIFT
+        ).result
     finally:
         simulation.stop_simulation()
 
@@ -287,7 +291,9 @@ def test_the_arm_comes_to_rest_held_out_sideways(hsrb):
             simulation.step_simulation(timedelta(milliseconds=10))
             held.append(
                 {
-                    joint_name: simulation.simulator.get_joint_value(joint_name).result
+                    joint_name: simulation.simulator.get_joint_value(
+                        joint_name=joint_name
+                    ).result
                     for joint_name in commanded
                 }
             )

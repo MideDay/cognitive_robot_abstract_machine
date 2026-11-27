@@ -420,7 +420,7 @@ def test_each_equally_named_servo_is_commanded_with_its_own_set_point(
         simulation.step_simulation(timedelta(seconds=2))
         reached = [
             simulation.simulator.get_joint_value(
-                simulation.synchronizer.element_names.of(pendulum.hinge)
+                joint_name=simulation.synchronizer.element_names.of(pendulum.hinge)
             ).result
             for pendulum in pendulums
         ]

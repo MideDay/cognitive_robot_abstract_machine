@@ -83,7 +83,9 @@ class PendulumSession:
         """
         Where the physics has the hinge now.
         """
-        return self.session.simulation.simulator.get_joint_value("hinge").result
+        return self.session.simulation.simulator.get_joint_value(
+            joint_name="hinge"
+        ).result
 
 
 @pytest.fixture

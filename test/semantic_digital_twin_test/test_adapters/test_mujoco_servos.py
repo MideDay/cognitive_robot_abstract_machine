@@ -233,9 +233,9 @@ def test_a_servoed_joint_is_driven_towards_the_world_state_not_teleported():
         world.state[pendulum.hinge.raw_dof.id].position = set_point
         world.notify_state_change()
         simulation.step_simulation(timedelta(seconds=simulator.step_size))
-        after_one_step = simulator.get_joint_value("hinge").result
+        after_one_step = simulator.get_joint_value(joint_name="hinge").result
         simulation.step_simulation(timedelta(seconds=2))
-        settled = simulator.get_joint_value("hinge").result
+        settled = simulator.get_joint_value(joint_name="hinge").result
     finally:
         simulation.stop_simulation()
 
@@ -262,7 +262,7 @@ def test_starting_the_simulation_holds_a_servoed_joint_where_the_world_has_it():
     simulation.start_stepped_simulation()
     try:
         simulation.step_simulation(timedelta(seconds=1))
-        held = simulation.simulator.get_joint_value("hinge").result
+        held = simulation.simulator.get_joint_value(joint_name="hinge").result
     finally:
         simulation.stop_simulation()
 
@@ -355,7 +355,7 @@ def test_a_blocked_servoed_joint_shows_where_the_physics_stopped_it():
         world.state[pendulum.hinge.raw_dof.id].position = set_point
         world.notify_state_change()
         simulation.step_simulation(timedelta(seconds=2))
-        stuck = simulation.simulator.get_joint_value("hinge").result
+        stuck = simulation.simulator.get_joint_value(joint_name="hinge").result
     finally:
         simulation.stop_simulation()
 
@@ -386,7 +386,9 @@ def test_a_blocked_servoed_joint_keeps_being_pushed_towards_its_set_point():
         world.state[degree_of_freedom.id].position += further
         world.notify_state_change()
         simulation.step_simulation(timedelta(seconds=1))
-        control = simulation.simulator.get_actuator("hinge_servo").result.ctrl[0]
+        control = simulation.simulator.get_actuator(
+            actuator_name="hinge_servo"
+        ).result.ctrl[0]
     finally:
         simulation.stop_simulation()
 

@@ -191,12 +191,12 @@ class SteppedSimulationPacer(Pacer):
             return
         simulator = self.simulation.simulator
         standstill_travel = self.standstill_velocity / self.target_frequency
-        previous = simulator.get_actuators_lengths(servo_names).result
+        previous = simulator.get_actuators_lengths(actuator_names=servo_names).result
         for _ in range(
             int(self.standstill_time_limit.total_seconds() * self.target_frequency)
         ):
             self.sleep()
-            current = simulator.get_actuators_lengths(servo_names).result
+            current = simulator.get_actuators_lengths(actuator_names=servo_names).result
             travelled = max(
                 abs(current[servo_name] - previous[servo_name])
                 for servo_name in servo_names

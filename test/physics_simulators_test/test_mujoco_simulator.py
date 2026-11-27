@@ -46,7 +46,7 @@ class TestMujocoSimulator:
         except Exception:
             pass
 
-    def test_functions(self, simulator):
+    def test_functions(self, *, simulator):
         simulator.start(simulate_in_thread=False, render_in_thread=True)
 
         key_id = None
@@ -466,7 +466,7 @@ class TestMujocoSimulator:
 
         simulator.stop()
 
-    def test_set_geom_friction_overrides_the_model_value(self, simulator):
+    def test_set_geom_friction_overrides_the_model_value(self, *, simulator):
         """
         set_geom_friction must write directly into the compiled MuJoCo model, so a
         subsequent get_geom_friction observes the new value -- no simulation step is
@@ -488,7 +488,7 @@ class TestMujocoSimulator:
         )
         assert numpy.allclose(result.result, new_friction)
 
-    def test_set_geom_friction_fails_for_unknown_geom(self, simulator):
+    def test_set_geom_friction_fails_for_unknown_geom(self, *, simulator):
         """
         set_geom_friction must report failure rather than raising or silently doing
         nothing when the requested geom does not exist in the model.
@@ -502,7 +502,9 @@ class TestMujocoSimulator:
 
     # %% actuator control
 
-    def test_set_actuator_control_hands_the_actuator_a_new_set_point(self, simulator):
+    def test_set_actuator_control_hands_the_actuator_a_new_set_point(
+        self, *, simulator
+    ):
         """
         set_actuator_control must write the value into the actuator's own control input,
         so a subsequent get_actuator reads it back -- without moving the joint outright
@@ -521,7 +523,9 @@ class TestMujocoSimulator:
         actuator = simulator.callbacks["get_actuator"](actuator_name="actuator1")
         assert actuator.result.ctrl[0] == set_point
 
-    def test_set_actuator_control_reports_an_already_reached_set_point(self, simulator):
+    def test_set_actuator_control_reports_an_already_reached_set_point(
+        self, *, simulator
+    ):
         simulator.callbacks["set_actuator_control"](
             actuator_name="actuator1", value=0.5
         )
@@ -533,7 +537,7 @@ class TestMujocoSimulator:
             result.type is SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
         )
 
-    def test_set_actuator_control_fails_for_unknown_actuator(self, simulator):
+    def test_set_actuator_control_fails_for_unknown_actuator(self, *, simulator):
         result = simulator.callbacks["set_actuator_control"](
             actuator_name="this_actuator_does_not_exist", value=0.5
         )
@@ -548,7 +552,7 @@ class TestMujocoSimulatorComplex:
     headless = headless
     step_size = 5e-4
 
-    def make_simulator(self, headless=None):
+    def make_simulator(self, *, headless=None):
         if headless is None:
             headless = self.headless
         return MujocoSimulator(
@@ -672,7 +676,7 @@ class TestOffscreenRenderingAvailability:
     """
 
     @pytest.fixture(autouse=True)
-    def no_graphics_environment(self, monkeypatch):
+    def no_graphics_environment(self, *, monkeypatch):
         monkeypatch.delenv(MujocoEnvironmentVariable.GRAPHICS_BACKEND, raising=False)
         monkeypatch.delenv(MujocoEnvironmentVariable.DISPLAY, raising=False)
 
@@ -680,17 +684,17 @@ class TestOffscreenRenderingAvailability:
         assert not MujocoSimulator.offscreen_rendering_available()
 
     @pytest.mark.parametrize("backend", list(HeadlessGraphicsBackend))
-    def test_available_with_headless_backend(self, monkeypatch, backend):
+    def test_available_with_headless_backend(self, *, monkeypatch, backend):
         monkeypatch.setenv(MujocoEnvironmentVariable.GRAPHICS_BACKEND, backend)
 
         assert MujocoSimulator.offscreen_rendering_available()
 
-    def test_unavailable_with_windowed_backend_and_no_display(self, monkeypatch):
+    def test_unavailable_with_windowed_backend_and_no_display(self, *, monkeypatch):
         monkeypatch.setenv(MujocoEnvironmentVariable.GRAPHICS_BACKEND, "glfw")
 
         assert not MujocoSimulator.offscreen_rendering_available()
 
-    def test_available_with_display(self, monkeypatch):
+    def test_available_with_display(self, *, monkeypatch):
         monkeypatch.setenv(MujocoEnvironmentVariable.DISPLAY, ":1")
 
         assert MujocoSimulator.offscreen_rendering_available()

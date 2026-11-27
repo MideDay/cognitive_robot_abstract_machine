@@ -39,13 +39,13 @@ class TestBaseSimulator:
 
         return _make_simulator
 
-    def _assert_initialized(self, simulator: BaseSimulator) -> None:
+    def _assert_initialized(self, *, simulator: BaseSimulator) -> None:
         assert simulator.state is SimulatorState.STOPPED
         assert simulator.headless is self.headless
         assert simulator.stop_reason is None
         assert simulator.simulation_thread is None
 
-    def _start_and_stop_simulator(self, simulator: BaseSimulator) -> BaseSimulator:
+    def _start_and_stop_simulator(self, *, simulator: BaseSimulator) -> BaseSimulator:
         simulator.start()
         assert simulator.state is SimulatorState.RUNNING
 
@@ -56,7 +56,9 @@ class TestBaseSimulator:
         assert not simulator.simulation_thread.is_alive()
         return simulator
 
-    def _pause_and_unpause_simulator(self, simulator: BaseSimulator) -> BaseSimulator:
+    def _pause_and_unpause_simulator(
+        self, *, simulator: BaseSimulator
+    ) -> BaseSimulator:
         simulator.start()
         assert simulator.state is SimulatorState.RUNNING
 
@@ -75,6 +77,7 @@ class TestBaseSimulator:
 
     def _run_with_constraints(
         self,
+        *,
         simulator: BaseSimulator,
         constraints: SimulatorConstraints | None = None,
     ) -> BaseSimulator:
@@ -129,23 +132,23 @@ class TestBaseSimulator:
 
         return simulator
 
-    def test_initialize_simulator(self, simulator_factory):
+    def test_initialize_simulator(self, *, simulator_factory):
         simulator = simulator_factory()
-        self._assert_initialized(simulator)
+        self._assert_initialized(simulator=simulator)
 
-    def test_start_and_stop_simulator(self, simulator_factory):
+    def test_start_and_stop_simulator(self, *, simulator_factory):
         simulator = simulator_factory()
-        self._assert_initialized(simulator)
-        self._start_and_stop_simulator(simulator)
+        self._assert_initialized(simulator=simulator)
+        self._start_and_stop_simulator(simulator=simulator)
 
-    def test_pause_and_unpause_simulator(self, simulator_factory):
+    def test_pause_and_unpause_simulator(self, *, simulator_factory):
         simulator = simulator_factory()
-        self._assert_initialized(simulator)
-        self._pause_and_unpause_simulator(simulator)
+        self._assert_initialized(simulator=simulator)
+        self._pause_and_unpause_simulator(simulator=simulator)
 
-    def test_step_simulator(self, simulator_factory):
+    def test_step_simulator(self, *, simulator_factory):
         simulator = simulator_factory()
-        self._assert_initialized(simulator)
+        self._assert_initialized(simulator=simulator)
 
         simulator.start(simulate_in_thread=False)
         assert simulator.stop_reason is None
@@ -166,9 +169,9 @@ class TestBaseSimulator:
         simulator.stop()
         assert simulator.stop_reason is SimulatorStopReason.STOP
 
-    def test_reset_simulator(self, simulator_factory):
+    def test_reset_simulator(self, *, simulator_factory):
         simulator = simulator_factory()
-        self._assert_initialized(simulator)
+        self._assert_initialized(simulator=simulator)
 
         simulator.start(simulate_in_thread=False)
         simulator.reset()
@@ -179,53 +182,53 @@ class TestBaseSimulator:
         simulator.stop()
         assert simulator.stop_reason is SimulatorStopReason.STOP
 
-    def test_run_with_constraints_simulator(self, simulator_factory):
+    def test_run_with_constraints_simulator(self, *, simulator_factory):
         simulator = simulator_factory()
-        self._assert_initialized(simulator)
+        self._assert_initialized(simulator=simulator)
 
         constraints = SimulatorConstraints(max_number_of_steps=10)
-        self._run_with_constraints(simulator, constraints=constraints)
+        self._run_with_constraints(simulator=simulator, constraints=constraints)
 
-    def test_run_with_multiple_constraints_simulator(self, simulator_factory):
+    def test_run_with_multiple_constraints_simulator(self, *, simulator_factory):
         max_number_of_steps = 10
         max_simulation_time = 0.01
         max_real_time = 0.1
 
         simulator = simulator_factory()
-        self._assert_initialized(simulator)
+        self._assert_initialized(simulator=simulator)
         constraints = SimulatorConstraints(max_number_of_steps=max_number_of_steps)
-        self._run_with_constraints(simulator, constraints=constraints)
+        self._run_with_constraints(simulator=simulator, constraints=constraints)
         assert simulator.current_number_of_steps == max_number_of_steps
         assert simulator.stop_reason is SimulatorStopReason.MAX_NUMBER_OF_STEPS
 
         simulator = simulator_factory()
-        self._assert_initialized(simulator)
+        self._assert_initialized(simulator=simulator)
         constraints = SimulatorConstraints(max_simulation_time=max_simulation_time)
-        self._run_with_constraints(simulator, constraints=constraints)
+        self._run_with_constraints(simulator=simulator, constraints=constraints)
         assert simulator.current_simulation_time == pytest.approx(max_simulation_time)
 
         simulator = simulator_factory()
-        self._assert_initialized(simulator)
+        self._assert_initialized(simulator=simulator)
         constraints = SimulatorConstraints(max_real_time=max_real_time)
-        self._run_with_constraints(simulator, constraints=constraints)
+        self._run_with_constraints(simulator=simulator, constraints=constraints)
         assert (
             simulator.current_real_time - simulator.start_real_time
             <= max_real_time + 1.0
         )
 
         simulator = simulator_factory()
-        self._assert_initialized(simulator)
+        self._assert_initialized(simulator=simulator)
         constraints = SimulatorConstraints(
             max_number_of_steps=max_number_of_steps,
             max_simulation_time=max_simulation_time,
             max_real_time=max_real_time,
         )
-        self._run_with_constraints(simulator, constraints=constraints)
+        self._run_with_constraints(simulator=simulator, constraints=constraints)
         assert simulator.stop_reason is not None
 
-    def test_real_time(self, simulator_factory):
+    def test_real_time(self, *, simulator_factory):
         simulator = simulator_factory(step_size=1e-4)
-        self._assert_initialized(simulator)
+        self._assert_initialized(simulator=simulator)
 
         constraints = SimulatorConstraints(max_real_time=1.0)
         simulator.start(constraints=constraints)
@@ -235,7 +238,7 @@ class TestBaseSimulator:
 
         assert simulator.state is SimulatorState.STOPPED
 
-    def test_making_functions(self, simulator_factory):
+    def test_making_functions(self, *, simulator_factory):
         result_1 = SimulatorCallbackResult(
             type=SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION,
             info="Test function 1",
@@ -263,7 +266,7 @@ class TestBaseSimulator:
         function_2 = SimulatorCallback(callback=function_2)
 
         simulator = simulator_factory(callbacks=[function_1, function_2])
-        self._assert_initialized(simulator)
+        self._assert_initialized(simulator=simulator)
 
         assert simulator.callbacks["function_1"]() == result_1
         assert simulator.callbacks["function_2"]() == result_2

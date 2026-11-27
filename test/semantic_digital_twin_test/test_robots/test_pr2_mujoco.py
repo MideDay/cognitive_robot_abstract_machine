@@ -318,7 +318,9 @@ def test_the_servos_drive_the_joints_to_a_commanded_configuration(pr2):
         world.notify_state_change()
         simulation.step_simulation(timedelta(seconds=3))
         reached = {
-            joint_name: simulation.simulator.get_joint_value(joint_name).result
+            joint_name: simulation.simulator.get_joint_value(
+                joint_name=joint_name
+            ).result
             for joint_name in commanded
         }
     finally:
@@ -344,7 +346,9 @@ def test_the_finger_servo_closes_the_gripper(pr2):
         closed.apply_to(world)
         world.notify_state_change()
         simulation.step_simulation(timedelta(seconds=1))
-        reached = simulation.simulator.get_joint_value(finger_joint.name.name).result
+        reached = simulation.simulator.get_joint_value(
+            joint_name=finger_joint.name.name
+        ).result
     finally:
         simulation.stop_simulation()
 

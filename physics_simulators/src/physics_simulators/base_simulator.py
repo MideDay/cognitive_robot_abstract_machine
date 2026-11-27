@@ -9,6 +9,8 @@ from functools import partial
 from threading import Thread
 from typing_extensions import Any, Callable, ClassVar
 
+from krrood.patterns.called_positionally import called_positionally
+
 
 class SimulatorState(Enum):
     """
@@ -266,7 +268,7 @@ class BaseSimulator:
         self._current_render_time = self.current_real_time
         self.instance_level_callbacks = []
         for func in self._callbacks:
-            self.add_instance_callback(func)
+            self.add_instance_callback(callback=func)
         atexit.register(self.stop)
 
     @property
@@ -281,6 +283,7 @@ class BaseSimulator:
 
     def start(
         self,
+        *,
         simulate_in_thread: bool = True,
         render_in_thread: bool = False,
         constraints: SimulatorConstraints = None,
@@ -303,16 +306,18 @@ class BaseSimulator:
                 break
             time.sleep(0.1)
             if i % 10 == 0:
-                self.log_info(f"Waiting for {self.renderer.__name__} to start")
+                self.log_info(message=f"Waiting for {self.renderer.__name__} to start")
         else:
-            self.log_error(f"{self.renderer.__name__} is not running")
+            self.log_error(message=f"{self.renderer.__name__} is not running")
             return
         self._current_number_of_steps = 0
         self._start_real_time = self.current_real_time
         self._state = SimulatorState.RUNNING
         self._stop_reason = None
         if simulate_in_thread:
-            self.simulation_thread = Thread(target=self.run, args=(constraints,))
+            self.simulation_thread = Thread(
+                target=self.run, kwargs={"constraints": constraints}
+            )
             self.simulation_thread.start()
         if not self.headless and render_in_thread:
 
@@ -325,7 +330,7 @@ class BaseSimulator:
             self.render_thread = Thread(target=render)
             self.render_thread.start()
 
-    def run(self, constraints: SimulatorConstraints = None):
+    def run(self, *, constraints: SimulatorConstraints = None):
         """
         Run the simulator while the state is RUNNING or until the constraints are met.
 
@@ -333,7 +338,7 @@ class BaseSimulator:
         """
         with self.renderer:
             while self.state != SimulatorState.STOPPED:
-                self._stop_reason = self.should_stop(constraints)
+                self._stop_reason = self.should_stop(constraints=constraints)
                 if self.stop_reason is not None:
                     self._state = SimulatorState.STOPPED
                     break
@@ -404,7 +409,7 @@ class BaseSimulator:
         It doesn't pause the renderer.
         """
         if self.state != SimulatorState.RUNNING:
-            self.log_warning("Cannot pause when the simulator is not running")
+            self.log_warning(message="Cannot pause when the simulator is not running")
         else:
             self._state = SimulatorState.PAUSED
 
@@ -416,7 +421,7 @@ class BaseSimulator:
             self.unpause_callback()
             self._state = SimulatorState.RUNNING
         else:
-            self.log_warning("Cannot unpause when the simulator is not paused")
+            self.log_warning(message="Cannot unpause when the simulator is not paused")
 
     def reset(self):
         """
@@ -429,7 +434,7 @@ class BaseSimulator:
         self._start_real_time = self.current_real_time
 
     def should_stop(
-        self, constraints: SimulatorConstraints = None
+        self, *, constraints: SimulatorConstraints = None
     ) -> SimulatorStopReason | None:
         """
         Check if the simulator should stop based on the constraints.
@@ -445,7 +450,7 @@ class BaseSimulator:
             >= constraints.max_real_time
         ):
             self.log_info(
-                f"Stopping simulation because max_real_time [{constraints.max_real_time}] reached"
+                message=f"Stopping simulation because max_real_time [{constraints.max_real_time}] reached"
             )
             return SimulatorStopReason.MAX_REAL_TIME
         if (
@@ -453,7 +458,7 @@ class BaseSimulator:
             and self.current_simulation_time >= constraints.max_simulation_time
         ):
             self.log_info(
-                f"Stopping simulation because max_simulation_time [{constraints.max_simulation_time}] reached"
+                message=f"Stopping simulation because max_simulation_time [{constraints.max_simulation_time}] reached"
             )
             return SimulatorStopReason.MAX_SIMULATION_TIME
         if (
@@ -461,7 +466,7 @@ class BaseSimulator:
             and self.current_number_of_steps >= constraints.max_number_of_steps
         ):
             self.log_info(
-                f"Stopping simulation because max_number_of_steps [{constraints.max_number_of_steps}] reached"
+                message=f"Stopping simulation because max_number_of_steps [{constraints.max_number_of_steps}] reached"
             )
             return SimulatorStopReason.MAX_NUMBER_OF_STEPS
         return self.should_stop_callback()
@@ -536,15 +541,15 @@ class BaseSimulator:
         )
 
     @classmethod
-    def log_info(cls, message: str):
+    def log_info(cls, *, message: str):
         cls.logger.info(f"[{cls.name}] {message}")
 
     @classmethod
-    def log_warning(cls, message: str):
+    def log_warning(cls, *, message: str):
         cls.logger.warning(f"[{cls.name}] {message}")
 
     @classmethod
-    def log_error(cls, message: str):
+    def log_error(cls, *, message: str):
         cls.logger.error(f"[{cls.name}] {message}")
 
     @property
@@ -586,6 +591,7 @@ class BaseSimulator:
     @classmethod
     def add_callback(
         cls,
+        *,
         callback: Callable | SimulatorCallback,
         callbacks: list[SimulatorCallback],
     ):
@@ -600,16 +606,17 @@ class BaseSimulator:
         if callback.__name__ in [callback.__name__ for callback in callbacks]:
             raise AttributeError(f"Function {callback.__name__} is already defined")
         callbacks.append(callback)
-        cls.log_info(f"Function {callback.__name__} is registered")
+        cls.log_info(message=f"Function {callback.__name__} is registered")
 
-    def add_instance_callback(self, callback: Callable | SimulatorCallback):
-        self.add_callback(callback, self.instance_level_callbacks)
-
-    @classmethod
-    def add_class_callback(cls, callback: Callable | SimulatorCallback):
-        cls.add_callback(callback, cls.class_level_callbacks)
+    def add_instance_callback(self, *, callback: Callable | SimulatorCallback):
+        self.add_callback(callback=callback, callbacks=self.instance_level_callbacks)
 
     @classmethod
+    def add_class_callback(cls, *, callback: Callable | SimulatorCallback):
+        cls.add_callback(callback=callback, callbacks=cls.class_level_callbacks)
+
+    @classmethod
+    @called_positionally
     def simulator_callback(cls, callback):
-        cls.add_class_callback(callback)
+        cls.add_class_callback(callback=callback)
         return callback

@@ -262,7 +262,9 @@ def test_the_finger_servos_close_the_gripper(mounted_tiago):
         gripper.get_joint_state_by_type(GripperState.CLOSE).apply_to(world)
         world.notify_state_change()
         simulation.step_simulation(timedelta(seconds=1))
-        reached = simulation.simulator.get_joint_value(finger_joint.name.name).result
+        reached = simulation.simulator.get_joint_value(
+            joint_name=finger_joint.name.name
+        ).result
     finally:
         simulation.stop_simulation()
 

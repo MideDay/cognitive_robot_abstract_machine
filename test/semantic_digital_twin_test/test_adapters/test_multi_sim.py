@@ -1118,7 +1118,7 @@ def test_body_frame_excludes_joint_state_at_build_time():
         mujoco.mj_forward(mujoco_model, mujoco_data)
 
         simulated_position = multi_sim.simulator.get_body_position(
-            tip_link.name.name
+            body_name=tip_link.name.name
         ).result[:3]
         world_position = world.compute_forward_kinematics_np(world.root, tip_link)[
             :3, 3
@@ -1208,7 +1208,7 @@ def test_world_sim_state_sync():
         time.sleep(2.5)
 
         final_pos = numpy.asarray(
-            multi_sim.simulator.get_body_position("falling_box").result[:3],
+            multi_sim.simulator.get_body_position(body_name="falling_box").result[:3],
             dtype=float,
         )
 
@@ -1860,7 +1860,7 @@ def test_prebuilt_world_multiple_free_bodies_start_at_authored_poses():
 
         positions = {
             cube_name: numpy.asarray(
-                multi_sim.simulator.get_body_position(cube_name).result[:3],
+                multi_sim.simulator.get_body_position(body_name=cube_name).result[:3],
                 dtype=float,
             )
             for cube_name in offsets

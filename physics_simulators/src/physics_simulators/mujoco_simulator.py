@@ -181,7 +181,7 @@ class MujocoSimulator(BaseSimulator):
         mujoco.mj_resetDataKeyframe(self._mj_model, self._mj_data, 0)
 
     def _fix_prefix_and_recompile(
-        self, body_spec: mujoco.MjsBody, dummy_prefix: str, body_name: str
+        self, *, body_spec: mujoco.MjsBody, dummy_prefix: str, body_name: str
     ):
         """
         This is a workaround to a bug that happens in MuJoCo older versions when detaching a body that has children:
@@ -202,7 +202,7 @@ class MujocoSimulator(BaseSimulator):
                     body_child.name = body_child.name.replace(dummy_prefix, "")
             except ValueError:
                 self.log_warning(
-                    f"Failed to resolve body_spec for {body_name}, this is a bug from MuJoCo"
+                    message=f"Failed to resolve body_spec for {body_name}, this is a bug from MuJoCo"
                 )
                 self._mj_model, self._mj_data = self._mj_spec.recompile(
                     self._mj_model, self._mj_data
@@ -260,7 +260,7 @@ class MujocoSimulator(BaseSimulator):
         )
 
     @BaseSimulator.simulator_callback
-    def get_body(self, body_name: str) -> SimulatorCallbackResult:
+    def get_body(self, *, body_name: str) -> SimulatorCallbackResult:
         """
         Get a body by its name.
 
@@ -283,7 +283,7 @@ class MujocoSimulator(BaseSimulator):
         )
 
     @BaseSimulator.simulator_callback
-    def get_body_position(self, body_name: str) -> SimulatorCallbackResult:
+    def get_body_position(self, *, body_name: str) -> SimulatorCallbackResult:
         """
         Get a body position by its name.
 
@@ -291,7 +291,7 @@ class MujocoSimulator(BaseSimulator):
         :return: A SimulatorCallbackResult with a numpy array of shape (3,) representing
             the position as the result
         """
-        get_body = self.get_body(body_name)
+        get_body = self.get_body(body_name=body_name)
         if (
             get_body.type
             != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
@@ -305,7 +305,7 @@ class MujocoSimulator(BaseSimulator):
         )
 
     @BaseSimulator.simulator_callback
-    def get_body_quaternion(self, body_name: str) -> SimulatorCallbackResult:
+    def get_body_quaternion(self, *, body_name: str) -> SimulatorCallbackResult:
         """
         Get a body quaternion by its name.
 
@@ -313,7 +313,7 @@ class MujocoSimulator(BaseSimulator):
         :return: A SimulatorCallbackResult with a numpy array of shape (4,) representing
             the quaternion in WXYZ format as the result
         """
-        get_body = self.get_body(body_name)
+        get_body = self.get_body(body_name=body_name)
         if (
             get_body.type
             != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
@@ -327,7 +327,7 @@ class MujocoSimulator(BaseSimulator):
         )
 
     @BaseSimulator.simulator_callback
-    def get_bodies_positions(self, body_names: list[str]) -> SimulatorCallbackResult:
+    def get_bodies_positions(self, *, body_names: list[str]) -> SimulatorCallbackResult:
         """
         Get bodies positions by body names.
 
@@ -337,7 +337,7 @@ class MujocoSimulator(BaseSimulator):
         """
         result = {}
         for body_name in body_names:
-            get_body_position = self.get_body_position(body_name)
+            get_body_position = self.get_body_position(body_name=body_name)
             if (
                 get_body_position.type
                 != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
@@ -351,7 +351,9 @@ class MujocoSimulator(BaseSimulator):
         )
 
     @BaseSimulator.simulator_callback
-    def get_bodies_quaternions(self, body_names: list[str]) -> SimulatorCallbackResult:
+    def get_bodies_quaternions(
+        self, *, body_names: list[str]
+    ) -> SimulatorCallbackResult:
         """
         Get all bodies quaternions by body names.
 
@@ -361,7 +363,7 @@ class MujocoSimulator(BaseSimulator):
         """
         result = {}
         for body_name in body_names:
-            get_body_quaternion = self.get_body_quaternion(body_name)
+            get_body_quaternion = self.get_body_quaternion(body_name=body_name)
             if (
                 get_body_quaternion.type
                 != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
@@ -375,14 +377,14 @@ class MujocoSimulator(BaseSimulator):
         )
 
     @BaseSimulator.simulator_callback
-    def get_body_joints(self, body_name):
+    def get_body_joints(self, *, body_name):
         """
         Get all joints of a body by its name.
 
         :param body_name: The name of the body
         :return: A SimulatorCallbackResult with a list of all joints as the result
         """
-        get_body = self.get_body(body_name)
+        get_body = self.get_body(body_name=body_name)
         if (
             get_body.type
             != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
@@ -399,7 +401,7 @@ class MujocoSimulator(BaseSimulator):
         )
 
     @BaseSimulator.simulator_callback
-    def get_geom_friction(self, geom_name: str) -> SimulatorCallbackResult:
+    def get_geom_friction(self, *, geom_name: str) -> SimulatorCallbackResult:
         """
         Get a geom's contact friction (sliding, torsional, rolling) by its name.
 
@@ -423,7 +425,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def set_geom_friction(
-        self, geom_name: str, friction: numpy.ndarray
+        self, *, geom_name: str, friction: numpy.ndarray
     ) -> SimulatorCallbackResult:
         """
         Set a geom's contact friction (sliding, torsional, rolling) by its name.
@@ -449,7 +451,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def set_body_position(
-        self, body_name: str, position: numpy.ndarray
+        self, *, body_name: str, position: numpy.ndarray
     ) -> SimulatorCallbackResult:
         """
         Set the position of a body by its name.
@@ -459,7 +461,7 @@ class MujocoSimulator(BaseSimulator):
         :return: A SimulatorCallbackResult indicating the success or failure of the
             operation
         """
-        get_body_joints = self.get_body_joints(body_name)
+        get_body_joints = self.get_body_joints(body_name=body_name)
         if (
             get_body_joints.type
             != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
@@ -493,7 +495,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def set_bodies_positions(
-        self, bodies_positions: dict[str, numpy.ndarray]
+        self, *, bodies_positions: dict[str, numpy.ndarray]
     ) -> SimulatorCallbackResult:
         """
         Set the positions of all bodies by its name and positions.
@@ -503,7 +505,9 @@ class MujocoSimulator(BaseSimulator):
             operation
         """
         for body_name, position in bodies_positions.items():
-            set_body_position = self.set_body_position(body_name, position)
+            set_body_position = self.set_body_position(
+                body_name=body_name, position=position
+            )
             if set_body_position.type not in [
                 SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION,
                 SimulatorCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_DATA,
@@ -516,7 +520,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def set_body_quaternion(
-        self, body_name: str, quaternion: numpy.ndarray
+        self, *, body_name: str, quaternion: numpy.ndarray
     ) -> SimulatorCallbackResult:
         """
         Set the quaternion of a body by its name and quaternion.
@@ -524,7 +528,7 @@ class MujocoSimulator(BaseSimulator):
         :param body_name: The name of the body
         :param quaternion: The quaternion
         """
-        get_body_joints = self.get_body_joints(body_name)
+        get_body_joints = self.get_body_joints(body_name=body_name)
         if (
             get_body_joints.type
             != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
@@ -560,7 +564,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def set_bodies_quaternions(
-        self, bodies_quaternions: dict[str, numpy.ndarray]
+        self, *, bodies_quaternions: dict[str, numpy.ndarray]
     ) -> SimulatorCallbackResult:
         """
         Set the quaternions of all bodies by its name and quaternions.
@@ -570,7 +574,9 @@ class MujocoSimulator(BaseSimulator):
             operation
         """
         for body_name, quaternion in bodies_quaternions.items():
-            set_body_quaternion = self.set_body_quaternion(body_name, quaternion)
+            set_body_quaternion = self.set_body_quaternion(
+                body_name=body_name, quaternion=quaternion
+            )
             if set_body_quaternion.type not in [
                 SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION,
                 SimulatorCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_DATA,
@@ -583,7 +589,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def get_all_joint_names(
-        self, joint_types: list[mujoco.mjtJoint] | None = None
+        self, *, joint_types: list[mujoco.mjtJoint] | None = None
     ) -> SimulatorCallbackResult:
         """
         Get the names of all joints, filtered by types.
@@ -610,7 +616,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def get_joint(
-        self, joint_name: str, joint_types: mujoco.mjtJoint | None = None
+        self, *, joint_name: str, joint_types: mujoco.mjtJoint | None = None
     ) -> SimulatorCallbackResult:
         """
         Get a joint by its name and type.
@@ -648,14 +654,14 @@ class MujocoSimulator(BaseSimulator):
         )
 
     @BaseSimulator.simulator_callback
-    def get_joint_value(self, joint_name: str) -> SimulatorCallbackResult:
+    def get_joint_value(self, *, joint_name: str) -> SimulatorCallbackResult:
         """
         Get the joint value by its name.
 
         :param joint_name: The name of the joint
         :return: A SimulatorCallbackResult with the joint value as the result
         """
-        get_joint = self.get_joint(joint_name)
+        get_joint = self.get_joint(joint_name=joint_name)
         if (
             get_joint.type
             != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
@@ -669,7 +675,7 @@ class MujocoSimulator(BaseSimulator):
         )
 
     @BaseSimulator.simulator_callback
-    def get_joints_values(self, joint_names: list[str]) -> SimulatorCallbackResult:
+    def get_joints_values(self, *, joint_names: list[str]) -> SimulatorCallbackResult:
         """
         Get values of joints by their names.
 
@@ -679,7 +685,7 @@ class MujocoSimulator(BaseSimulator):
         """
         result = {}
         for joint_name in joint_names:
-            joint_value = self.get_joint_value(joint_name)
+            joint_value = self.get_joint_value(joint_name=joint_name)
             if (
                 joint_value.type
                 != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
@@ -693,7 +699,9 @@ class MujocoSimulator(BaseSimulator):
         )
 
     @BaseSimulator.simulator_callback
-    def set_joint_value(self, joint_name: str, value: float) -> SimulatorCallbackResult:
+    def set_joint_value(
+        self, *, joint_name: str, value: float
+    ) -> SimulatorCallbackResult:
         """
         Set the value of a joint by its name.
 
@@ -702,7 +710,7 @@ class MujocoSimulator(BaseSimulator):
         :return: A SimulatorCallbackResult indicating the success or failure of the
             operation
         """
-        get_joint = self.get_joint(joint_name)
+        get_joint = self.get_joint(joint_name=joint_name)
         if (
             get_joint.type
             != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
@@ -724,7 +732,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def set_joints_values(
-        self, joints_values: dict[str, float]
+        self, *, joints_values: dict[str, float]
     ) -> SimulatorCallbackResult:
         """
         Set the values of joints by their names.
@@ -734,7 +742,7 @@ class MujocoSimulator(BaseSimulator):
             operation
         """
         for joint_name, value in joints_values.items():
-            set_joint_value = self.set_joint_value(joint_name, value)
+            set_joint_value = self.set_joint_value(joint_name=joint_name, value=value)
             if set_joint_value.type not in [
                 SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION,
                 SimulatorCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_DATA,
@@ -763,7 +771,7 @@ class MujocoSimulator(BaseSimulator):
         )
 
     @BaseSimulator.simulator_callback
-    def get_actuator(self, actuator_name: str) -> SimulatorCallbackResult:
+    def get_actuator(self, *, actuator_name: str) -> SimulatorCallbackResult:
         """
         Get an actuator by its name.
 
@@ -787,7 +795,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def get_actuators_lengths(
-        self, actuator_names: list[str]
+        self, *, actuator_names: list[str]
     ) -> SimulatorCallbackResult:
         """
         Get the lengths of actuators by their names: for an actuator driving a joint,
@@ -799,7 +807,7 @@ class MujocoSimulator(BaseSimulator):
         """
         result = {}
         for actuator_name in actuator_names:
-            get_actuator = self.get_actuator(actuator_name)
+            get_actuator = self.get_actuator(actuator_name=actuator_name)
             if (
                 get_actuator.type
                 != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
@@ -814,7 +822,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def set_actuator_control(
-        self, actuator_name: str, value: float
+        self, *, actuator_name: str, value: float
     ) -> SimulatorCallbackResult:
         """
         Set the control input of an actuator by its name.
@@ -828,7 +836,7 @@ class MujocoSimulator(BaseSimulator):
         :return: A SimulatorCallbackResult indicating the success or failure of the
             operation
         """
-        get_actuator = self.get_actuator(actuator_name)
+        get_actuator = self.get_actuator(actuator_name=actuator_name)
         if (
             get_actuator.type
             != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
@@ -849,6 +857,7 @@ class MujocoSimulator(BaseSimulator):
     @BaseSimulator.simulator_callback
     def attach(
         self,
+        *,
         body_1_name: str,
         body_2_name: str | None = None,
         relative_position: numpy.ndarray | None = None,
@@ -954,7 +963,7 @@ class MujocoSimulator(BaseSimulator):
             body_1_spec = self._mj_spec.find_body(body_1_name)
         if body_1_spec is None:
             self.log_warning(
-                f"Body 1 {body_1_name} not found in the model specification, this is a bug from MuJoCo"
+                message=f"Body 1 {body_1_name} not found in the model specification, this is a bug from MuJoCo"
             )
             body_1_spec = next(
                 body for body in self._mj_spec.bodies if body.name == body_1_name
@@ -965,7 +974,7 @@ class MujocoSimulator(BaseSimulator):
             body_2_spec = self._mj_spec.find_body(body_2_name)
         if body_2_spec is None:
             self.log_warning(
-                f"Body 2 {body_2_name} not found in the model specification, this is a bug from MuJoCo"
+                message=f"Body 2 {body_2_name} not found in the model specification, this is a bug from MuJoCo"
             )
             body_2_spec = next(
                 body for body in self._mj_spec.bodies if body.name == body_2_name
@@ -1004,7 +1013,9 @@ class MujocoSimulator(BaseSimulator):
             self._mj_spec.detach_body(body_1_spec)
         else:
             self._mj_spec.delete(body_1_spec)
-        self._fix_prefix_and_recompile(body_1_spec_new, dummy_prefix, body_1_name)
+        self._fix_prefix_and_recompile(
+            body_spec=body_1_spec_new, dummy_prefix=dummy_prefix, body_name=body_1_name
+        )
         if self.simulation_thread is None:
             mujoco.mj_step1(self._mj_model, self._mj_data)
 
@@ -1016,7 +1027,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def detach(
-        self, body_name: str, add_freejoint: bool = True
+        self, *, body_name: str, add_freejoint: bool = True
     ) -> SimulatorCallbackResult:
         """
         Detach a body from its parent body and attach it to the world with the same
@@ -1089,7 +1100,9 @@ class MujocoSimulator(BaseSimulator):
             self._mj_spec.detach_body(body_spec)
         else:
             self._mj_spec.delete(body_spec)
-        self._fix_prefix_and_recompile(body_spec_new, dummy_prefix, body_name)
+        self._fix_prefix_and_recompile(
+            body_spec=body_spec_new, dummy_prefix=dummy_prefix, body_name=body_name
+        )
         if self.simulation_thread is None:
             mujoco.mj_step1(self._mj_model, self._mj_data)
 
@@ -1099,7 +1112,7 @@ class MujocoSimulator(BaseSimulator):
         )
 
     @BaseSimulator.simulator_callback
-    def get_children_ids(self, body_id: int) -> SimulatorCallbackResult:
+    def get_children_ids(self, *, body_id: int) -> SimulatorCallbackResult:
         """
         Get all children body ids of a body by its id.
 
@@ -1121,7 +1134,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def get_contact_bodies(
-        self, body_name: str, including_children: bool = True
+        self, *, body_name: str, including_children: bool = True
     ) -> SimulatorCallbackResult:
         """
         Get the names of all bodies that are in contact with a body by its name.
@@ -1141,7 +1154,7 @@ class MujocoSimulator(BaseSimulator):
 
         body_ids = {body_id}
         if including_children:
-            body_ids.update(self.get_children_ids(body_id).result)
+            body_ids.update(self.get_children_ids(body_id=body_id).result)
 
         contact_body_ids = set()
         for contact in self._mj_data.contact:
@@ -1170,7 +1183,7 @@ class MujocoSimulator(BaseSimulator):
         )
 
     @BaseSimulator.simulator_callback
-    def get_body_root_name(self, body_name: str) -> SimulatorCallbackResult:
+    def get_body_root_name(self, *, body_name: str) -> SimulatorCallbackResult:
         """
         Get the name of a body root by its name.
 
@@ -1198,6 +1211,7 @@ class MujocoSimulator(BaseSimulator):
     @BaseSimulator.simulator_callback
     def get_contact_points(
         self,
+        *,
         body_names: list[str],
         including_children: bool = True,
         contact_style: (
@@ -1232,7 +1246,7 @@ class MujocoSimulator(BaseSimulator):
 
         body_root_map = {"world": "world"}
         for body_name in body_names:
-            get_body_root_name = self.get_body_root_name(body_name)
+            get_body_root_name = self.get_body_root_name(body_name=body_name)
             if (
                 get_body_root_name.type
                 != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
@@ -1250,7 +1264,9 @@ class MujocoSimulator(BaseSimulator):
                             self._mj_model.body(
                                 child_body_id
                             ).name: get_body_root_name.result
-                            for child_body_id in self.get_children_ids(body_id).result
+                            for child_body_id in self.get_children_ids(
+                                body_id=body_id
+                            ).result
                         }
                     )
                 else:
@@ -1259,7 +1275,7 @@ class MujocoSimulator(BaseSimulator):
                         body_root_map.update(
                             {
                                 child_body.name: self.get_body_root_name(
-                                    child_body.name
+                                    body_name=child_body.name
                                 ).result
                             }
                         )
@@ -1316,6 +1332,7 @@ class MujocoSimulator(BaseSimulator):
     @BaseSimulator.simulator_callback
     def ray_test(
         self,
+        *,
         ray_from_position: list[float],
         ray_to_position: list[float],
         ray_style: (
@@ -1365,7 +1382,7 @@ class MujocoSimulator(BaseSimulator):
             hit_normal = None  # TODO: get hit normal
             body_id = geom.bodyid[0]
             body_name = self._mj_model.body(body_id).name
-            get_body_root_name = self.get_body_root_name(body_name)
+            get_body_root_name = self.get_body_root_name(body_name=body_name)
             if (
                 get_body_root_name.type
                 != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
@@ -1390,6 +1407,7 @@ class MujocoSimulator(BaseSimulator):
     @BaseSimulator.simulator_callback
     def ray_test_batch(
         self,
+        *,
         ray_from_position: list[float],
         ray_to_positions: list[list[float]],
         parent_link_name: str | None = None,
@@ -1465,7 +1483,7 @@ class MujocoSimulator(BaseSimulator):
                 geom = self._mj_model.geom(geom_id[i])
                 body_id = geom.bodyid[0]
                 body_name = self._mj_model.body(body_id).name
-                get_body_root_name = self.get_body_root_name(body_name)
+                get_body_root_name = self.get_body_root_name(body_name=body_name)
                 if (
                     get_body_root_name.type
                     != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
@@ -1490,7 +1508,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def save(
-        self, file_path: str | None = None, key_name: str | None = None
+        self, *, file_path: str | None = None, key_name: str | None = None
     ) -> SimulatorCallbackResult:
         """
         Save the current simulation state to a file or to a keyframe.
@@ -1546,7 +1564,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def load(
-        self, file_path: str | None = None, key_id: int = 0
+        self, *, file_path: str | None = None, key_id: int = 0
     ) -> SimulatorCallbackResult:
         """
         Load a simulation state from a file or from a keyframe.
@@ -1609,7 +1627,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def capture_rgb(
-        self, camera_name: str = None, height=240, width=320
+        self, *, camera_name: str = None, height=240, width=320
     ) -> SimulatorCallbackResult:
         """
         This method returns a NumPy uint8 array of RGB values.
@@ -1635,7 +1653,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def capture_depth(
-        self, camera_name: str = None, height=240, width=320
+        self, *, camera_name: str = None, height=240, width=320
     ) -> SimulatorCallbackResult:
         """
         This method returns a NumPy float array of depth values (in meters).
@@ -1662,7 +1680,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def capture_segmentation(
-        self, camera_name: str = None, height=240, width=320
+        self, *, camera_name: str = None, height=240, width=320
     ) -> SimulatorCallbackResult:
         """
         This method returns a 2-channel NumPy int32 array of label values where the
@@ -1692,7 +1710,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def enable_contact(
-        self, body_1_name: str, body_2_name: str
+        self, *, body_1_name: str, body_2_name: str
     ) -> SimulatorCallbackResult:
         """
         This method enables contact between two bodies.
@@ -1755,6 +1773,7 @@ class MujocoSimulator(BaseSimulator):
     @BaseSimulator.simulator_callback
     def add_entity(
         self,
+        *,
         entity_name: str,
         entity_type: str,
         entity_properties: dict[str, Any],

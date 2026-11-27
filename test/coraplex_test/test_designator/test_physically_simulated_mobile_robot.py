@@ -47,7 +47,7 @@ def test_the_hsrb_raises_its_torso_and_drives_to_where_it_is_sent(
     world_T_base = world.compute_forward_kinematics_np(world.root, hsrb.root)
     simulated_torso_lift = {
         connection.name.name: simulation.simulator.get_joint_value(
-            connection.name.name
+            joint_name=connection.name.name
         ).result
         for connection in raised.connections
     }
