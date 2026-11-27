@@ -377,7 +377,7 @@ class MujocoSimulator(BaseSimulator):
         )
 
     @BaseSimulator.simulator_callback
-    def get_body_joints(self, *, body_name):
+    def get_body_joints(self, *, body_name: str) -> SimulatorCallbackResult:
         """
         Get all joints of a body by its name.
 
@@ -1627,7 +1627,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def capture_rgb(
-        self, *, camera_name: str = None, height=240, width=320
+        self, *, camera_name: str = None, height: int = 240, width: int = 320
     ) -> SimulatorCallbackResult:
         """
         This method returns a NumPy uint8 array of RGB values.
@@ -1653,7 +1653,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def capture_depth(
-        self, *, camera_name: str = None, height=240, width=320
+        self, *, camera_name: str = None, height: int = 240, width: int = 320
     ) -> SimulatorCallbackResult:
         """
         This method returns a NumPy float array of depth values (in meters).
@@ -1680,7 +1680,7 @@ class MujocoSimulator(BaseSimulator):
 
     @BaseSimulator.simulator_callback
     def capture_segmentation(
-        self, *, camera_name: str = None, height=240, width=320
+        self, *, camera_name: str = None, height: int = 240, width: int = 320
     ) -> SimulatorCallbackResult:
         """
         This method returns a 2-channel NumPy int32 array of label values where the

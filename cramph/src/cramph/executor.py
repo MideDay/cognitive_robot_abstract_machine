@@ -1,3 +1,8 @@
+"""
+Executors that tick a statechart, and the pacers that decide how long they wait between
+two ticks.
+"""
+
 from __future__ import annotations
 
 import logging

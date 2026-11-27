@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 
+"""
+The engine-independent part of a physics simulator: its life cycle, the constraints that
+stop it, its renderer and the callbacks it serves.
+"""
+
 import atexit
 import logging
 import time
@@ -37,6 +42,11 @@ class SimulatorStopReason(Enum):
 
 @dataclass(kw_only=True)
 class SimulatorConstraints:
+    """
+    Limits that stop a running simulator once one of them is reached; a limit left at
+    ``None`` does not apply.
+    """
+
     max_real_time: float = None
     max_simulation_time: float = None
     max_number_of_steps: int = None
@@ -261,6 +271,10 @@ class BaseSimulator:
     """
 
     def __post_init__(self):
+        """
+        Leaves the simulator stopped, with :attr:`_callbacks` registered as instance
+        callbacks, and stops it when the interpreter exits.
+        """
         self._start_real_time = self.current_real_time
         self._state = SimulatorState.STOPPED
         self._stop_reason = None
@@ -330,7 +344,7 @@ class BaseSimulator:
             self.render_thread = Thread(target=render)
             self.render_thread.start()
 
-    def run(self, *, constraints: SimulatorConstraints = None):
+    def run(self, *, constraints: SimulatorConstraints = None) -> None:
         """
         Run the simulator while the state is RUNNING or until the constraints are met.
 
@@ -541,15 +555,24 @@ class BaseSimulator:
         )
 
     @classmethod
-    def log_info(cls, *, message: str):
+    def log_info(cls, *, message: str) -> None:
+        """
+        Logs *message* at info level, prefixed with the simulator's :attr:`name`.
+        """
         cls.logger.info(f"[{cls.name}] {message}")
 
     @classmethod
-    def log_warning(cls, *, message: str):
+    def log_warning(cls, *, message: str) -> None:
+        """
+        Logs *message* at warning level, prefixed with the simulator's :attr:`name`.
+        """
         cls.logger.warning(f"[{cls.name}] {message}")
 
     @classmethod
-    def log_error(cls, *, message: str):
+    def log_error(cls, *, message: str) -> None:
+        """
+        Logs *message* at error level, prefixed with the simulator's :attr:`name`.
+        """
         cls.logger.error(f"[{cls.name}] {message}")
 
     @property
@@ -594,7 +617,14 @@ class BaseSimulator:
         *,
         callback: Callable | SimulatorCallback,
         callbacks: list[SimulatorCallback],
-    ):
+    ) -> None:
+        """
+        Appends *callback* to *callbacks*, wrapped in a :class:`SimulatorCallback` when
+        it is a plain callable.
+
+        :raises TypeError: When *callback* is not callable.
+        :raises AttributeError: When *callbacks* already holds a callback of that name.
+        """
         if not isinstance(callback, SimulatorCallback):
             if isinstance(callback, Callable):
                 callback = SimulatorCallback(callback=callback)
@@ -608,15 +638,28 @@ class BaseSimulator:
         callbacks.append(callback)
         cls.log_info(message=f"Function {callback.__name__} is registered")
 
-    def add_instance_callback(self, *, callback: Callable | SimulatorCallback):
+    def add_instance_callback(self, *, callback: Callable | SimulatorCallback) -> None:
+        """
+        Registers *callback* in :attr:`instance_level_callbacks`, served by this
+        simulator only.
+        """
         self.add_callback(callback=callback, callbacks=self.instance_level_callbacks)
 
     @classmethod
-    def add_class_callback(cls, *, callback: Callable | SimulatorCallback):
+    def add_class_callback(cls, *, callback: Callable | SimulatorCallback) -> None:
+        """
+        Registers *callback* in :attr:`class_level_callbacks`, served by every simulator
+        that shares that list.
+        """
         cls.add_callback(callback=callback, callbacks=cls.class_level_callbacks)
 
     @classmethod
     @called_positionally
-    def simulator_callback(cls, callback):
+    def simulator_callback(cls, callback: Callable) -> Callable:
+        """
+        Decorator that registers the decorated method as a class callback.
+
+        :return: *callback* unchanged.
+        """
         cls.add_class_callback(callback=callback)
         return callback
