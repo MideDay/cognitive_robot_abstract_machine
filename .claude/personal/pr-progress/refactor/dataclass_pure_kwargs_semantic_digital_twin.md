@@ -13,5 +13,5 @@
 - small_packages fails its `krrood check --since HEAD^1` step (769 pre-existing violations on touched lines, 0 positional), so its tests do not run; the user chose to leave it as is.
 
 ## Next
-- experiments and krrood need a rerun by a cram2 admin, or the next push.
-- The semDT docs build was still running when last read.
+- Read attempt 2 of CI run 46020564282 (experiments, krrood, small_packages; rerun by davidprueser on 2026-11-27); the semDT docs build passed.
+- Check main for new commits; replay if it moved, then ask before force-pushing.
