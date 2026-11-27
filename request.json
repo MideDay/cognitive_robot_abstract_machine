@@ -1,0 +1,9 @@
+{
+  "kind": "pull-request-report",
+  "request_identifier": "133a33df99a7dc28",
+  "upstream": "cram2/cognitive_robot_abstract_machine",
+  "fork_owner": "MideDay",
+  "pull_request": null,
+  "branch": "refactor/dataclass_pure_kwargs_random_events",
+  "failure_logs": false
+}
