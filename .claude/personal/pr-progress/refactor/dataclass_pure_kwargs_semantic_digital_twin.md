@@ -1,16 +1,15 @@
 # refactor/dataclass_pure_kwargs_semantic_digital_twin
 
-## Plan (resolve 2026-11-27)
-- Replay onto main `913a92c231` (coraplex #1076 included) with the catch-up codemods - done.
-- Tests with `CI=true`: every batch, the robokudo MongoDB files, `test_integration_pr2`, the launcher test (`run_rebased6.sh`, `runs/rebased6*`).
-- Ask before pushing to `work`; the user opens the draft PR with `api-break` (text in `pr_body.md`).
+## Plan
+- The user opens the draft PR from `~/.claude/plans/i-am-currently-working-peppy-bumblebee.files/pr_body.md`, with labels `api-break` and `maintenance`, and records its number on the plan item.
+- Before review: discuss the break with the semDT and downstream code owners (`.github/CODEOWNERS`) or in the Cramgineers channel.
+- If main moves before review: replay again with the catch-up codemods (plan peppy-bumblebee).
 
 ## Done
-- Stack pass: success, nothing to restack (`work/main` at `913a92c231`). Upstream: no pull request for the branch.
-- step_simulation fix amended into the methods commit; old head tagged `kwonly-semdt-rebased5`.
-- Fields `f6d56ceb3d`: 10 conflicts, 6 `kw_only` decorators, 10 call edits.
-- Methods `7f6a14fca8`: 42 conflicts, 3 new keyword-only methods, 78 call edits, 6 Markdown calls and 1 test call by hand.
-- Checks read at `7f6a14fca8`: 0 positional lines in semDT; `unit_losses` empty; audit losses only code main removed or moved; mypy `call-arg` diff only the known `connect` change; import sweep matches the baseline (64); ORM regenerated.
+- Replayed onto main `913a92c231` after coraplex #1076 merged: fields `f6d56ceb3d`, methods `112c015e2f` (with the step_simulation and MeshDecomposer stand-in fixes amended in).
+- Checks read at `112c015e2f`'s tree: 0 positional lines in semDT; `unit_losses` empty; mypy `call-arg` diff only the known `connect` change; import sweep matches the baseline; `krrood check --since 913a92c231`: 815 old violations, 0 positional.
+- `runs/rebased6` (CI=true) passed every batch, the MongoDB files, `test_integration_pr2` and the launcher test, apart from the 6 known gazebo errors; the Stretch flake passed when rerun alone.
+- Pushed to `work` (`112c015e2f`) on 2026-11-27.
 
 ## Next
-- Read `runs/rebased6*`; then ask to push.
+- Open the draft PR (the user).
