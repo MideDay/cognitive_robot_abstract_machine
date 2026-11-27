@@ -39,9 +39,8 @@ items:
   track: in-flight
   blockers:
     - >-
-      CI at cf65425f18: experiments and krrood jobs failed installing lxml 6.2.0 mid-release (no
-      wheel yet); rerun needs cram2 admin (403). small_packages fails the documented rule check (769
-      old violations, 0 positional); user keeps it.
+      CI rerun of experiments, krrood, small_packages (attempt 2, started by davidprueser 2026-11-27
+      15:23 UTC) not read yet. small_packages' rule check stays red (user's call).
   depends_on: []
   status: in progress
   recommended_model: opus
