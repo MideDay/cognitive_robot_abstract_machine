@@ -39,8 +39,9 @@ items:
   track: in-flight
   blockers:
     - >-
-      PR #1084 ready for review at cf65425f18, merge probe clean against main 5c65530b6d; full CI
-      running on it (not read yet). Local tests skipped for this PR (user).
+      CI at cf65425f18: experiments and krrood jobs failed installing lxml 6.2.0 mid-release (no
+      wheel yet); rerun needs cram2 admin (403). small_packages fails the documented rule check (769
+      old violations, 0 positional); user keeps it.
   depends_on: []
   status: in progress
   recommended_model: opus
