@@ -39,8 +39,8 @@ items:
   track: in-flight
   blockers:
     - >-
-      PR #1084 at 29f598dbda, merge probe clean against main bae41bf22c. Local tests skipped for
-      this PR (user); CI runs once the user marks it ready. Label maintenance still missing.
+      PR #1084 ready for review at cf65425f18, merge probe clean against main 5c65530b6d; full CI
+      running on it (not read yet). Local tests skipped for this PR (user).
   depends_on: []
   status: in progress
   recommended_model: opus
