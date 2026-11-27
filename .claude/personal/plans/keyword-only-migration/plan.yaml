@@ -39,13 +39,8 @@ items:
   track: in-flight
   blockers:
     - >-
-      Behind main 913a92c231 by 55 commits, which include coraplex #1076 (merged), #1065, #1069 and
-      #1072; this branch merges second, so it replays onto main and reruns the catch-up codemods
-      (read 2026-11-27).
-    - >-
-      The step_simulation fix (swing_the_hinge.py, coraplex conftest, test_pacer.py) is still in the
-      working tree of ace404badc, to be amended before the replay; the CI=true test rerun has to run
-      again on the replayed commits. Not pushed, no PR, no upstream PR.
+      Replayed onto main 913a92c231 (fields f6d56ceb3d, methods 7f6a14fca8, fix amended); static
+      checks clean. CI=true test run runs/rebased6 in progress. Not pushed, no PR.
   depends_on: []
   status: in progress
   recommended_model: opus
