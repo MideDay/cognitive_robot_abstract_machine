@@ -39,8 +39,8 @@ items:
   track: in-flight
   blockers:
     - >-
-      Replayed onto main 913a92c231 (fields f6d56ceb3d, methods 7f6a14fca8, fix amended); static
-      checks clean. CI=true test run runs/rebased6 in progress. Not pushed, no PR.
+      Pushed to work at 112c015e2f (on main 913a92c231); CI=true tests green locally. Waiting for
+      the user to open the draft PR (api-break, maintenance) from pr_body.md.
   depends_on: []
   status: in progress
   recommended_model: opus
