@@ -1,16 +1,13 @@
 # refactor/dataclass_pure_kwargs_semantic_digital_twin
 
-## Plan (resolve 2026-11-27, afternoon)
-- Replay onto main `bae41bf22c` (random_events #1082, #1060): the merge probe read 5 conflicting semDT files at head `112c015e2f`.
-- Combine both sides of each conflict by hand, rerun the catch-up for main's new code, run the static checks, then a full `CI=true` test run.
-- Ask before force-pushing to `work`; LucaKro's approval of `112c015e2f` will likely go stale. Keep #1084 a draft.
+## Plan
+- No local test runs for this PR (the user's call); the full CI runs once the user marks #1084 ready for review, and then its checks are watched and each failure reported.
+- Keep checking main; when it moves, replay with the catch-up codemods and the static checks, then ask before force-pushing.
 
 ## Done
-- Stack pass: success, nothing to do (`work/main` at `bae41bf22c`). `/upstream-reviews`: #1084 approved by LucaKro, no threads; CI tests skipped on the draft (only `find-api-breaks` and `label` ran, both passed).
-- Fields commit applied cleanly; methods commit: 5 conflicts combined by hand (random_events keywords from main + semDT keywords from the branch). 0 positional lines in semDT; no fields call edits needed.
-
-- Replayed: fields `60167ecf0e`, methods `29f598dbda`; catch-up found nothing new; mypy `call-arg` diff empty; import sweep as main; ORM regenerated.
+- Replayed onto main `bae41bf22c` (random_events #1082, #1060): fields `60167ecf0e`, methods `29f598dbda`; 5 conflicts combined by hand; static checks clean (0 positional, mypy `call-arg` diff empty, import sweep as main).
+- Force-pushed to `work` with a lease on 2026-11-27 (approved; `maintenance push` refuses non-fast-forwards). Merge probe at `29f598dbda` against `bae41bf22c`: clean.
+- The local run `runs/rebased7` was stopped after giskardpy; every batch up to it had passed.
 
 ## Next
-- Read `runs/rebased7*` (CI=true), then ask before force-pushing.
-- Labels: `api-break` is set; `maintenance` still missing (the user).
+- The user marks #1084 ready; then watch CI. Labels: `api-break` set, `maintenance` missing.
