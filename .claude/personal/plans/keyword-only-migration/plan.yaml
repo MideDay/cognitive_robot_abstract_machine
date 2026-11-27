@@ -38,29 +38,18 @@ items:
   pull_request_number: 1084
   track: in-flight
   blockers:
-    - >-
-      Draft PR cram2 #1084 open at 112c015e2f (on main 913a92c231). Needs labels api-break and
-      maintenance (set by the user), then the code-owner discussion before review.
+  - 'Draft PR cram2 #1084 open at 112c015e2f (on main 913a92c231). Needs labels api-break
+    and maintenance (set by the user), then the code-owner discussion before review.'
   depends_on: []
   status: in progress
   recommended_model: opus
-  notes: >
-    Two local commits on main 81bf3ace24 (fields 1afa0bb6a5, methods ace404badc) in worktree
-    ~/libs/cognitive_robot_abstract_machine-main; replay details in plan peppy-bumblebee. Coraplex
-    merged first (#1076), so this branch reruns the catch-up codemods over coraplex's new code;
-    RecordingRobotSpecification.spawn already has its *, and
-    SimulationThatCountsItsSteps.step_simulation gets it in the working-tree fix.
-- id: random-events
-  title: Make random_events' dataclass fields and method parameters keyword-only
-  track: libraries
-  branch: refactor/dataclass_pure_kwargs_random_events
-  pull_request_number: 1082
-  session: https://claude.ai/code/session_012wb1epWEYVW61KiAfW3Udw
-  depends_on: []
-  status: in progress
-  recommended_model: sonnet
-  notes: 'Survey on 2026-11-26: 15 dataclasses and 58 methods in 8 files. Every package depends
-    on it, so expect callers everywhere.'
+  notes: 'Two local commits on main 81bf3ace24 (fields 1afa0bb6a5, methods ace404badc) in
+    worktree ~/libs/cognitive_robot_abstract_machine-main; replay details in plan peppy-bumblebee.
+    Coraplex merged first (#1076), so this branch reruns the catch-up codemods over coraplex''s
+    new code; RecordingRobotSpecification.spawn already has its *, and SimulationThatCountsItsSteps.step_simulation
+    gets it in the working-tree fix.
+
+    '
 - id: physics-simulators
   title: Make physics_simulators' dataclass fields and method parameters keyword-only
   track: libraries
@@ -131,4 +120,4 @@ items:
     its demonstration overrides.
 
     '
-landed_item_count: 1
+landed_item_count: 2
