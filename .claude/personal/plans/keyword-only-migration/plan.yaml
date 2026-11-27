@@ -39,8 +39,8 @@ items:
   track: in-flight
   blockers:
     - >-
-      Replayed onto main bae41bf22c (fields 60167ecf0e, methods 29f598dbda), not pushed yet; static
-      checks clean; CI=true test run runs/rebased7 in progress. PR #1084 still at 112c015e2f.
+      PR #1084 at 29f598dbda, merge probe clean against main bae41bf22c. Local tests skipped for
+      this PR (user); CI runs once the user marks it ready. Label maintenance still missing.
   depends_on: []
   status: in progress
   recommended_model: opus
