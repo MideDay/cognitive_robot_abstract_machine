@@ -35,12 +35,12 @@ items:
 - id: semantic-digital-twin
   title: Make semantic_digital_twin's dataclass fields and method parameters keyword-only
   branch: refactor/dataclass_pure_kwargs_semantic_digital_twin
-  pull_request_number: null
+  pull_request_number: 1084
   track: in-flight
   blockers:
     - >-
-      Pushed to work at 112c015e2f (on main 913a92c231); CI=true tests green locally. Waiting for
-      the user to open the draft PR (api-break, maintenance) from pr_body.md.
+      Draft PR cram2 #1084 open at 112c015e2f (on main 913a92c231). Needs labels api-break and
+      maintenance (set by the user), then the code-owner discussion before review.
   depends_on: []
   status: in progress
   recommended_model: opus
