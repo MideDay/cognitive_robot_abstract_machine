@@ -54,6 +54,7 @@ items:
   title: Make random_events' dataclass fields and method parameters keyword-only
   track: libraries
   branch: refactor/dataclass_pure_kwargs_random_events
+  pull_request_number: 1082
   session: https://claude.ai/code/session_012wb1epWEYVW61KiAfW3Udw
   depends_on: []
   status: in progress
