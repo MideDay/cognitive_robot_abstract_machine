@@ -7,4 +7,4 @@
 - Read 2026-11-27 on the tree of `72e3a2174b`: every suite green except 6 gazebo warehouse errors (ROS package missing locally); CI=true MuJoCo, live session and coraplex green; 12 of 14 docs run, the 2 krrood ones fail on main too.
 
 ## Next
-- The user opens the draft PR from `.files/pr_body.md` and adds `api-break`.
+- Draft PR cram2 #1082 opened 2026-11-27. The user adds `api-break` (no label rights) and discusses the break with the code owners (tomsch420 for random_events and probabilistic_model) before requesting review.
