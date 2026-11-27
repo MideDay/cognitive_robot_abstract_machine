@@ -53,8 +53,10 @@ items:
 - id: physics-simulators
   title: Make physics_simulators' dataclass fields and method parameters keyword-only
   track: libraries
+  branch: refactor/dataclass_pure_kwargs_physics_simulators
+  session: https://claude.ai/code/session_012wb1epWEYVW61KiAfW3Udw
   depends_on: []
-  status: not started
+  status: in progress
   recommended_model: sonnet
   notes: 'Survey on 2026-11-26: 7 dataclasses and 47 methods in 2 files, plus its tests. semDT''s
     multi_sim hands it callbacks and overrides, which may need @called_positionally.
