@@ -38,8 +38,10 @@ items:
   pull_request_number: 1084
   track: in-flight
   blockers:
-  - 'Draft PR cram2 #1084 open at 112c015e2f (on main 913a92c231). Needs labels api-break
-    and maintenance (set by the user), then the code-owner discussion before review.'
+    - >-
+      PR #1084 (112c015e2f) conflicts with main bae41bf22c (random_events #1082, #1060) in 5 semDT
+      files (merge probe 2026-11-27). Replay with the catch-up codemods next. LucaKro approved
+      112c015e2f; CI tests skipped on the draft.
   depends_on: []
   status: in progress
   recommended_model: opus
